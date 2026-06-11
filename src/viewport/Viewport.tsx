@@ -13,7 +13,8 @@ import { MATERIAL_BY_ID, MATERIALS } from '../core/materials';
 import { docBBox, evaluateInstance, instanceBBox, type BBox } from '../core/evaluate';
 import { snapMM } from '../core/units';
 import { useStore } from '../core/store';
-import { taperedBoxGeometry } from './geometry';
+import { grainBoxGeometry, longestAxis, taperedBoxGeometry } from './geometry';
+import { getWoodTexture, grainOffset } from './woodTexture';
 import { viewport, type ViewName } from './viewportApi';
 
 const FALLBACK_MATERIAL = MATERIALS[0];
@@ -32,42 +33,45 @@ function PrimitiveMesh({
   mat,
   selected,
   hovered,
+  seed,
 }: {
   prim: Primitive;
   mat: MaterialDef;
   selected: boolean;
   hovered: boolean;
+  seed: string;
 }) {
-  const taperGeo = useMemo(
-    () =>
-      prim.shape === 'taperedBox'
-        ? taperedBoxGeometry(prim.top, prim.bottom, prim.height, prim.align)
-        : null,
-    [prim],
-  );
-  useEffect(() => () => taperGeo?.dispose(), [taperGeo]);
+  const grainTex = mat.grain ? getWoodTexture(mat.id, prim.shape === 'cylinder') : null;
 
+  const geo = useMemo(() => {
+    const offset = grainOffset(seed);
+    if (prim.shape === 'taperedBox') {
+      return taperedBoxGeometry(prim.top, prim.bottom, prim.height, prim.align, offset);
+    }
+    if (prim.shape === 'box' && mat.grain) {
+      return grainBoxGeometry(prim.size, longestAxis(prim.size), offset);
+    }
+    return null;
+  }, [prim, mat.grain, seed]);
+  useEffect(() => () => geo?.dispose(), [geo]);
+
+  // Hover/selection per UI standard §4.2: outline carries the accent; the surface only
+  // brightens neutrally (a color tint would distort wood tones).
   const highlight = hovered && !selected;
   const material = (
     <meshStandardMaterial
-      color={mat.color}
+      color={grainTex ? '#ffffff' : mat.color}
+      map={grainTex}
       roughness={mat.roughness}
       metalness={mat.metalness}
-      emissive={highlight || selected ? '#14B8A6' : '#000000'}
-      emissiveIntensity={highlight ? 0.12 : selected ? 0.05 : 0}
+      emissive={highlight || selected ? '#ffffff' : '#000000'}
+      emissiveIntensity={highlight ? 0.08 : selected ? 0.04 : 0}
     />
   );
-  const edges = <Edges threshold={20} color={selected ? '#0F766E' : mat.edge} />;
+  const edges = (
+    <Edges threshold={20} color={selected ? '#0F766E' : highlight ? '#14B8A6' : mat.edge} />
+  );
 
-  if (prim.shape === 'box') {
-    return (
-      <mesh position={prim.at}>
-        <boxGeometry args={prim.size} />
-        {material}
-        {edges}
-      </mesh>
-    );
-  }
   if (prim.shape === 'cylinder') {
     return (
       <mesh position={prim.at} rotation={[Math.PI / 2, 0, 0]}>
@@ -77,8 +81,19 @@ function PrimitiveMesh({
       </mesh>
     );
   }
+  if (geo) {
+    return (
+      <mesh position={prim.at} geometry={geo}>
+        {material}
+        {edges}
+      </mesh>
+    );
+  }
+  // Only ungrained boxes reach here (cylinders returned above; tapered/grained use `geo`).
+  if (prim.shape !== 'box') return null;
   return (
-    <mesh position={prim.at} geometry={taperGeo!}>
+    <mesh position={prim.at}>
+      <boxGeometry args={prim.size} />
       {material}
       {edges}
     </mesh>
@@ -157,6 +172,7 @@ function InstanceGroup({ inst }: { inst: Instance }) {
             mat={mat}
             selected={selected}
             hovered={hovered}
+            seed={`${inst.id}/${part.id}/${i}`}
           />
         ));
       })}
@@ -265,6 +281,7 @@ export function Viewport() {
 
   return (
     <Canvas
+      gl={{ toneMapping: THREE.NeutralToneMapping }}
       camera={{ position: [2800, 2000, -2800], fov: 35, near: 10, far: 80000 }}
       onPointerMissed={(e) => {
         if (e.button !== 0) return;
