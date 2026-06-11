@@ -1,0 +1,22 @@
+{
+  "name": "@4kgraphics/server",
+  "version": "0.1.0",
+  "description": "Headless 4K furniture render API: POST a furniture spec, receive a rendered PNG or a build plan",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && vite build",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@4kgraphics/engine": "0.1.0",
+    "express": "^4.21.0",
+    "puppeteer": "^23.10.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^5.4.0"
+  }
+}

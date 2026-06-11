@@ -65,14 +65,23 @@ npm run build    # type-check + production build to dist/
 ### Deploying to Vercel
 
 The repo is Vercel-ready (`vercel.json` pins the Vite framework preset, `npm run build`,
-and the `dist/` output with SPA rewrites). To host it:
+and the `dist/` output with SPA rewrites). The production branch (`main`) deploys the
+Atelier3D app; every push to any branch gets a preview URL once the Vercel GitHub app is
+installed for the repository.
 
-1. Go to [vercel.com/new](https://vercel.com/new) and import the `jfsgi/4kGraphics` GitHub
-   repository (install the Vercel GitHub app for the repo if prompted).
-2. Vercel auto-detects Vite — no settings to change. Pick the branch to deploy and click
-   **Deploy**.
-3. Every push then gets a preview URL, and the production branch deploys to your
-   `*.vercel.app` domain (or a custom domain under Project → Settings → Domains).
+## Bundled render engine (`packages/`, `apps/demo`)
 
-Alternatively, from a machine where you're logged in to Vercel: `npx vercel` in the repo
-root, accept the defaults, then `npx vercel --prod`.
+The repository also contains a self-contained 4K furniture render engine (built in a
+parallel session), kept as the foundation for the Phase 2 Studio render pipeline:
+
+| Package | What it is |
+| --- | --- |
+| [`packages/engine`](packages/engine) | Three.js library: parametric furniture specs, procedural wood/PBR texture generators, studio lighting rigs, 3840×2160 snapshot renderer, build-plan generator |
+| [`packages/server`](packages/server) | Express render API driving the engine in headless Chromium (works on GPU-less servers) |
+| [`apps/demo`](apps/demo) | Vite demo UI exercising the engine: catalog, dimension sliders, material swatches, 4K PNG download |
+
+The root Atelier3D app does not depend on these packages yet; Phase 2 wires the Studio's
+render queue to them. Each package carries its own `package.json` — to run the engine's
+test suite: `cd packages/engine && npm install && npm test`. Engine API reference:
+[docs/API.md](docs/API.md) · engine roadmap: [docs/PLAN.md](docs/PLAN.md) · original
+engine overview: [docs/00-overview.md](docs/00-overview.md).
