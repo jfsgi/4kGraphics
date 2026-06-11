@@ -21,6 +21,8 @@ interface Preset {
   info: MaterialInfo;
   metalness: number;
   clearcoat: number;
+  /** Extra texture repeat for small-scale patterns (weave) so they stay crisp. */
+  uvRepeat?: number;
   generate: Generator;
 }
 
@@ -31,31 +33,44 @@ function hex(rgb: RGB): string {
 function woodPreset(
   id: string,
   label: string,
-  light: RGB,
-  dark: RGB,
-  seed: number,
-  ringCount: number,
+  params: Omit<Parameters<typeof generateWoodMaps>[1], 'plankCount'> & { plankCount?: number },
 ): Preset {
   return {
-    info: { id, label, category: 'wood', swatch: hex(light) },
+    info: { id, label, category: 'wood', swatch: hex(params.lightColor) },
     metalness: 0,
-    clearcoat: 0.25,
-    generate: (size) =>
-      generateWoodMaps(size, {
-        seed,
-        lightColor: light,
-        darkColor: dark,
-        ringCount,
-        turbulence: 1.6,
-        baseRoughness: 0.45,
-      }),
+    clearcoat: 0.22,
+    generate: (size) => generateWoodMaps(size, { plankCount: 12, ...params }),
   };
 }
 
 const PRESETS: Preset[] = [
-  woodPreset('oak', 'White Oak', [206, 178, 138], [138, 106, 66], 11, 28),
-  woodPreset('walnut', 'Black Walnut', [112, 78, 55], [56, 36, 24], 23, 34),
-  woodPreset('cherry', 'Cherry', [178, 113, 78], [116, 62, 38], 37, 30),
+  woodPreset('oak', 'White Oak', {
+    seed: 11,
+    lightColor: [214, 196, 168],
+    darkColor: [128, 100, 72],
+    ringsPerPlank: 7,
+    turbulence: 0.35,
+    baseRoughness: 0.5,
+    contrast: 0.65,
+  }),
+  woodPreset('walnut', 'Black Walnut', {
+    seed: 23,
+    lightColor: [124, 90, 64],
+    darkColor: [54, 36, 26],
+    ringsPerPlank: 9,
+    turbulence: 1.1,
+    baseRoughness: 0.42,
+    contrast: 0.85,
+  }),
+  woodPreset('cherry', 'Cherry', {
+    seed: 37,
+    lightColor: [190, 130, 92],
+    darkColor: [126, 72, 48],
+    ringsPerPlank: 8,
+    turbulence: 0.8,
+    baseRoughness: 0.45,
+    contrast: 0.7,
+  }),
   {
     info: { id: 'paint-white', label: 'Matte White Paint', category: 'paint', swatch: '#f2f0ea' },
     metalness: 0,
@@ -88,12 +103,13 @@ const PRESETS: Preset[] = [
     info: { id: 'linen', label: 'Natural Linen', category: 'fabric', swatch: '#d8cdb8' },
     metalness: 0,
     clearcoat: 0,
+    uvRepeat: 3,
     generate: (size) =>
       generateFabricMaps(size, {
         seed: 61,
         color: [216, 205, 184],
         shadowColor: [150, 138, 116],
-        threadCount: 160,
+        threadCount: 280,
       }),
   },
 ];
@@ -124,6 +140,11 @@ export class MaterialLibrary {
       throw new Error(`Unknown material "${id}". Available: ${PRESETS.map((p) => p.info.id).join(', ')}`);
     }
     const maps = preset.generate(this.textureSize);
+    if (preset.uvRepeat) {
+      for (const texture of [maps.map, maps.roughnessMap, maps.normalMap]) {
+        texture.repeat.set(preset.uvRepeat, preset.uvRepeat);
+      }
+    }
     const material = new THREE.MeshPhysicalMaterial({
       map: maps.map,
       roughnessMap: maps.roughnessMap,

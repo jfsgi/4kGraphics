@@ -3,6 +3,10 @@
  * color map plus matching roughness and normal maps at the requested
  * resolution (4096 for full 4K texture quality).
  *
+ * One texture tile represents TEXTURE_TILE_M meters of surface (2.4 m), so
+ * a tabletop never shows the pattern twice. All noise frequencies below are
+ * tuned against that physical size.
+ *
  * Strategy: compute a single height/pattern field per material, then derive
  * color (ramp), roughness (inverse ramp), and normals (height gradient) from
  * it — one expensive noise pass instead of three.
@@ -18,6 +22,9 @@ export interface PbrMaps {
 }
 
 export type RGB = [number, number, number];
+
+/** Texture-space period the generators sample over; tiles wrap at this. */
+const PERIOD = 8;
 
 function makeCanvas(size: number): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
@@ -114,19 +121,6 @@ function fieldsToMaps(
   };
 }
 
-export interface WoodParams {
-  seed: number;
-  /** Light (earlywood) color. */
-  lightColor: RGB;
-  /** Dark (latewood) color. */
-  darkColor: RGB;
-  /** Growth rings across one texture tile. */
-  ringCount: number;
-  /** How wavy the rings are. */
-  turbulence: number;
-  baseRoughness: number;
-}
-
 function plankHash(plank: number, seed: number): number {
   let h = (plank * 668265263 + seed * 374761393) | 0;
   h = (h ^ (h >>> 13)) | 0;
@@ -134,21 +128,36 @@ function plankHash(plank: number, seed: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
 }
 
+export interface WoodParams {
+  seed: number;
+  /** Light (earlywood) color. */
+  lightColor: RGB;
+  /** Dark (latewood) color. */
+  darkColor: RGB;
+  /** Subtle growth-ring density waves per board. */
+  ringsPerPlank: number;
+  /** Grain waviness: rift-sawn oak ≈ 0.3, figured walnut ≈ 1.1. */
+  turbulence: number;
+  baseRoughness: number;
+  /** Overall figure strength, 0..1. Fine pale species sit near 0.5. */
+  contrast: number;
+  /** Boards across one tile (tile = 2.4 m, so 12 ≈ 200 mm boards). */
+  plankCount: number;
+}
+
 /**
  * Wood with grain running along the V axis of the texture, built up from
- * edge-glued "planks": each plank gets its own ring phase, ring density,
- * grain seed, and tone shift, the way a real glued-up panel looks.
+ * edge-glued boards. The dominant feature is fine straight striation
+ * (like the real veneer it imitates); growth rings are only gentle density
+ * waves, and each board gets its own phase, density, grain seed, and tone.
  */
 export function generateWoodMaps(size: number, params: WoodParams): PbrMaps {
-  const { seed, ringCount, turbulence } = params;
+  const { seed, ringsPerPlank, turbulence, contrast: c, plankCount } = params;
   const height = new Float32Array(size * size);
   const tone = new Float32Array(size * size);
   const rough = new Float32Array(size * size);
-  const period = 8;
-  const inv = period / size;
-  // Integer plank count so plank boundaries wrap with the texture.
-  const plankCount = 6;
-  const plankW = period / plankCount;
+  const inv = PERIOD / size;
+  const plankW = PERIOD / plankCount;
 
   for (let y = 0; y < size; y++) {
     const v = y * inv;
@@ -156,38 +165,47 @@ export function generateWoodMaps(size: number, params: WoodParams): PbrMaps {
       const u = x * inv;
       const i = y * size + x;
 
-      const plank = Math.floor(u / plankW) % plankCount;
+      const plankIndex = Math.floor(u / plankW);
+      const plank = plankIndex % plankCount;
       const h1 = plankHash(plank, seed);
       const h2 = plankHash(plank, seed + 77);
-      const uIn = u - plank * plankW; // position within the plank
+      const uIn = u - plankIndex * plankW;
 
-      // Growth rings: gentle wander, per-plank phase and density.
-      const wander = fbm2D(u * 0.8, v * 0.2, period, seed + plank * 17, 3) * turbulence;
-      const ringsPerPlank = (ringCount / plankCount) * (0.75 + h2 * 0.5);
-      const phase = (uIn / plankW) * ringsPerPlank + h1 * 13 + wander;
+      // Gentle ring-density waves, wandering slightly per board.
+      const wander = fbm2D(u * 0.75, v * 0.25, 6, 2, seed + plank * 17, 3) * turbulence;
+      const phase = (uIn / plankW) * ringsPerPlank * (0.8 + h2 * 0.4) + h1 * 13 + wander;
       const ring = 0.5 + 0.5 * Math.sin(phase * Math.PI * 2);
-      // Asymmetric rings: slow earlywood, sharp latewood edge.
-      const late = Math.pow(ring, 4);
+      const late = ring * ring * ring;
 
-      // Fine cathedral streaks stretched along the grain.
-      const streak = fbm2D(u * 7, v * 0.5, period, seed + 7 + plank * 31, 4) * 0.5 + 0.5;
-      // Pores: subtle high-frequency speckle.
-      const pore = valueNoise2D(u * 24, v * 3, period * 24, seed + 13) * 0.5 + 0.5;
+      // Dominant feature: fine straight streaks elongated along the grain.
+      const fine = fbm2D(u * 32, v * 2, 256, 16, seed + 7 + plank * 31, 5);
+      // Sparse darker hairline filaments.
+      const fil = valueNoise2D(u * 96, v * 8, 768, 64, seed + 19 + plank * 13);
+      const hair = Math.max(0, fil - 0.45) * 1.6;
+      // Pore speckle.
+      const pore = valueNoise2D(u * 48, v * 4, 384, 32, seed + 23) * 0.5 + 0.5;
 
-      // Glue-line: a faint dark seam at each plank boundary.
+      // Glue-line: a very faint seam at each board boundary.
       const edge = Math.min(uIn, plankW - uIn);
-      const seam = edge < 0.015 ? 0.18 : 0;
+      const seam = edge < 0.006 ? 1 : 0;
 
       const t = clamp01(
-        0.22 + late * 0.34 + (streak - 0.5) * 0.3 + (pore - 0.5) * 0.1 + (h1 - 0.5) * 0.16 + seam,
+        0.42 +
+          c *
+            (fine * 0.2 +
+              hair * 0.22 +
+              (late - 0.5) * 0.16 +
+              (pore - 0.5) * 0.06 +
+              (h1 - 0.5) * 0.1) +
+          seam * 0.08 * c,
       );
       tone[i] = t;
-      height[i] = clamp01(0.6 - late * 0.25 - (pore - 0.5) * 0.2 - seam * 0.6);
-      rough[i] = clamp01(params.baseRoughness + t * 0.14 + (streak - 0.5) * 0.06);
+      height[i] = clamp01(0.55 - c * (hair * 0.22 + fine * 0.08 + late * 0.08) - seam * 0.2);
+      rough[i] = clamp01(params.baseRoughness + c * (t - 0.45) * 0.22 + (pore - 0.5) * 0.05);
     }
   }
 
-  return fieldsToMaps(size, { height, tone, rough }, params.lightColor, params.darkColor, 1.3);
+  return fieldsToMaps(size, { height, tone, rough }, params.lightColor, params.darkColor, 0.9);
 }
 
 export interface FabricParams {
@@ -204,23 +222,22 @@ export function generateFabricMaps(size: number, params: FabricParams): PbrMaps 
   const height = new Float32Array(size * size);
   const tone = new Float32Array(size * size);
   const rough = new Float32Array(size * size);
-  const period = 8;
-  const inv = period / size;
+  const inv = PERIOD / size;
 
   for (let y = 0; y < size; y++) {
     const v = y * inv;
     for (let x = 0; x < size; x++) {
       const u = x * inv;
       const i = y * size + x;
-      const warpPhase = (u / period) * threadCount * Math.PI * 2;
-      const weftPhase = (v / period) * threadCount * Math.PI * 2;
+      const warpPhase = (u / PERIOD) * threadCount * Math.PI * 2;
+      const weftPhase = (v / PERIOD) * threadCount * Math.PI * 2;
       const warp = Math.abs(Math.sin(warpPhase));
       const weft = Math.abs(Math.sin(weftPhase));
       // Checkerboard over/under interleaving.
       const over =
-        (Math.floor((u / period) * threadCount) + Math.floor((v / period) * threadCount)) % 2 === 0;
+        (Math.floor((u / PERIOD) * threadCount) + Math.floor((v / PERIOD) * threadCount)) % 2 === 0;
       const weave = over ? warp * 0.75 + weft * 0.25 : weft * 0.75 + warp * 0.25;
-      const fiber = fbm2D(u * 5, v * 5, period, seed, 3) * 0.5 + 0.5;
+      const fiber = fbm2D(u * 5, v * 5, 40, 40, seed, 3) * 0.5 + 0.5;
       const h = clamp01(weave * 0.8 + fiber * 0.2);
       height[i] = h;
       tone[i] = clamp01(1 - h * 0.65 - fiber * 0.15);
@@ -243,8 +260,7 @@ export function generateBrushedMetalMaps(size: number, params: BrushedMetalParam
   const height = new Float32Array(size * size);
   const tone = new Float32Array(size * size);
   const rough = new Float32Array(size * size);
-  const period = 8;
-  const inv = period / size;
+  const inv = PERIOD / size;
 
   for (let y = 0; y < size; y++) {
     const v = y * inv;
@@ -252,8 +268,8 @@ export function generateBrushedMetalMaps(size: number, params: BrushedMetalParam
       const u = x * inv;
       const i = y * size + x;
       // Streaks: very high frequency across V, very low along U.
-      const streak = fbm2D(u * 0.8, v * 90, period, seed, 3) * 0.5 + 0.5;
-      const blotch = fbm2D(u * 2, v * 2, period, seed + 31, 3) * 0.5 + 0.5;
+      const streak = fbm2D(u * 0.75, v * 90, 6, 720, seed, 3) * 0.5 + 0.5;
+      const blotch = fbm2D(u * 2, v * 2, 16, 16, seed + 31, 3) * 0.5 + 0.5;
       height[i] = streak;
       tone[i] = clamp01(streak * 0.25 + blotch * 0.1);
       rough[i] = clamp01(params.baseRoughness + (streak - 0.5) * 0.18 + (blotch - 0.5) * 0.08);
@@ -280,15 +296,14 @@ export function generatePaintMaps(size: number, params: PaintParams): PbrMaps {
   const height = new Float32Array(size * size);
   const tone = new Float32Array(size * size);
   const rough = new Float32Array(size * size);
-  const period = 8;
-  const inv = period / size;
+  const inv = PERIOD / size;
 
   for (let y = 0; y < size; y++) {
     const v = y * inv;
     for (let x = 0; x < size; x++) {
       const u = x * inv;
       const i = y * size + x;
-      const peel = fbm2D(u * 14, v * 14, period, seed, 3) * 0.5 + 0.5;
+      const peel = fbm2D(u * 40, v * 40, 320, 320, seed, 3) * 0.5 + 0.5;
       height[i] = peel;
       tone[i] = peel * 0.06;
       rough[i] = clamp01(params.roughness + (peel - 0.5) * 0.08);

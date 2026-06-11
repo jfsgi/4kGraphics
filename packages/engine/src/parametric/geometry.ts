@@ -4,8 +4,11 @@ import type { FurnitureLayout, Part } from './layout.js';
 
 const MM_TO_M = 0.001;
 
-/** One texture tile covers this many meters of surface. */
-const TEXTURE_TILE_M = 0.85;
+/**
+ * One texture tile covers this many meters of surface — larger than most
+ * furniture parts, so the pattern never visibly repeats on a tabletop.
+ */
+const TEXTURE_TILE_M = 2.4;
 
 /**
  * Builds renderable geometry from a furniture layout. Each part becomes a
@@ -15,9 +18,15 @@ const TEXTURE_TILE_M = 0.85;
 export function buildGroup(layout: FurnitureLayout, material: THREE.Material): THREE.Group {
   const group = new THREE.Group();
   group.name = layout.spec.name ?? layout.spec.kind;
+  let partIndex = 0;
   for (const part of layout.parts) {
     const geometry = partGeometry(part);
-    applyBoxUVs(geometry, TEXTURE_TILE_M, part.grainAxis);
+    // Unique per-part UV offset (golden-ratio sequence) so identical parts —
+    // four legs, two doors — don't sample the same patch of grain.
+    const offsetU = (partIndex * 0.618033988749) % 1;
+    const offsetV = (partIndex * 0.754877666247) % 1;
+    applyBoxUVs(geometry, TEXTURE_TILE_M, part.grainAxis, offsetU, offsetV);
+    partIndex += 1;
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = part.name;
     mesh.position.set(

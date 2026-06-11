@@ -51,7 +51,7 @@ export class FurnitureEngine {
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.toneMappingExposure = 0.95;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -69,7 +69,7 @@ export class FurnitureEngine {
     this.controls.maxDistance = 15;
 
     this.scene.environment = this.makeEnvironment(this.renderer);
-    this.scene.environmentIntensity = 0.5;
+    this.scene.environmentIntensity = 0.42;
     this.setBackground(options.background ?? '#22252a');
 
     this.lightRig = createLightRig(options.lighting ?? 'studio');

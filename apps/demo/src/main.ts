@@ -7,9 +7,14 @@ import {
   type LightingPresetId,
 } from '@4kgraphics/engine';
 
+declare const __BUILD_ID__: string;
+
 const viewport = document.getElementById('viewport')!;
 const statusLine = document.getElementById('status-line')!;
 const engine = new FurnitureEngine({ container: viewport });
+
+document.getElementById('build-tag')!.textContent =
+  `build ${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}`;
 
 let spec: FurnitureSpec = defaultSpec('table');
 let showingImport = false;

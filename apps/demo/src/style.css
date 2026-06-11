@@ -76,7 +76,15 @@ body {
 
 .actions {
   display: flex;
+  align-items: center;
   gap: 10px;
+}
+
+#build-tag {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  margin-right: 6px;
 }
 
 /* ------------------------------------------------------------ panels */

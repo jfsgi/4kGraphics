@@ -41,11 +41,11 @@ export function createLightRig(preset: LightingPresetId): THREE.Group {
 
   switch (preset) {
     case 'studio': {
-      addKey(0xffffff, 2.6, new THREE.Vector3(2.5, 3.2, 2.2));
-      const fill = new THREE.DirectionalLight(0xdfe8ff, 0.9);
+      addKey(0xffffff, 2.1, new THREE.Vector3(2.5, 3.2, 2.2));
+      const fill = new THREE.DirectionalLight(0xdfe8ff, 0.7);
       fill.position.set(-2.8, 1.6, 1.4);
       group.add(fill);
-      const rim = new THREE.DirectionalLight(0xffffff, 1.4);
+      const rim = new THREE.DirectionalLight(0xffffff, 1.1);
       rim.position.set(-1, 2.4, -2.6);
       group.add(rim);
       break;

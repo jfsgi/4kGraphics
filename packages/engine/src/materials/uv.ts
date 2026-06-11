@@ -11,6 +11,8 @@ export function applyBoxUVs(
   geometry: THREE.BufferGeometry,
   tileSizeM: number,
   grainAxis: 'x' | 'y' | 'z' = 'y',
+  offsetU = 0,
+  offsetV = 0,
 ): void {
   const position = geometry.attributes.position;
   const normal = geometry.attributes.normal;
@@ -32,8 +34,8 @@ export function applyBoxUVs(
       vAxis = inPlane[0];
     }
     const coord = { x: position.getX(i), y: position.getY(i), z: position.getZ(i) };
-    uvs[i * 2] = coord[uAxis] / tileSizeM;
-    uvs[i * 2 + 1] = coord[vAxis] / tileSizeM;
+    uvs[i * 2] = coord[uAxis] / tileSizeM + offsetU;
+    uvs[i * 2 + 1] = coord[vAxis] / tileSizeM + offsetV;
   }
 
   geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
