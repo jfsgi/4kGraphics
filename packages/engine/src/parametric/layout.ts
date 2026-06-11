@@ -626,16 +626,25 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
   const innerDepth = caseDepth - backT;
 
   // The carcass is dovetailed together: tails on the sides, pins cut on
-  // the full-width top and bottom panels.
+  // the full-width top and bottom panels. Half-blind keeps the laps on the
+  // top and bottom faces; the side pattern stops 1/16" short of them.
+  const caseHb = spec.caseJoinery === 'halfblind';
+  const caseLip = 1.5875;
   for (const sx of [1, -1]) {
     parts.push({
       name: 'Side panel',
       shape: 'box',
-      sizeMm: [t, h, caseDepth],
+      sizeMm: [t, caseHb ? h - 2 * caseLip : h, caseDepth],
       positionMm: [sx * (w / 2 - t / 2), h / 2, caseOffsetZ],
       role: 'structure',
       grainAxis: 'y',
-      joinery: { type: 'dovetail', role: 'tails', matingThicknessMm: t, orient: 'case' },
+      joinery: {
+        type: 'dovetail',
+        role: 'tails',
+        matingThicknessMm: t,
+        frontLipMm: caseHb ? caseLip : undefined,
+        orient: 'case',
+      },
     });
   }
   const innerW = w - 2 * t;
@@ -652,6 +661,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
         role: 'pins',
         matingThicknessMm: t,
         pinsOuterSign: top ? 1 : -1,
+        lipMm: caseHb ? caseLip : undefined,
         orient: 'case',
       },
     });

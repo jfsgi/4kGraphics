@@ -162,6 +162,11 @@ export interface DrawerUnitSpec {
   frameJoint?: FrameJoint;
   /** Finger-pull channel routed along each front's top edge (slab fronts). */
   fingerPull?: boolean;
+  /**
+   * Carcass corners: through dovetails (default) or half-blind — laps on
+   * the top and bottom faces, the side pattern stopping 1/16" short.
+   */
+  caseJoinery?: 'dovetail' | 'halfblind';
 }
 
 export type FurnitureSpec =

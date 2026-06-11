@@ -161,6 +161,20 @@ describe('drawer box layout', () => {
     expect(side.joinery?.orient).toBe('case');
     expect(side.joinery?.matingThicknessMm).toBe(spec.stockThicknessMm);
   });
+
+  it('laps the half-blind case at top and bottom', () => {
+    const spec = { ...defaultDrawerUnitSpec(), caseJoinery: 'halfblind' as const };
+    const layout = buildLayout(spec);
+    const lip = 1.5875;
+    const side = layout.parts.find((p) => p.name === 'Side panel')!;
+    expect(side.sizeMm[1]).toBeCloseTo(spec.heightMm - 2 * lip);
+    expect(side.joinery?.frontLipMm).toBeCloseTo(lip);
+    const top = layout.parts.find((p) => p.name === 'Top panel')!;
+    expect(top.joinery?.lipMm).toBeCloseTo(lip);
+    expect(top.joinery?.pinsOuterSign).toBe(1);
+    const bottom = layout.parts.find((p) => p.name === 'Bottom panel')!;
+    expect(bottom.joinery?.pinsOuterSign).toBe(-1);
+  });
 });
 
 describe('door and drawer front layouts', () => {

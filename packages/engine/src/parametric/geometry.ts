@@ -188,13 +188,25 @@ function partGeometry(part: Part): THREE.BufferGeometry {
       // frame, then rotated about x so the box's z-pattern lands on world
       // z and the board length lands on its world axis.
       if (part.joinery.role === 'tails') {
-        const jointed = tailsBoardGeometry(w, d, h, joint);
+        // Half-blind case corners lap at BOTH ends of the side.
+        const lapped = part.joinery.frontLipMm
+          ? joint.depth - part.joinery.frontLipMm * MM_TO_M
+          : undefined;
+        const jointed = tailsBoardGeometry(w, d, h, joint, lapped, lapped);
         if (jointed) {
           jointed.rotateX(-Math.PI / 2);
           return jointed;
         }
       } else {
-        const jointed = pinsBoardGeometry(w, d, h, joint, part.joinery.pinsOuterSign ?? 1);
+        const jointed = pinsBoardGeometry(
+          w,
+          d,
+          h,
+          joint,
+          part.joinery.pinsOuterSign ?? 1,
+          undefined,
+          (part.joinery.lipMm ?? 0) * MM_TO_M,
+        );
         if (jointed) {
           jointed.rotateX(-Math.PI / 2);
           return jointed;

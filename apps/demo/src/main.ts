@@ -328,6 +328,10 @@ function buildControls() {
   }
 
   if (spec.kind === 'drawerunit') {
+    addSelect(host, 'Case joinery', spec.caseJoinery ?? 'dovetail', ['dovetail', 'halfblind'], (value) => {
+      if (spec.kind === 'drawerunit') spec.caseJoinery = value as typeof spec.caseJoinery;
+      scheduleRebuild();
+    });
     addSelect(host, 'Front style', spec.frontStyle, ['shaker', 'raised', 'slab'], (value) => {
       if (spec.kind === 'drawerunit') spec.frontStyle = value as typeof spec.frontStyle;
       buildControls();

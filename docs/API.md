@@ -86,7 +86,8 @@ the visible viewport size is irrelevant.
   raiseProfile?, edgeProfile?, outerEdgeProfile?,
   slideType?: 'sidemount' | 'undermount', frameJoint?,
   frontMount?: 'overlay' | 'inset',             // inset adds divider rails + 2mm reveals
-  fingerPull?: boolean }                        // pull channel on each front's top edge (slab)
+  fingerPull?: boolean,                         // pull channel on each front's top edge (slab)
+  caseJoinery?: 'dovetail' | 'halfblind' }      // carcass corners: through (default) or lapped
 ```
 
 Cut-list items and overall dimensions also carry fractional-inch strings

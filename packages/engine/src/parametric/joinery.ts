@@ -95,8 +95,9 @@ function layoutJoint(height: number, spec: JointSpec): JointLayout | null {
  * requested world axis by the caller. Returns a centered geometry with
  * length × height × thickness mapped to (z, y, x) — the drawer-side
  * orientation — or null when the board is too small for the joint.
- * `frontDepth` shortens the +z end's engagement (half-blind front: the
- * tails stop at the lap, depth = front stock − lip).
+ * `frontDepth` shortens the +z end's engagement (half-blind: the tails
+ * stop at the lap, depth = mating stock − lip); `backDepth` does the same
+ * for the −z end (half-blind case corners at both ends).
  */
 export function tailsBoardGeometry(
   thickness: number,
@@ -104,13 +105,14 @@ export function tailsBoardGeometry(
   length: number,
   spec: JointSpec,
   frontDepth?: number,
+  backDepth?: number,
 ): THREE.BufferGeometry | null {
   const joint = layoutJoint(height, spec);
   if (!joint) return null;
   const { flare, tailWide, tailCenters } = joint;
   const zo = length / 2;
   const ziFront = zo - (frontDepth ?? spec.depth);
-  const ziBack = zo - spec.depth;
+  const ziBack = zo - (backDepth ?? spec.depth);
   const yBottom = -height / 2;
 
   const points: Array<[number, number]> = [];
