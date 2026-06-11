@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm install -w packages/engine -w apps/demo",
+  "installCommand": "PUPPETEER_SKIP_DOWNLOAD=1 npm install",
   "buildCommand": "npm run build -w packages/engine && npm run build -w apps/demo",
   "outputDirectory": "apps/demo/dist"
 }
