@@ -65,23 +65,13 @@ npm run build    # type-check + production build to dist/
 ### Deploying to Vercel
 
 The repo is Vercel-ready (`vercel.json` pins the Vite framework preset, `npm run build`,
-and the `dist/` output with SPA rewrites). The production branch (`main`) deploys the
-Atelier3D app; every push to any branch gets a preview URL once the Vercel GitHub app is
-installed for the repository.
+and the `dist/` output with SPA rewrites). Import this repository at
+[vercel.com/new](https://vercel.com/new) — no settings to change. The production branch
+deploys to your `*.vercel.app` domain; every push to any branch gets a preview URL.
 
-## Bundled render engine (`packages/`, `apps/demo`)
+## Related project
 
-The repository also contains a self-contained 4K furniture render engine (built in a
-parallel session), kept as the foundation for the Phase 2 Studio render pipeline:
-
-| Package | What it is |
-| --- | --- |
-| [`packages/engine`](packages/engine) | Three.js library: parametric furniture specs, procedural wood/PBR texture generators, studio lighting rigs, 3840×2160 snapshot renderer, build-plan generator |
-| [`packages/server`](packages/server) | Express render API driving the engine in headless Chromium (works on GPU-less servers) |
-| [`apps/demo`](apps/demo) | Vite demo UI exercising the engine: catalog, dimension sliders, material swatches, 4K PNG download |
-
-The root Atelier3D app does not depend on these packages yet; Phase 2 wires the Studio's
-render queue to them. Each package carries its own `package.json` — to run the engine's
-test suite: `cd packages/engine && npm install && npm test`. Engine API reference:
-[docs/API.md](docs/API.md) · engine roadmap: [docs/PLAN.md](docs/PLAN.md) · original
-engine overview: [docs/00-overview.md](docs/00-overview.md).
+The 4K render engine that will power the Phase 2 Studio render pipeline lives in its own
+repository: [`jfsgi/4kGraphics`](https://github.com/jfsgi/4kGraphics) — a Three.js
+library with parametric furniture specs, procedural PBR materials, studio lighting rigs,
+a 3840×2160 snapshot renderer, and a headless render API.
