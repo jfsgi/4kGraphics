@@ -48,6 +48,9 @@ const PROFILES: Record<RaiseProfileId, (s: number) => number> = {
  */
 const TONGUE_LENGTH = 0.008;
 
+/** Width of the back-cut bevel that centers the tongue in the groove. */
+const BACK_CUT = 0.02;
+
 export function raisedPanelGeometry(
   width: number,
   height: number,
@@ -58,7 +61,11 @@ export function raisedPanelGeometry(
 ): THREE.BufferGeometry {
   const profile = PROFILES[profileId];
   const back = -thickness / 2;
-  const tongueZ = back + tongueThickness;
+  // The tongue is CENTERED in the panel thickness (the shaper's back cutter
+  // trims the rear), so it centers in the frame groove and the visible
+  // surface meets the stick right at the groove mouth.
+  const tongueZ = tongueThickness / 2;
+  const tongueBack = -tongueThickness / 2;
   const fieldZ = thickness / 2;
   const m = TONGUE_LENGTH + raiseWidth; // total band from edge to field
 
@@ -99,14 +106,15 @@ export function raisedPanelGeometry(
   /**
    * One swept strip per edge. `ex, ey` point outward toward that edge;
    * the strip footprint is the mitered trapezoid between the panel edge
-   * and the field rectangle.
+   * and the field rectangle. `isBack` sweeps the back-cut bevel instead
+   * (faces −z, winding reversed).
    */
-  const strip = (ex: number, ey: number) => {
+  const strip = (ex: number, ey: number, stripRows: Row[] = rows, isBack = false) => {
     const edgeDist = ex !== 0 ? width / 2 : height / 2;
     const alongHalfAt = (a: number) => (ex !== 0 ? height / 2 - a : width / 2 - a);
-    for (let r = 0; r < rows.length - 1; r++) {
-      const r0 = rows[r];
-      const r1 = rows[r + 1];
+    for (let r = 0; r < stripRows.length - 1; r++) {
+      const r0 = stripRows[r];
+      const r1 = stripRows[r + 1];
       if (r1.a <= r0.a) continue;
       const out0 = edgeDist - r0.a;
       const out1 = edgeDist - r1.a;
@@ -119,9 +127,13 @@ export function raisedPanelGeometry(
       const b0 = P(out0, t0, r0.z);
       const a1 = P(out1, -t1, r1.z);
       const b1 = P(out1, t1, r1.z);
-      // Normals: rising inward ⇒ tilt toward the edge.
+      // Normals: rising inward ⇒ tilt toward the edge (mirrored for the
+      // back bevel, which faces −z).
       const n = (slope: number): [number, number, number] => {
         const inv = 1 / Math.hypot(slope, 1);
+        if (isBack) {
+          return ex !== 0 ? [-ex * slope * inv, 0, -inv] : [0, -ey * slope * inv, -inv];
+        }
         return ex !== 0 ? [ex * slope * inv, 0, inv] : [0, ey * slope * inv, inv];
       };
       const n0 = n(r0.slope);
@@ -135,7 +147,7 @@ export function raisedPanelGeometry(
         normals.push(...pn);
         uvs.push(0, 0);
       };
-      const flip = ex < 0 || ey > 0;
+      const flip = isBack ? !(ex < 0 || ey > 0) : ex < 0 || ey > 0;
       const tri = (
         v1: [[number, number, number], [number, number, number]],
         v2: [[number, number, number], [number, number, number]],
@@ -160,6 +172,19 @@ export function raisedPanelGeometry(
   strip(0, 1);
   strip(0, -1);
 
+  // Back-cut bevel: tongue back out to the full panel back thickness.
+  const bevelSlope = (back - tongueBack) / (BACK_CUT - TONGUE_LENGTH);
+  const backRows: Row[] = [
+    { a: 0, z: tongueBack, slope: 0 },
+    { a: TONGUE_LENGTH, z: tongueBack, slope: 0 },
+    { a: TONGUE_LENGTH, z: tongueBack, slope: bevelSlope },
+    { a: BACK_CUT, z: back, slope: bevelSlope },
+  ];
+  strip(1, 0, backRows, true);
+  strip(-1, 0, backRows, true);
+  strip(0, 1, backRows, true);
+  strip(0, -1, backRows, true);
+
   const raiseGeo = new THREE.BufferGeometry();
   raiseGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
   raiseGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(normals), 3));
@@ -171,14 +196,16 @@ export function raisedPanelGeometry(
   const field = new THREE.PlaneGeometry(Math.max(fw, 0.001), Math.max(fh, 0.001));
   field.translate(0, 0, fieldZ);
 
-  // Back face.
-  const backFace = new THREE.PlaneGeometry(width, height);
+  // Back face (inside the back-cut bevel).
+  const backFace = new THREE.PlaneGeometry(
+    Math.max(width - 2 * BACK_CUT, 0.001),
+    Math.max(height - 2 * BACK_CUT, 0.001),
+  );
   backFace.rotateY(Math.PI);
   backFace.translate(0, 0, back);
 
-  // Edge band: the four thin outer faces from the back up to the tongue.
+  // Edge band: the panel's perimeter — the centered tongue's edge.
   const band = new THREE.BoxGeometry(width, height, tongueThickness);
-  band.translate(0, 0, back + tongueThickness / 2);
   const sides = band.toNonIndexed();
   const position = sides.attributes.position;
   const normal = sides.attributes.normal;
