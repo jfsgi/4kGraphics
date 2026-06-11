@@ -25,77 +25,45 @@ interface Row {
   slope: number; // dy/dz
 }
 
-type SegShape = 'line' | 'concave' | 'convex' | 'sigmoid';
-
-/** Height ease and derivative per segment shape over t ∈ [0,1]. */
-const EASE: Record<SegShape, [(t: number) => number, (t: number) => number]> = {
-  line: [(t) => t, () => 1],
-  concave: [
-    (t) => 1 - Math.cos((t * Math.PI) / 2),
-    (t) => (Math.PI / 2) * Math.sin((t * Math.PI) / 2),
-  ],
-  convex: [
-    (t) => Math.sin((t * Math.PI) / 2),
-    (t) => (Math.PI / 2) * Math.cos((t * Math.PI) / 2),
-  ],
-  sigmoid: [
-    (t) => (1 - Math.cos(t * Math.PI)) / 2,
-    (t) => (Math.PI / 2) * Math.sin(t * Math.PI),
-  ],
-};
-
 /**
- * Channel cross-section rows from the front face to the back face, per the
- * 57-024 drawing: front breakout below the hook, the hook lobe, the deep
- * cove, and the full-height back crest. Arrises are duplicated rows with
- * one-sided slopes so they shade sharp.
+ * Channel cross-section rows, digitized from MEJA's to-scale AutoCAD
+ * drawing of the cut on 3/4" stock: the front face breaks out 15/32"
+ * below the crest with a 3/32"-radius bullnose lip, a short wall drops
+ * 1/8" into a 5/32"-radius cove bowl whose bottom sits 3/4" below the
+ * crest, and a steep tangent wall climbs to the narrow back lip — the
+ * tall side — crowned with its own 3/32" bullnose 3/8" above the front
+ * lip. The path is tangent-continuous (cutter grind), so slopes come
+ * from central differences; the profile scales with stock thickness and
+ * the bowl is kept above the band bottom on short fronts.
  */
 function channelRows(bh: number, T: number): Row[] {
+  const IN = 0.0254;
+  const s = T / (0.75 * IN); // the drawing is 3/4" stock
+  const ds = Math.min(s, (bh - 0.0015) / (0.75 * IN));
   const top = bh / 2;
-  const k = Math.min(1, T / 0.019); // compress the cut for thinner stock
-  const front = T / 2;
-  const back = -T / 2;
-  const coveD = Math.min(0.011, bh * 0.5); // full channel depth
-  const hookD = Math.min(0.0018, bh * 0.08); // hook crest below the back top
-  const frontD = Math.min(0.0082, bh * 0.37); // front-face breakout
-  const valleyD = Math.min(0.0076, bh * 0.35); // dip behind the front lip
+  const X0 = 7.0761; // drawing x of the front face
+  const APEX = 17.9788; // drawing y of the back lip crest (the part top)
 
-  // Segments front → back: target z, target drop, shape. The hook lobe is
-  // a fat rounded bead (slope-0 junctions at its crest) and the cove is a
-  // round bowl wider than it is deep — proportions per the cutter drawing.
-  const segs: Array<{ z: number; d: number; shape: SegShape }> = [
-    { z: front - 0.0005 * k, d: valleyD, shape: 'convex' }, // roll off the face
-    { z: front - 0.0014 * k, d: valleyD * 0.82, shape: 'concave' }, // into the hook base
-    { z: front - 0.0032 * k, d: hookD * 1.33, shape: 'convex' }, // hook front rise
-    { z: front - 0.0049 * k, d: hookD, shape: 'sigmoid' }, // rounded crest
-    { z: front - 0.0108 * k, d: coveD, shape: 'sigmoid' }, // sweep into the bowl
-    { z: back + 0.0029 * k, d: 0, shape: 'sigmoid' }, // bowl rising to the back
-    { z: back + 0.0018 * k, d: 0, shape: 'line' }, // back crest
-    { z: back, d: Math.min(0.0017, T * 0.09), shape: 'concave' }, // back arris ease
-  ];
+  const pts: Array<[number, number]> = [];
+  const arc = (cx: number, cy: number, r: number, a0: number, a1: number, n: number) => {
+    for (let i = 0; i <= n; i++) {
+      const a = ((a0 + ((a1 - a0) * i) / n) * Math.PI) / 180;
+      pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+    }
+  };
+  arc(7.1699, 17.51, 0.09375, 180, 0, 20); // front lip bullnose
+  arc(7.4199, 17.385, 0.15625, 189, 353.32, 24); // wall, then the cove bowl
+  arc(7.7324, 17.885, 0.09375, 173.08, 0, 20); // tangent wall, back lip crest
 
-  const rows: Row[] = [];
-  let z0 = front;
-  let d0 = frontD;
-  for (const seg of segs) {
-    const span = z0 - seg.z;
-    if (span <= 1e-7) {
-      z0 = seg.z;
-      d0 = seg.d;
-      continue;
-    }
-    const [ease, dEase] = EASE[seg.shape];
-    const dd = seg.d - d0;
-    // y = top − drop; slope = dy/dz with z decreasing across the segment.
-    const slopeAt = (t: number) => (dd * dEase(t)) / span;
-    const n = seg.shape === 'line' ? 1 : seg.shape === 'sigmoid' ? 16 : 8;
-    rows.push({ z: z0, y: top - d0, slope: slopeAt(0) });
-    for (let i = 1; i <= n; i++) {
-      const t = i / n;
-      rows.push({ z: z0 - span * t, y: top - (d0 + dd * ease(t)), slope: slopeAt(t) });
-    }
-    z0 = seg.z;
-    d0 = seg.d;
+  const rows: Row[] = pts.map(([x, y]) => ({
+    z: T / 2 - (x - X0) * IN * s,
+    y: top - (APEX - y) * IN * ds,
+    slope: 0,
+  }));
+  for (let i = 0; i < rows.length; i++) {
+    const a = rows[Math.max(0, i - 1)];
+    const b = rows[Math.min(rows.length - 1, i + 1)];
+    rows[i].slope = Math.abs(b.z - a.z) > 1e-9 ? (b.y - a.y) / (b.z - a.z) : 0;
   }
   return rows;
 }
