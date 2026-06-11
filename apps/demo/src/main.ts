@@ -333,6 +333,10 @@ function buildControls() {
       if (spec.kind === 'drawerunit') spec.caseJoinery = value as typeof spec.caseJoinery;
       scheduleRebuild();
     });
+    addSelect(host, 'Column divider', spec.columnDivider ?? 'setback', ['setback', 'flush'], (value) => {
+      if (spec.kind === 'drawerunit') spec.columnDivider = value as typeof spec.columnDivider;
+      scheduleRebuild();
+    });
     addSelect(host, 'Front style', spec.frontStyle, ['shaker', 'raised', 'slab'], (value) => {
       if (spec.kind === 'drawerunit') spec.frontStyle = value as typeof spec.frontStyle;
       buildControls();

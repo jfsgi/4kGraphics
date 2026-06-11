@@ -82,8 +82,10 @@ the visible viewport size is irrelevant.
 
 // kind: 'drawerunit' — carcass + N drawer boxes on slides + overlay fronts
 { kind, widthMm, heightMm, depthMm, drawerCount,  // drawers per column
-  columnCount?: number,                         // side-by-side banks; dividers recessed a front
-                                                // thickness, inset fronts gap one reveal over them
+  columnCount?: number,                         // side-by-side banks
+  columnDivider?: 'setback' | 'flush',          // setback (default): divider drops back a front
+                                                // thickness, inset fronts gap one reveal over it;
+                                                // flush: divider face shows, full reveals
   stockThicknessMm,
   boxStockThicknessMm, frontStyle: 'slab' | 'shaker' | 'raised',
   raiseProfile?, edgeProfile?, outerEdgeProfile?,

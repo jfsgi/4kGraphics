@@ -185,6 +185,27 @@ describe('drawer box layout', () => {
     expect(gap).toBeCloseTo(2);
   });
 
+  it('keeps flush column dividers at the front edge with full reveals', () => {
+    const spec = {
+      ...defaultDrawerUnitSpec(),
+      widthMm: 1200,
+      columnCount: 2,
+      columnDivider: 'flush' as const,
+      frontMount: 'inset' as const,
+      frontStyle: 'slab' as const,
+    };
+    const layout = buildLayout(spec);
+    const divider = layout.parts.find((p) => p.name === 'Column divider')!;
+    expect(divider.positionMm[2] + divider.sizeMm[2] / 2).toBeCloseTo(spec.depthMm / 2);
+    const fronts = layout.parts.filter((p) => p.name === 'Drawer front');
+    const left = fronts.find((p) => p.positionMm[0] < 0)!;
+    const right = fronts.find((p) => p.positionMm[0] > 0)!;
+    const gap =
+      right.positionMm[0] - right.sizeMm[0] / 2 - (left.positionMm[0] + left.sizeMm[0] / 2);
+    // Divider face shows between the fronts: stock plus a reveal each side.
+    expect(gap).toBeCloseTo(spec.stockThicknessMm + 4);
+  });
+
   it('laps the half-blind case at top and bottom', () => {
     const spec = { ...defaultDrawerUnitSpec(), caseJoinery: 'halfblind' as const };
     const layout = buildLayout(spec);

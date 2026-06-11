@@ -681,18 +681,21 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
   const boxD = Math.min(innerDepth - 25, Math.floor((innerDepth - 25) / 50) * 50);
   const boxLift = undermount ? 16 : 10;
 
-  // Columns: interior split by full-height partitions. The column divider
-  // sits back from the front edge by the front thickness; the fronts
-  // extend across it, meeting over its centerline with a reveal-wide gap.
+  // Columns: interior split by full-height partitions. Set back (default),
+  // the column divider sits behind the fronts by the front thickness and
+  // the fronts extend across it, meeting over its centerline with a
+  // reveal-wide gap; flush, the divider face shows and fronts inset within
+  // each column with full reveals.
   const cols = Math.max(1, spec.columnCount ?? 1);
+  const setback = (spec.columnDivider ?? 'setback') === 'setback';
   const colW = (innerW - (cols - 1) * t) / cols;
   for (let c = 1; c < cols; c++) {
     const px = -w / 2 + t + c * (colW + t) - t / 2;
     parts.push({
       name: 'Column divider',
       shape: 'box',
-      sizeMm: [t, h - 2 * t, inset ? caseDepth - frontT : caseDepth],
-      positionMm: [px, h / 2, caseOffsetZ - (inset ? frontT / 2 : 0)],
+      sizeMm: [t, h - 2 * t, inset && setback ? caseDepth - frontT : caseDepth],
+      positionMm: [px, h / 2, caseOffsetZ - (inset && setback ? frontT / 2 : 0)],
       role: 'structure',
       grainAxis: 'y',
     });
@@ -713,11 +716,16 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
     const colLeft = -w / 2 + t + c * (colW + t);
     const colRight = colLeft + colW;
     const colCenter = (colLeft + colRight) / 2;
-    // Inset fronts run from the outer side (full reveal) to the divider
-    // centerline (half the reveal each, so adjacent fronts gap one reveal).
-    const fLeft = inset ? (c === 0 ? colLeft + reveal : colLeft - t / 2 + reveal / 2) : 0;
+    // Set back: inset fronts run from the outer side (full reveal) to the
+    // divider centerline (half the reveal each, so adjacent fronts gap one
+    // reveal). Flush: full reveals against the visible divider faces.
+    const fLeft = inset
+      ? c === 0 || !setback
+        ? colLeft + reveal
+        : colLeft - t / 2 + reveal / 2
+      : 0;
     const fRight = inset
-      ? c === cols - 1
+      ? c === cols - 1 || !setback
         ? colRight - reveal
         : colRight + t / 2 - reveal / 2
       : 0;

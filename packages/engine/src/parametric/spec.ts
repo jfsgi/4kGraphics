@@ -148,11 +148,16 @@ export interface DrawerUnitSpec {
   depthMm: number;
   drawerCount: number;
   /**
-   * Side-by-side drawer banks. The column dividers sit back from the front
-   * edge by the front thickness; inset fronts extend across them, gapped
-   * one reveal apart.
+   * Side-by-side drawer banks separated by full-height column dividers.
    */
   columnCount?: number;
+  /**
+   * Column divider treatment (inset fronts): 'setback' (default) drops the
+   * divider back a front thickness and the fronts extend across it, gapped
+   * one reveal; 'flush' keeps the divider face flush with the front edge,
+   * fronts inset within each column with full reveals.
+   */
+  columnDivider?: 'setback' | 'flush';
   /** Carcass stock. */
   stockThicknessMm: number;
   /** Drawer box stock. */
