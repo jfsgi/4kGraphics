@@ -165,9 +165,12 @@ export function pinsBoardGeometry(
   const zOuter = (thickness / 2) * outerSign;
   const zInner = -zOuter;
 
+  // Non-indexed to match the extruded prisms — mergeGeometries refuses to
+  // mix indexed and non-indexed buffers (and returns null, silently
+  // degrading the joint to a plain box).
   const body = scoop
     ? scoopedBoardGeometry(length - 2 * spec.depth, height, thickness, scoop)
-    : new THREE.BoxGeometry(length - 2 * spec.depth, height, thickness);
+    : new THREE.BoxGeometry(length - 2 * spec.depth, height, thickness).toNonIndexed();
   const pieces: THREE.BufferGeometry[] = [body];
 
   // Pin regions are the y-gaps between/outside the tails: trapezoids in the

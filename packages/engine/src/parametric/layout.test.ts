@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildLayout } from './layout.js';
+import { pinsBoardGeometry, tailsBoardGeometry } from './joinery.js';
 import {
   defaultBookshelfSpec,
   defaultCabinetDoorSpec,
@@ -118,6 +119,18 @@ describe('drawer box layout', () => {
     expect(front.scoop).toBeDefined();
     const back = layout.parts.find((p) => p.name === 'Drawer back (box)')!;
     expect(back.scoop).toBeUndefined();
+  });
+
+  it('generates real dovetail geometry for both joint boards', () => {
+    // Regression: a failed merge inside these builders returns null and the
+    // renderer silently degrades the joint to a plain 24-vertex box.
+    const joint = { type: 'dovetail' as const, depth: 0.013 };
+    const tails = tailsBoardGeometry(0.013, 0.15, 0.45, joint);
+    const pins = pinsBoardGeometry(0.5, 0.15, 0.013, joint, 1);
+    expect(tails).not.toBeNull();
+    expect(pins).not.toBeNull();
+    expect(tails!.attributes.position.count).toBeGreaterThan(100);
+    expect(pins!.attributes.position.count).toBeGreaterThan(100);
   });
 });
 
