@@ -79,7 +79,8 @@ const plan = engine.getBuildPlan();           // cut list, hardware, steps
 ```
 
 Full API reference: [docs/API.md](docs/API.md) ·
-Project roadmap and workflow: [docs/PLAN.md](docs/PLAN.md)
+Project roadmap and workflow: [docs/PLAN.md](docs/PLAN.md) ·
+Product vision & design standards (Atelier3D): [docs/00-overview.md](docs/00-overview.md)
 
 ## Repository layout
 
