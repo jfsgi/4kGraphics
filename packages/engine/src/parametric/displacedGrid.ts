@@ -103,8 +103,9 @@ export function displacedFrontFace(
 export function perimeterWall(
   points: Array<[number, number]>,
   frontZ: (x: number, y: number) => number,
-  backZ: number,
+  backZ: number | ((x: number, y: number) => number),
 ): THREE.BufferGeometry {
+  const backAt = typeof backZ === 'number' ? () => backZ : backZ;
   const positions: number[] = [];
   const normals: number[] = [];
   const uvs: number[] = [];
@@ -119,8 +120,10 @@ export function perimeterWall(
     const ny = -dx / len;
     const zt0 = frontZ(x0, y0);
     const zt1 = frontZ(x1, y1);
-    positions.push(x0, y0, backZ, x1, y1, backZ, x1, y1, zt1);
-    positions.push(x0, y0, backZ, x1, y1, zt1, x0, y0, zt0);
+    const zb0 = Math.min(backAt(x0, y0), zt0);
+    const zb1 = Math.min(backAt(x1, y1), zt1);
+    positions.push(x0, y0, zb0, x1, y1, zb1, x1, y1, zt1);
+    positions.push(x0, y0, zb0, x1, y1, zt1, x0, y0, zt0);
     for (let k = 0; k < 6; k++) {
       normals.push(nx, ny, 0);
       uvs.push(0, 0);

@@ -222,14 +222,26 @@ export function profiledBoardGeometry(
 
   // Side walls follow the displaced front perimeter (sampled on the same
   // grid lines as the front face) so the shell stays watertight where
-  // profiles cut the edges down.
+  // profiles cut the edges down. Coped boards ride over the mating stick,
+  // so in the overlap their walls bottom out on the stick surface — the
+  // door's top edge then shows the true joint cross-section.
+  const inner = opts.inner;
+  const wallBack: number | ((x: number, y: number) => number) =
+    inner?.copeEnds && !miter
+      ? (x: number) => {
+          const e = L / 2 - Math.abs(x);
+          if (e >= inner.width) return bz;
+          const scale = DEPTH_SCALE[inner.profile] ?? 1;
+          return T / 2 - pd * scale * shape(inner.profile, Math.max(0, e) / inner.width);
+        }
+      : bz;
   const walls: THREE.BufferGeometry[] = [
-    perimeterWall(us.map((u) => M(u, -W / 2)), frontZ, bz),
-    perimeterWall([...us].reverse().map((u) => M(u, W / 2)), frontZ, bz),
+    perimeterWall(us.map((u) => M(u, -W / 2)), frontZ, wallBack),
+    perimeterWall([...us].reverse().map((u) => M(u, W / 2)), frontZ, wallBack),
   ];
   if (!opts.stickCaps) {
-    walls.push(perimeterWall([...vs].reverse().map((v) => M(-L / 2, v)), frontZ, bz));
-    walls.push(perimeterWall(vs.map((v) => M(L / 2, v)), frontZ, bz));
+    walls.push(perimeterWall([...vs].reverse().map((v) => M(-L / 2, v)), frontZ, wallBack));
+    walls.push(perimeterWall(vs.map((v) => M(L / 2, v)), frontZ, wallBack));
   } else {
     // End caps with the stick cut carved in: a displaced grid in the (v, z)
     // plane whose "height" is the x position — recessed inside the groove
