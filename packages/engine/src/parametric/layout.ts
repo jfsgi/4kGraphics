@@ -54,12 +54,19 @@ export interface Part {
     type: 'dovetail' | 'boxjoint';
     role: 'tails' | 'pins';
     matingThicknessMm: number;
-    /** For pins boards: which z face is the outside of the box. */
+    /** For pins boards: which face is the outside of the box (z, or x for 'case'). */
     pinsOuterSign?: 1 | -1;
     /** Tails boards: half-blind front — tails stop this short of the show face. */
     frontLipMm?: number;
     /** Pins boards: blind sockets with a solid lap this thick at the show face. */
     lipMm?: number;
+    /**
+     * Joint frame. Default is the drawer-box frame (tails boards run along
+     * z, pins boards along x). 'case' is carcass framing: tails boards run
+     * along x (a top/bottom panel toothed at its ends), pins boards along y
+     * (a side panel with pins on its top/bottom ends), pattern along z.
+     */
+    orient?: 'case';
   };
   /**
    * Renders a raised-panel profile on the front face: a flat tongue at the
@@ -618,6 +625,8 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
   const caseOffsetZ = inset ? 0 : -frontT / 2;
   const innerDepth = caseDepth - backT;
 
+  // The carcass is dovetailed together: the top and bottom run the full
+  // width and receive the pins cut on the sides' ends.
   for (const sx of [1, -1]) {
     parts.push({
       name: 'Side panel',
@@ -626,18 +635,25 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
       positionMm: [sx * (w / 2 - t / 2), h / 2, caseOffsetZ],
       role: 'structure',
       grainAxis: 'y',
+      joinery: {
+        type: 'dovetail',
+        role: 'pins',
+        matingThicknessMm: t,
+        pinsOuterSign: sx as 1 | -1,
+        orient: 'case',
+      },
     });
   }
   const innerW = w - 2 * t;
-  const caseZ = caseOffsetZ + backT / 2;
   for (const top of [0, 1]) {
     parts.push({
       name: top ? 'Top panel' : 'Bottom panel',
       shape: 'box',
-      sizeMm: [innerW, t, innerDepth],
-      positionMm: [0, top ? h - t / 2 : t / 2, caseZ],
+      sizeMm: [w, t, caseDepth],
+      positionMm: [0, top ? h - t / 2 : t / 2, caseOffsetZ],
       role: 'structure',
       grainAxis: 'x',
+      joinery: { type: 'dovetail', role: 'tails', matingThicknessMm: t, orient: 'case' },
     });
   }
   parts.push({

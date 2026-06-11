@@ -148,6 +148,19 @@ describe('drawer box layout', () => {
     tails.computeBoundingBox();
     expect(tails.attributes.position.count).toBeGreaterThan(100);
   });
+
+  it('dovetails the drawer unit carcass — top and bottom receive the sides’ pins', () => {
+    const spec = defaultDrawerUnitSpec();
+    const layout = buildLayout(spec);
+    const top = layout.parts.find((p) => p.name === 'Top panel')!;
+    expect(top.sizeMm[0]).toBe(spec.widthMm);
+    expect(top.joinery?.role).toBe('tails');
+    expect(top.joinery?.orient).toBe('case');
+    const side = layout.parts.find((p) => p.name === 'Side panel')!;
+    expect(side.joinery?.role).toBe('pins');
+    expect(side.joinery?.orient).toBe('case');
+    expect(side.joinery?.matingThicknessMm).toBe(spec.stockThicknessMm);
+  });
 });
 
 describe('door and drawer front layouts', () => {

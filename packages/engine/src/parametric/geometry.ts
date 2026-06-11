@@ -181,6 +181,26 @@ function partGeometry(part: Part): THREE.BufferGeometry {
     : undefined;
   if (part.joinery && part.shape === 'box') {
     const joint = { type: part.joinery.type, depth: part.joinery.matingThicknessMm * MM_TO_M };
+    if (part.joinery.orient === 'case') {
+      // Carcass framing: a top/bottom panel toothed at its ends (tails run
+      // along x, pattern along the depth), or a side panel with pins on its
+      // top/bottom ends. Built in the drawer-box frame, then rotated.
+      if (part.joinery.role === 'tails') {
+        const jointed = tailsBoardGeometry(h, d, w, joint);
+        if (jointed) {
+          jointed.rotateY(Math.PI / 2);
+          jointed.rotateX(Math.PI / 2);
+          return jointed;
+        }
+      } else {
+        const jointed = pinsBoardGeometry(h, d, w, joint, part.joinery.pinsOuterSign ?? 1);
+        if (jointed) {
+          jointed.rotateZ(Math.PI / 2);
+          jointed.rotateY(Math.PI / 2);
+          return jointed;
+        }
+      }
+    }
     const jointed =
       part.joinery.role === 'tails'
         ? tailsBoardGeometry(

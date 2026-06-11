@@ -222,7 +222,6 @@ function hardwareFor(layout: FurnitureLayout): HardwareItem[] {
             : 'Full-extension side-mount slides (pair per drawer)',
         quantity: spec.drawerCount,
       });
-      items.push({ item: '8mm × 40mm dowels or confirmat screws (carcass)', quantity: 16 });
       items.push({ item: '16mm panel nails or staples (back panel)', quantity: 24 });
       items.push({ item: '4 × 30mm screws (front adjustment, 4 per drawer)', quantity: spec.drawerCount * 4 });
       if (spec.frontStyle !== 'slab') {
@@ -290,7 +289,7 @@ function toolsFor(layout: FurnitureLayout): string[] {
   }
   if (spec.kind === 'drawerunit') {
     tools.push('Drawer-slide mounting jig');
-    tools.push('Dovetail or box-joint jig (drawer boxes)');
+    tools.push('Dovetail jig with router (carcass and drawer boxes)');
     if (spec.frontStyle !== 'slab') {
       tools.push('Router table with rail-and-stile bits (fronts)');
     }
@@ -517,7 +516,7 @@ function stepsFor(layout: FurnitureLayout): BuildStep[] {
         {
           title: 'Assemble the carcass',
           detail:
-            'Join the top and bottom panels between the sides with glue and dowels, square against the back panel, and fasten the back.',
+            'Dovetail the carcass together — tails in the full-width top and bottom, pins on the sides\u2019 ends. Glue up square against the back panel, then fasten the back.',
         },
         {
           title: 'Mount the slides',
