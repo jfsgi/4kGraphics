@@ -103,9 +103,10 @@ export interface ProfiledBoardOptions {
    */
   miterEnds?: { outerSide: 'vMin' | 'vMax' };
   /**
-   * Cope-&-stick witness on the board ends (stiles): the end faces show the
-   * panel groove channel and the pattern profile cross-section — the stick
-   * cut runs through. Carved as blind recesses of `capDepth`.
+   * Cope-&-stick witness on the board ends (stiles) of an assembled door:
+   * the rail's stub tenon fills the groove and the cope fills the profile
+   * hollow, so the end face is flush with shallow seam reveals (`capDepth`)
+   * outlining the tenon end-grain and the cope line.
    */
   stickCaps?: { grooveWidth: number; grooveDepth: number; capDepth: number; innerSide: 'vMin' | 'vMax' };
 }

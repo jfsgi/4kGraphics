@@ -125,7 +125,7 @@ function edgeProfiledGeometry(
       : undefined,
     stickCaps:
       edge.stickGroove && alongY && !edge.miterEnds
-        ? { grooveWidth: 0.006, grooveDepth: 0.01, capDepth: 0.014, innerSide }
+        ? { grooveWidth: 0.006, grooveDepth: 0.01, capDepth: 0.0007, innerSide }
         : undefined,
     inner: edge.inner
       ? {
