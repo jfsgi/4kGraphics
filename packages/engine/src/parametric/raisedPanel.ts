@@ -23,23 +23,116 @@ export type RaiseProfileId =
   | 'covebead'
   | 'ogeebead';
 
-const smooth = (s: number) => s * s * (3 - 2 * s);
+type SegShape = 'line' | 'concave' | 'convex';
 
-/** Normalized raise curves: s ∈ [0,1] across the raise width → height 0..1. */
-const PROFILES: Record<RaiseProfileId, (s: number) => number> = {
-  bevel: (s) => s,
-  cove: (s) => 1 - Math.cos((s * Math.PI) / 2),
-  ogee: smooth,
-  roundover: (s) => Math.sin((s * Math.PI) / 2),
-  stepcove: (s) =>
-    s < 0.12 ? (s / 0.12) * 0.35 : 0.35 + 0.65 * (1 - Math.cos((((s - 0.12) / 0.88) * Math.PI) / 2)),
-  // Straight bevel with a small shoulder fillet at the field.
-  bevelstep: (s) => (s < 0.88 ? s * 0.86 : 0.757 + smooth((s - 0.88) / 0.12) * 0.243),
-  // Cove body with a bead rolling over at the field.
-  covebead: (s) =>
-    s < 0.78 ? (1 - Math.cos(((s / 0.78) * Math.PI) / 2)) * 0.82 : 0.82 + smooth((s - 0.78) / 0.22) * 0.18,
-  // Ogee body with a bead at the field.
-  ogeebead: (s) => (s < 0.8 ? smooth(s / 0.8) * 0.84 : 0.84 + smooth((s - 0.8) / 0.2) * 0.16),
+/**
+ * One piece of a raise cross-section: runs from the previous segment's end
+ * out to `a` meters from the raise start, finishing at normalized height
+ * `h`. 'concave' eases in (cove: flat into steep), 'convex' eases out
+ * (round: steep into flat); both work rising or falling.
+ */
+interface RaiseSegment {
+  a: number;
+  h: number;
+  shape: SegShape;
+}
+
+/**
+ * Shop-true cross-sections with the features that make a raise read at a
+ * glance: a quirk shoulder or a bead-and-quirk at the field line, ledges on
+ * the stepped cuts, and full-depth bodies. Feature sizes are absolute
+ * millimeters (clamped for narrow raises) so a shoulder stays a crisp
+ * shadow line no matter the raise width. W is the raise width in meters.
+ */
+const PROFILES: Record<RaiseProfileId, (W: number) => RaiseSegment[]> = {
+  bevel: (W) => {
+    const step = Math.min(0.0009, W * 0.06);
+    const reveal = Math.min(0.0022, W * 0.1);
+    return [
+      { a: W - step - reveal, h: 0.74, shape: 'line' },
+      { a: W - step, h: 0.74, shape: 'line' },
+      { a: W, h: 1, shape: 'line' },
+    ];
+  },
+  cove: (W) => {
+    const step = Math.min(0.0009, W * 0.06);
+    return [
+      { a: W - step, h: 0.8, shape: 'concave' },
+      { a: W, h: 1, shape: 'line' },
+    ];
+  },
+  roundover: (W) => {
+    const step = Math.min(0.0009, W * 0.06);
+    return [
+      { a: W - step, h: 0.8, shape: 'convex' },
+      { a: W, h: 1, shape: 'line' },
+    ];
+  },
+  ogee: (W) => {
+    const step = Math.min(0.0009, W * 0.06);
+    return [
+      { a: (W - step) * 0.48, h: 0.4, shape: 'concave' },
+      { a: W - step, h: 0.8, shape: 'convex' },
+      { a: W, h: 1, shape: 'line' },
+    ];
+  },
+  stepcove: (W) => {
+    const step = Math.min(0.0009, W * 0.06);
+    const approach = Math.min(0.003, W * 0.16);
+    const riser = Math.min(0.0008, W * 0.05);
+    const ledge = Math.min(0.002, W * 0.1);
+    return [
+      { a: approach, h: 0.1, shape: 'line' },
+      { a: approach + riser, h: 0.34, shape: 'line' },
+      { a: approach + riser + ledge, h: 0.34, shape: 'line' },
+      { a: W - step, h: 0.82, shape: 'concave' },
+      { a: W, h: 1, shape: 'line' },
+    ];
+  },
+  bevelstep: (W) => {
+    const step = Math.min(0.0014, W * 0.08);
+    const reveal = Math.min(0.0034, W * 0.14);
+    return [
+      { a: W - step - reveal, h: 0.58, shape: 'line' },
+      { a: W - step, h: 0.58, shape: 'line' },
+      { a: W, h: 1, shape: 'line' },
+    ];
+  },
+  covebead: (W) => {
+    const bead = Math.min(0.0036, W * 0.2);
+    const quirk = Math.min(0.0012, W * 0.06);
+    return [
+      { a: W - bead - quirk, h: 0.58, shape: 'concave' },
+      { a: W - bead / 2 - quirk, h: 0.96, shape: 'convex' },
+      { a: W - quirk, h: 0.78, shape: 'concave' },
+      { a: W, h: 1, shape: 'line' },
+    ];
+  },
+  ogeebead: (W) => {
+    const bead = Math.min(0.0036, W * 0.2);
+    const quirk = Math.min(0.0012, W * 0.06);
+    const body = W - bead - quirk;
+    return [
+      { a: body * 0.48, h: 0.34, shape: 'concave' },
+      { a: body, h: 0.6, shape: 'convex' },
+      { a: W - bead / 2 - quirk, h: 0.97, shape: 'convex' },
+      { a: W - quirk, h: 0.8, shape: 'concave' },
+      { a: W, h: 1, shape: 'line' },
+    ];
+  },
+};
+
+/** Height ease and its derivative for each segment shape, over t ∈ [0,1]. */
+const SHAPE_EASE: Record<SegShape, [(t: number) => number, (t: number) => number]> = {
+  line: [(t) => t, () => 1],
+  concave: [
+    (t) => 1 - Math.cos((t * Math.PI) / 2),
+    (t) => (Math.PI / 2) * Math.sin((t * Math.PI) / 2),
+  ],
+  convex: [
+    (t) => Math.sin((t * Math.PI) / 2),
+    (t) => (Math.PI / 2) * Math.cos((t * Math.PI) / 2),
+  ],
 };
 
 /**
@@ -59,7 +152,6 @@ export function raisedPanelGeometry(
   tongueThickness: number,
   profileId: RaiseProfileId,
 ): THREE.BufferGeometry {
-  const profile = PROFILES[profileId];
   const back = -thickness / 2;
   // The tongue is CENTERED in the panel thickness (the shaper's back cutter
   // trims the rear), so it centers in the frame groove and the visible
@@ -70,33 +162,43 @@ export function raisedPanelGeometry(
   const m = TONGUE_LENGTH + raiseWidth; // total band from edge to field
 
   // Cross-section rows: distance-from-edge `a`, height z(a), and the slope
-  // dz/da. Crease rows (tongue→raise, raise→field) are duplicated with the
-  // one-sided slope on each side so the arrises shade sharp.
-  const zAt = (a: number): number => {
-    if (a <= TONGUE_LENGTH) return tongueZ;
-    const s = Math.min(1, (a - TONGUE_LENGTH) / raiseWidth);
-    return tongueZ + (fieldZ - tongueZ) * profile(s);
-  };
+  // dz/da. Wherever the cut breaks direction (tongue→raise, ledges, quirk
+  // shoulders, bead bases) the boundary row is duplicated with the one-sided
+  // slope on each side so the arris shades sharp instead of averaging soft.
   interface Row {
     a: number;
     z: number;
     slope: number;
   }
-  const rows: Row[] = [];
-  const slopeAt = (a: number) => {
-    const h = raiseWidth / 400;
-    return (zAt(a + h) - zAt(a - h)) / (2 * h);
-  };
-  rows.push({ a: 0, z: tongueZ, slope: 0 });
-  rows.push({ a: TONGUE_LENGTH, z: tongueZ, slope: 0 });
-  const steps = 30;
-  for (let i = 0; i <= steps; i++) {
-    const a = TONGUE_LENGTH + (i / steps) * raiseWidth;
-    rows.push({
-      a,
-      z: zAt(a),
-      slope: i === 0 || i === steps ? slopeAt(a - ((i === steps ? 1 : -1) * raiseWidth) / 800) : slopeAt(a),
-    });
+  const relief = fieldZ - tongueZ;
+  const rows: Row[] = [
+    { a: 0, z: tongueZ, slope: 0 },
+    { a: TONGUE_LENGTH, z: tongueZ, slope: 0 },
+  ];
+  let segA = 0;
+  let segH = 0;
+  let prevSlope = 0;
+  for (const seg of PROFILES[profileId](raiseWidth)) {
+    const span = seg.a - segA;
+    if (span <= 1e-6) continue;
+    const [ease, dEase] = SHAPE_EASE[seg.shape];
+    const dh = seg.h - segH;
+    const slopeAt = (t: number) => (dh * relief * dEase(t)) / span;
+    if (Math.abs(slopeAt(0) - prevSlope) > 0.02) {
+      rows.push({ a: TONGUE_LENGTH + segA, z: tongueZ + segH * relief, slope: slopeAt(0) });
+    }
+    const n = seg.shape === 'line' ? 1 : 24;
+    for (let i = 1; i <= n; i++) {
+      const t = i / n;
+      rows.push({
+        a: TONGUE_LENGTH + segA + span * t,
+        z: tongueZ + (segH + dh * ease(t)) * relief,
+        slope: slopeAt(t),
+      });
+    }
+    prevSlope = slopeAt(1);
+    segA = seg.a;
+    segH = seg.h;
   }
 
   const positions: number[] = [];
