@@ -36,3 +36,43 @@ renders and shop-ready manufacturing documents.
 3. **Documents** — cut lists, BOM, assembly drawings, DXF/STEP exports.
 
 Everything in the product hangs off this three-workspace model; see the workflow document.
+
+## Status — Phase 0 build (working app)
+
+The Phase 0 foundation from the roadmap is implemented and tested:
+
+- React 19 + TypeScript + Vite app shell implementing the UI design standard (tokens, layout,
+  terminology) with Design and Documents workspaces (Studio arrives in Phase 2)
+- three.js viewport (react-three-fiber): orbit/pan/zoom per the standard, hover/selection
+  highlighting, drag-to-move with grid snapping, standard views, frame-all/-selection
+- Parametric component runtime with 10 library components (3 tables, bookcase, 3 legs,
+  board, panel, shelf) demonstrating fixed/stretch/repeat scaling rules
+- Inspector with the signature dimension input (`1-1/2"`, `19mm`, `2'6"`, fractional-inch
+  display), scrub-to-adjust labels, material swatches, Advanced expander, Design Check
+- Live cut list & BOM with board-feet totals and CSV export
+- Undo/redo (100 steps), autosave to the browser, project save/open as JSON files
+- 15 unit tests over the dimension parser and component generators (`npm test`)
+
+### Running locally
+
+```bash
+npm install
+npm run dev      # development server
+npm test         # unit tests
+npm run build    # type-check + production build to dist/
+```
+
+### Deploying to Vercel
+
+The repo is Vercel-ready (`vercel.json` pins the Vite framework preset, `npm run build`,
+and the `dist/` output with SPA rewrites). To host it:
+
+1. Go to [vercel.com/new](https://vercel.com/new) and import the `jfsgi/4kGraphics` GitHub
+   repository (install the Vercel GitHub app for the repo if prompted).
+2. Vercel auto-detects Vite — no settings to change. Pick the branch to deploy and click
+   **Deploy**.
+3. Every push then gets a preview URL, and the production branch deploys to your
+   `*.vercel.app` domain (or a custom domain under Project → Settings → Domains).
+
+Alternatively, from a machine where you're logged in to Vercel: `npx vercel` in the repo
+root, accept the defaults, then `npx vercel --prod`.
