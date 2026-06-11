@@ -63,8 +63,8 @@ export interface Part {
     /**
      * Joint frame. Default is the drawer-box frame (tails boards run along
      * z, pins boards along x). 'case' is carcass framing: tails boards run
-     * along x (a top/bottom panel toothed at its ends), pins boards along y
-     * (a side panel with pins on its top/bottom ends), pattern along z.
+     * along y (a side panel toothed at its top/bottom ends), pins boards
+     * along x (a top/bottom panel with pins at its ends), pattern along z.
      */
     orient?: 'case';
   };
@@ -625,8 +625,8 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
   const caseOffsetZ = inset ? 0 : -frontT / 2;
   const innerDepth = caseDepth - backT;
 
-  // The carcass is dovetailed together: the top and bottom run the full
-  // width and receive the pins cut on the sides' ends.
+  // The carcass is dovetailed together: tails on the sides, pins cut on
+  // the full-width top and bottom panels.
   for (const sx of [1, -1]) {
     parts.push({
       name: 'Side panel',
@@ -635,13 +635,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
       positionMm: [sx * (w / 2 - t / 2), h / 2, caseOffsetZ],
       role: 'structure',
       grainAxis: 'y',
-      joinery: {
-        type: 'dovetail',
-        role: 'pins',
-        matingThicknessMm: t,
-        pinsOuterSign: sx as 1 | -1,
-        orient: 'case',
-      },
+      joinery: { type: 'dovetail', role: 'tails', matingThicknessMm: t, orient: 'case' },
     });
   }
   const innerW = w - 2 * t;
@@ -653,7 +647,13 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
       positionMm: [0, top ? h - t / 2 : t / 2, caseOffsetZ],
       role: 'structure',
       grainAxis: 'x',
-      joinery: { type: 'dovetail', role: 'tails', matingThicknessMm: t, orient: 'case' },
+      joinery: {
+        type: 'dovetail',
+        role: 'pins',
+        matingThicknessMm: t,
+        pinsOuterSign: top ? 1 : -1,
+        orient: 'case',
+      },
     });
   }
   parts.push({

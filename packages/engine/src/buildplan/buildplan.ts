@@ -516,7 +516,7 @@ function stepsFor(layout: FurnitureLayout): BuildStep[] {
         {
           title: 'Assemble the carcass',
           detail:
-            'Dovetail the carcass together — tails in the full-width top and bottom, pins on the sides\u2019 ends. Glue up square against the back panel, then fasten the back.',
+            'Dovetail the carcass together — tails on the sides, pins on the full-width top and bottom. Glue up square against the back panel, then fasten the back.',
         },
         {
           title: 'Mount the slides',

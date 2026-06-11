@@ -149,15 +149,15 @@ describe('drawer box layout', () => {
     expect(tails.attributes.position.count).toBeGreaterThan(100);
   });
 
-  it('dovetails the drawer unit carcass — top and bottom receive the sides’ pins', () => {
+  it('dovetails the drawer unit carcass — tails on the sides, pins on top and bottom', () => {
     const spec = defaultDrawerUnitSpec();
     const layout = buildLayout(spec);
     const top = layout.parts.find((p) => p.name === 'Top panel')!;
     expect(top.sizeMm[0]).toBe(spec.widthMm);
-    expect(top.joinery?.role).toBe('tails');
+    expect(top.joinery?.role).toBe('pins');
     expect(top.joinery?.orient).toBe('case');
     const side = layout.parts.find((p) => p.name === 'Side panel')!;
-    expect(side.joinery?.role).toBe('pins');
+    expect(side.joinery?.role).toBe('tails');
     expect(side.joinery?.orient).toBe('case');
     expect(side.joinery?.matingThicknessMm).toBe(spec.stockThicknessMm);
   });
