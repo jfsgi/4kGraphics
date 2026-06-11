@@ -664,7 +664,9 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
       heightMm: frontH,
       thicknessMm: frontT,
       railStileWidthMm: 50,
-      panelThicknessMm: spec.frontStyle === 'raised' ? 16 : 6,
+      // Raised fronts use full frame stock (¾"): with the ¼" tongue
+      // centered, the raise gets its true catalog depth.
+      panelThicknessMm: spec.frontStyle === 'raised' ? frontT : 6,
       raiseProfile: spec.raiseProfile,
       raiseWidthMm: 32,
       edgeProfile: spec.edgeProfile,

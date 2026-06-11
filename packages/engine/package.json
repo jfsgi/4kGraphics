@@ -1,6 +1,6 @@
 {
   "name": "@4kgraphics/engine",
-  "version": "0.5.9",
+  "version": "0.5.10",
   "description": "4K furniture rendering engine: PBR materials, parametric furniture, model import, snapshot rendering, build plans",
   "type": "module",
   "main": "./dist/index.js",

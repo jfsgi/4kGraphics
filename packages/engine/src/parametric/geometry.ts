@@ -93,9 +93,12 @@ function edgeProfiledGeometry(
   sz: number,
   edge: NonNullable<Part['edgeProfile']>,
 ): THREE.BufferGeometry | null {
+  // Catalog-scale cuts: Freeborn pattern and door-edge cutters detail a
+  // band ~7/16" wide. Matching the inner band to the 10mm groove depth
+  // also keeps a coped rail's visible body exactly at its cut length.
   const depth = Math.min(0.005, sz * 0.35);
-  const outerWidth = 0.008;
-  const innerWidth = 0.006;
+  const outerWidth = 0.011;
+  const innerWidth = 0.01;
 
   if (edge.axis === 'slab') {
     if (!edge.outer) return null;

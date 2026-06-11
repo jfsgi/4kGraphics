@@ -40,13 +40,20 @@ function shape(profile: EdgeProfileId, s: number): number {
       return s;
     case 'roundover':
       return 1 - Math.sqrt(Math.max(0, 1 - s * s));
-    case 'cove':
-      return Math.sin((s * Math.PI) / 2);
+    case 'cove': {
+      // Quirk fillet at the field, then the cove sweep.
+      if (s < 0.08) return 0.12 * (s / 0.08);
+      return 0.12 + 0.88 * Math.sin((((s - 0.08) / 0.92) * Math.PI) / 2);
+    }
     case 'fingerpull':
       // Deep sweeping cove for handle-less fronts.
       return Math.sin((Math.pow(s, 0.8) * Math.PI) / 2);
-    case 'ogee':
-      return s * s * (3 - 2 * s);
+    case 'ogee': {
+      // Quirk fillet at the field, then the S-sweep.
+      if (s < 0.1) return 0.14 * (s / 0.1);
+      const t = (s - 0.1) / 0.9;
+      return 0.14 + 0.86 * t * t * (3 - 2 * t);
+    }
     case 'bead': {
       if (s < 0.18) return (s / 0.18) * 0.25;
       const r = (s - 0.18) / 0.82;
@@ -61,8 +68,10 @@ function shape(profile: EdgeProfileId, s: number): number {
     case 'step':
       return s < 0.45 ? 0 : s < 0.55 ? (s - 0.45) / 0.1 : 1;
     case 'thumbnail': {
-      const t = s * s * (3 - 2 * s);
-      return Math.pow(t, 1.4);
+      // Listel step at the field, then the rolled nose.
+      if (s < 0.1) return 0.16 * (s / 0.1);
+      const t = (s - 0.1) / 0.9;
+      return 0.16 + 0.84 * Math.pow(t * t * (3 - 2 * t), 1.4);
     }
     case 'classical': {
       // Quirk-and-bead at the field, sweeping cove to the edge.

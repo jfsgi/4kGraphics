@@ -234,8 +234,8 @@ function buildControls() {
     addSelect(host, 'Style', spec.style, ['shaker', 'raised', 'slab'], (value) => {
       if (spec.kind === 'door' || spec.kind === 'drawerfront') {
         spec.style = value as typeof spec.style;
-        // Raised panels need thick stock; shaker panels are thin plywood.
-        if (spec.style === 'raised' && spec.panelThicknessMm < 12) spec.panelThicknessMm = 17;
+        // Raised panels use full frame stock; shaker panels are thin plywood.
+        if (spec.style === 'raised' && spec.panelThicknessMm < 12) spec.panelThicknessMm = spec.thicknessMm;
         if (spec.style === 'shaker' && spec.panelThicknessMm > 12) spec.panelThicknessMm = 6;
       }
       buildControls();
