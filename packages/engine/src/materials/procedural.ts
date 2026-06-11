@@ -156,6 +156,11 @@ export interface WoodParams {
    * (walnut), ~6 gives thin crisp contour lines (cherry).
    */
   ringSharpness?: number;
+  /**
+   * Ribbon-stripe weight 0..1: broad bands of alternating tone and sheen
+   * running along the grain (interlocked-grain mahogany/sapele).
+   */
+  ribbon?: number;
 }
 
 /**
@@ -238,6 +243,10 @@ export function generateWoodMaps(size: number, params: WoodParams): PbrMaps {
       const pore = valueNoise2D(u * 48, v * 4, 384, 32, seed + 23) * 0.5 + 0.5;
       // Board-scale light/dark zones (strong in flat-sawn stock).
       const macro = fbm2D(u * 0.5, v * 0.5, 4, 4, seed + 41, 3);
+      // Ribbon stripe: broad bands along the grain (interlocked grain).
+      const ribbonWeight = params.ribbon ?? 0;
+      const ribbon =
+        ribbonWeight > 0 ? fbm2D(u * 6, v * 0.375, 48, 3, seed + 91, 2) * ribbonWeight : 0;
 
       // Glue-line: a very faint seam at each board boundary.
       const edge = Math.min(uIn, plankW - uIn);
@@ -258,6 +267,7 @@ export function generateWoodMaps(size: number, params: WoodParams): PbrMaps {
               hair * 0.18 +
               ringTerm +
               macro * macroWeight +
+              ribbon * 0.3 +
               (pore - 0.5) * 0.06 +
               (h1 - 0.5) * 0.12 +
               knotDark * 0.5) +
@@ -269,7 +279,10 @@ export function generateWoodMaps(size: number, params: WoodParams): PbrMaps {
           c * (hair * 0.2 + fine * 0.07 + late * (cathedral ? 0.2 : 0.08) + knotDark * 0.25) -
           seam * 0.2,
       );
-      rough[i] = clamp01(params.baseRoughness + c * (t - 0.45) * 0.22 + (pore - 0.5) * 0.05);
+      // Ribbon bands also flip the sheen — the chatoyance of interlocked grain.
+      rough[i] = clamp01(
+        params.baseRoughness + c * (t - 0.45) * 0.22 + (pore - 0.5) * 0.05 + ribbon * 0.12,
+      );
     }
   }
 

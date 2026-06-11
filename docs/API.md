@@ -94,7 +94,7 @@ descriptive error for impossible geometry (it runs automatically in `showFurnitu
 
 ### Material ids
 
-`oak`, `walnut`, `cherry`, `cedar`, `paint-white`, `paint-forest`, `steel`, `brass`, `linen`
+`oak`, `redoak`, `walnut`, `cherry`, `maple`, `mahogany`, `cedar`, `paint-white`, `paint-forest`, `steel`, `brass`, `linen`
 — or call `listMaterials()` for ids, labels, categories, and swatch colors.
 
 ### `BuildPlan` shape
