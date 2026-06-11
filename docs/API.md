@@ -57,6 +57,22 @@ the visible viewport size is irrelevant.
 
 // kind: 'cabinet'
 { kind, widthMm, heightMm, depthMm, doorCount, stockThicknessMm, legHeightMm }
+
+// kind: 'drawerbox' — the box itself, outer dimensions
+{ kind, widthMm, depthMm, heightMm, stockThicknessMm, bottomThicknessMm,
+  joinery: 'dovetail' | 'boxjoint' | 'dado' }
+
+// kind: 'door' — slab or five-piece shaker cabinet door
+{ kind, widthMm, heightMm, thicknessMm, style: 'slab' | 'shaker',
+  railStileWidthMm, panelThicknessMm, hingeBoring: boolean }
+
+// kind: 'drawerfront' — same construction as a door, drawer proportions
+{ kind, widthMm, heightMm, thicknessMm, style: 'slab' | 'shaker',
+  railStileWidthMm, panelThicknessMm }
+
+// kind: 'drawerunit' — carcass + N drawer boxes on slides + overlay fronts
+{ kind, widthMm, heightMm, depthMm, drawerCount,
+  stockThicknessMm, boxStockThicknessMm, frontStyle: 'slab' | 'shaker' }
 ```
 
 `defaultTableSpec()` / `defaultBookshelfSpec()` / `defaultCabinetSpec()` /

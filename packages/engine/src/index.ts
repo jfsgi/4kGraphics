@@ -4,13 +4,23 @@ export {
   defaultTableSpec,
   defaultBookshelfSpec,
   defaultCabinetSpec,
+  defaultDrawerBoxSpec,
+  defaultCabinetDoorSpec,
+  defaultDrawerFrontSpec,
+  defaultDrawerUnitSpec,
   validateSpec,
   type FurnitureSpec,
   type FurnitureKind,
   type TableSpec,
   type BookshelfSpec,
   type CabinetSpec,
+  type DrawerBoxSpec,
+  type CabinetDoorSpec,
+  type DrawerFrontSpec,
+  type DrawerUnitSpec,
   type LegStyle,
+  type FrontStyle,
+  type DrawerJoinery,
 } from './parametric/spec.js';
 export { buildLayout, type FurnitureLayout, type Part } from './parametric/layout.js';
 export { buildGroup } from './parametric/geometry.js';

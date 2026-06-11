@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { defaultBookshelfSpec, defaultCabinetSpec, defaultTableSpec } from '../parametric/spec.js';
+import {
+  defaultBookshelfSpec,
+  defaultCabinetDoorSpec,
+  defaultCabinetSpec,
+  defaultDrawerBoxSpec,
+  defaultDrawerUnitSpec,
+  defaultTableSpec,
+} from '../parametric/spec.js';
 import { generateBuildPlan } from './buildplan.js';
 
 describe('build plan generation', () => {
@@ -59,5 +66,34 @@ describe('build plan generation', () => {
     const plan = generateBuildPlan(spec);
     expect(plan.overallDimensionsMm.width).toBe(spec.widthMm);
     expect(plan.overallDimensionsMm.height).toBe(spec.heightMm);
+  });
+
+  it('includes joinery-specific steps for drawer boxes', () => {
+    const dovetail = generateBuildPlan({ ...defaultDrawerBoxSpec(), joinery: 'dovetail' as const });
+    expect(dovetail.steps.some((s) => s.detail.toLowerCase().includes('dovetail'))).toBe(true);
+    const dado = generateBuildPlan({ ...defaultDrawerBoxSpec(), joinery: 'dado' as const });
+    expect(dado.tools.some((t) => t.toLowerCase().includes('dado'))).toBe(true);
+  });
+
+  it('warns that shaker panels float, and skips hinges when boring is off', () => {
+    const plan = generateBuildPlan(defaultCabinetDoorSpec());
+    expect(plan.steps.some((s) => s.detail.includes('ONLY the frame'))).toBe(true);
+    expect(plan.hardware.some((h) => h.item.includes('hinges'))).toBe(true);
+    const noBore = generateBuildPlan({ ...defaultCabinetDoorSpec(), hingeBoring: false });
+    expect(noBore.hardware.some((h) => h.item.includes('hinges'))).toBe(false);
+  });
+
+  it('scales drawer-unit slides and pulls with drawer count', () => {
+    const plan = generateBuildPlan({ ...defaultDrawerUnitSpec(), drawerCount: 4 });
+    const slides = plan.hardware.find((h) => h.item.includes('slides'))!;
+    expect(slides.quantity).toBe(4);
+    const pulls = plan.hardware.find((h) => h.item.includes('pulls'))!;
+    expect(pulls.quantity).toBe(4);
+  });
+
+  it('aggregates identical drawer parts across a unit in the cut list', () => {
+    const plan = generateBuildPlan({ ...defaultDrawerUnitSpec(), drawerCount: 3 });
+    const sides = plan.cutList.find((item) => item.part === 'Drawer side')!;
+    expect(sides.quantity).toBe(6);
   });
 });

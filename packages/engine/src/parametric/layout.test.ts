@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { buildLayout } from './layout.js';
-import { defaultBookshelfSpec, defaultCabinetSpec, defaultTableSpec, validateSpec } from './spec.js';
+import {
+  defaultBookshelfSpec,
+  defaultCabinetDoorSpec,
+  defaultCabinetSpec,
+  defaultDrawerBoxSpec,
+  defaultDrawerFrontSpec,
+  defaultDrawerUnitSpec,
+  defaultTableSpec,
+  validateSpec,
+} from './spec.js';
 
 describe('table layout', () => {
   it('produces a top, four legs, and four apron rails', () => {
@@ -75,6 +84,78 @@ describe('cabinet layout', () => {
   });
 });
 
+describe('drawer box layout', () => {
+  it('builds two sides, front, back, and a floating bottom', () => {
+    const layout = buildLayout(defaultDrawerBoxSpec());
+    expect(layout.parts.filter((p) => p.name === 'Drawer side')).toHaveLength(2);
+    expect(layout.parts.filter((p) => p.name.includes('front'))).toHaveLength(1);
+    expect(layout.parts.filter((p) => p.name.includes('back'))).toHaveLength(1);
+    const bottom = layout.parts.find((p) => p.name === 'Drawer bottom')!;
+    expect(bottom.role).toBe('panel');
+  });
+
+  it('runs side grain along the depth', () => {
+    const spec = defaultDrawerBoxSpec();
+    const layout = buildLayout(spec);
+    const side = layout.parts.find((p) => p.name === 'Drawer side')!;
+    expect(side.grainAxis).toBe('z');
+    expect(side.sizeMm[2]).toBe(spec.depthMm);
+  });
+});
+
+describe('door and drawer front layouts', () => {
+  it('builds five pieces for a shaker door', () => {
+    const layout = buildLayout(defaultCabinetDoorSpec());
+    expect(layout.parts.filter((p) => p.name === 'Door stile')).toHaveLength(2);
+    expect(layout.parts.filter((p) => p.name === 'Door rail')).toHaveLength(2);
+    expect(layout.parts.filter((p) => p.name === 'Door panel')).toHaveLength(1);
+  });
+
+  it('builds a single slab when style is slab', () => {
+    const layout = buildLayout({ ...defaultCabinetDoorSpec(), style: 'slab' as const });
+    expect(layout.parts).toHaveLength(1);
+    expect(layout.parts[0].grainAxis).toBe('y');
+  });
+
+  it('runs slab drawer-front grain horizontally', () => {
+    const layout = buildLayout({ ...defaultDrawerFrontSpec(), style: 'slab' as const });
+    expect(layout.parts[0].grainAxis).toBe('x');
+  });
+
+  it('oversizes the floating panel for its grooves', () => {
+    const spec = defaultCabinetDoorSpec();
+    const layout = buildLayout(spec);
+    const panel = layout.parts.find((p) => p.name === 'Door panel')!;
+    expect(panel.sizeMm[0]).toBe(spec.widthMm - 2 * spec.railStileWidthMm + 20);
+  });
+});
+
+describe('drawer unit layout', () => {
+  it('builds a carcass plus boxes, fronts, and handles per drawer', () => {
+    const spec = { ...defaultDrawerUnitSpec(), drawerCount: 3 };
+    const layout = buildLayout(spec);
+    expect(layout.parts.filter((p) => p.name === 'Drawer side')).toHaveLength(6);
+    expect(layout.parts.filter((p) => p.name === 'Drawer bottom')).toHaveLength(3);
+    expect(layout.parts.filter((p) => p.name === 'Handle')).toHaveLength(3);
+    expect(layout.parts.filter((p) => p.name === 'Drawer front stile')).toHaveLength(6);
+  });
+
+  it('keeps drawer boxes inside the carcass with slide clearance', () => {
+    const spec = defaultDrawerUnitSpec();
+    const layout = buildLayout(spec);
+    const innerW = spec.widthMm - 2 * spec.stockThicknessMm;
+    for (const side of layout.parts.filter((p) => p.name === 'Drawer side')) {
+      expect(Math.abs(side.positionMm[0]) + side.sizeMm[0] / 2).toBeLessThan(innerW / 2);
+    }
+  });
+
+  it('uses slab fronts when requested', () => {
+    const layout = buildLayout({ ...defaultDrawerUnitSpec(), frontStyle: 'slab' as const, drawerCount: 2 });
+    expect(layout.parts.filter((p) => p.name === 'Drawer front')).toHaveLength(2);
+    expect(layout.parts.some((p) => p.name === 'Drawer front stile')).toBe(false);
+  });
+});
+
 describe('spec validation', () => {
   it('rejects impossible leg insets', () => {
     const spec = { ...defaultTableSpec(), widthMm: 200, legInsetMm: 80, legThicknessMm: 70 };
@@ -89,5 +170,15 @@ describe('spec validation', () => {
   it('rejects non-positive dimensions', () => {
     const spec = { ...defaultTableSpec(), widthMm: -100 };
     expect(() => validateSpec(spec)).toThrow(/positive/);
+  });
+
+  it('rejects rails wider than the door allows', () => {
+    const spec = { ...defaultCabinetDoorSpec(), widthMm: 200, railStileWidthMm: 90 };
+    expect(() => validateSpec(spec)).toThrow(/railStileWidthMm/);
+  });
+
+  it('rejects too many drawers for the height', () => {
+    const spec = { ...defaultDrawerUnitSpec(), heightMm: 400, drawerCount: 6 };
+    expect(() => validateSpec(spec)).toThrow(/too many drawers/);
   });
 });

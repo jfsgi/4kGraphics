@@ -21,9 +21,10 @@ three forms so other apps can use it:
 - **Procedural 4K PBR materials** — oak, walnut, cherry (edge-glued plank simulation with
   per-plank grain), paints, brushed steel/brass, and linen, generated at up to 4096²
   with matching color, roughness, and normal maps. No texture assets to download.
-- **Parametric furniture** — tables, bookshelves, and cabinets defined by real dimensions
-  in millimeters. Geometry, UVs (grain direction per part), and the build plan all derive
-  from one part layout, so the render and the cut list can never disagree.
+- **Parametric furniture** — tables, bookshelves, cabinets, drawer boxes, cabinet doors,
+  drawer fronts, and full drawer units, defined by real dimensions in millimeters.
+  Geometry, UVs (grain direction per part), and the build plan all derive from one part
+  layout, so the render and the cut list can never disagree.
 - **Build plans** — cut list with grain-oriented dimensions, hardware list, tool list,
   assembly workflow, board-feet estimate, and shop-hours estimate for every parametric piece.
 - **Model import** — glTF, GLB, OBJ, FBX, and STL with automatic unit guessing

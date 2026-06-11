@@ -26,6 +26,10 @@ const CATALOG: Array<{ kind: FurnitureKind; label: string }> = [
   { kind: 'table', label: 'Dining Table' },
   { kind: 'bookshelf', label: 'Bookshelf' },
   { kind: 'cabinet', label: 'Sideboard' },
+  { kind: 'drawerbox', label: 'Drawer Box' },
+  { kind: 'door', label: 'Cabinet Door' },
+  { kind: 'drawerfront', label: 'Drawer Front' },
+  { kind: 'drawerunit', label: 'Drawer Unit' },
 ];
 
 function buildCatalog() {
@@ -79,7 +83,54 @@ const FIELDS: Record<FurnitureKind, NumberField[]> = {
     { key: 'doorCount', label: 'Doors', min: 1, max: 4, step: 1 },
     { key: 'legHeightMm', label: 'Leg height (mm)', min: 0, max: 300 },
   ],
+  drawerbox: [
+    { key: 'widthMm', label: 'Width (mm)', min: 150, max: 1200 },
+    { key: 'depthMm', label: 'Depth (mm)', min: 150, max: 700 },
+    { key: 'heightMm', label: 'Height (mm)', min: 50, max: 350, step: 5 },
+    { key: 'stockThicknessMm', label: 'Stock (mm)', min: 6, max: 19, step: 1 },
+  ],
+  door: [
+    { key: 'widthMm', label: 'Width (mm)', min: 200, max: 1000 },
+    { key: 'heightMm', label: 'Height (mm)', min: 300, max: 2400 },
+    { key: 'thicknessMm', label: 'Thickness (mm)', min: 16, max: 25, step: 1 },
+    { key: 'railStileWidthMm', label: 'Rail/stile width (mm)', min: 40, max: 120, step: 2 },
+  ],
+  drawerfront: [
+    { key: 'widthMm', label: 'Width (mm)', min: 200, max: 1200 },
+    { key: 'heightMm', label: 'Height (mm)', min: 100, max: 400, step: 5 },
+    { key: 'thicknessMm', label: 'Thickness (mm)', min: 16, max: 25, step: 1 },
+    { key: 'railStileWidthMm', label: 'Rail/stile width (mm)', min: 30, max: 90, step: 2 },
+  ],
+  drawerunit: [
+    { key: 'widthMm', label: 'Width (mm)', min: 300, max: 1200 },
+    { key: 'heightMm', label: 'Height (mm)', min: 300, max: 1500 },
+    { key: 'depthMm', label: 'Depth (mm)', min: 350, max: 650 },
+    { key: 'drawerCount', label: 'Drawers', min: 1, max: 6, step: 1 },
+  ],
 };
+
+function addSelect(
+  host: HTMLElement,
+  label: string,
+  value: string,
+  choices: string[],
+  onChange: (value: string) => void,
+) {
+  const row = document.createElement('label');
+  row.className = 'field-row';
+  row.innerHTML = `<span>${label}</span>`;
+  const select = document.createElement('select');
+  for (const choice of choices) {
+    const option = document.createElement('option');
+    option.value = choice;
+    option.textContent = choice;
+    if (choice === value) option.selected = true;
+    select.appendChild(option);
+  }
+  select.onchange = () => onChange(select.value);
+  row.appendChild(select);
+  host.appendChild(row);
+}
 
 function buildControls() {
   const host = document.getElementById('controls')!;
@@ -155,6 +206,43 @@ function buildControls() {
     };
     backRow.appendChild(check);
     host.appendChild(backRow);
+  }
+
+  if (spec.kind === 'drawerbox') {
+    addSelect(host, 'Joinery', spec.joinery, ['dovetail', 'boxjoint', 'dado'], (value) => {
+      if (spec.kind === 'drawerbox') spec.joinery = value as typeof spec.joinery;
+      scheduleRebuild();
+    });
+  }
+
+  if (spec.kind === 'door' || spec.kind === 'drawerfront') {
+    addSelect(host, 'Style', spec.style, ['shaker', 'slab'], (value) => {
+      if (spec.kind === 'door' || spec.kind === 'drawerfront') {
+        spec.style = value as typeof spec.style;
+      }
+      scheduleRebuild();
+    });
+    if (spec.kind === 'door') {
+      const row = document.createElement('label');
+      row.className = 'field-row';
+      row.innerHTML = '<span>Hinge boring</span>';
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.checked = spec.hingeBoring;
+      check.onchange = () => {
+        if (spec.kind === 'door') spec.hingeBoring = check.checked;
+        scheduleRebuild();
+      };
+      row.appendChild(check);
+      host.appendChild(row);
+    }
+  }
+
+  if (spec.kind === 'drawerunit') {
+    addSelect(host, 'Front style', spec.frontStyle, ['shaker', 'slab'], (value) => {
+      if (spec.kind === 'drawerunit') spec.frontStyle = value as typeof spec.frontStyle;
+      scheduleRebuild();
+    });
   }
 }
 

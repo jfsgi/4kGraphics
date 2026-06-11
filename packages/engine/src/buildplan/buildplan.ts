@@ -144,6 +144,47 @@ function hardwareFor(layout: FurnitureLayout): HardwareItem[] {
       items.push({ item: 'Wood glue (250ml)', quantity: 1 });
       break;
     }
+    case 'drawerbox': {
+      if (spec.joinery === 'dado') {
+        items.push({ item: '16mm brads (for dado joints)', quantity: 16 });
+      }
+      items.push({ item: 'Wood glue (250ml)', quantity: 1 });
+      break;
+    }
+    case 'door': {
+      if (spec.hingeBoring) {
+        items.push({ item: 'Concealed euro hinges (pair)', quantity: 2 });
+      }
+      if (spec.style === 'shaker') {
+        items.push({ item: 'Panel spacers (space balls)', quantity: 8 });
+      }
+      items.push({ item: 'Wood glue (250ml)', quantity: 1 });
+      break;
+    }
+    case 'drawerfront': {
+      items.push({ item: 'Drawer pull', quantity: 1 });
+      items.push({ item: 'M4 × 25mm pull screws', quantity: 2 });
+      if (spec.style === 'shaker') {
+        items.push({ item: 'Panel spacers (space balls)', quantity: 8 });
+      }
+      items.push({ item: 'Wood glue (250ml)', quantity: 1 });
+      break;
+    }
+    case 'drawerunit': {
+      items.push({
+        item: 'Full-extension side-mount slides (pair per drawer)',
+        quantity: spec.drawerCount,
+      });
+      items.push({ item: 'Drawer pulls', quantity: spec.drawerCount });
+      items.push({ item: '8mm × 40mm dowels or confirmat screws (carcass)', quantity: 16 });
+      items.push({ item: '16mm panel nails or staples (back panel)', quantity: 24 });
+      items.push({ item: '4 × 30mm screws (front adjustment, 4 per drawer)', quantity: spec.drawerCount * 4 });
+      if (spec.frontStyle === 'shaker') {
+        items.push({ item: 'Panel spacers (space balls)', quantity: spec.drawerCount * 8 });
+      }
+      items.push({ item: 'Wood glue (250ml)', quantity: 1 });
+      break;
+    }
   }
   return items;
 }
@@ -169,6 +210,27 @@ function toolsFor(layout: FurnitureLayout): string[] {
   if (spec.kind === 'cabinet') {
     tools.push('35mm Forstner bit (hinge cups)');
   }
+  if (spec.kind === 'drawerbox') {
+    if (spec.joinery === 'dovetail') tools.push('Dovetail jig with router');
+    if (spec.joinery === 'boxjoint') tools.push('Box-joint jig for the table saw');
+    if (spec.joinery === 'dado') tools.push('Dado stack or straight router bit');
+    tools.push('6mm slot cutter or dado (bottom groove)');
+  }
+  if (spec.kind === 'door' || spec.kind === 'drawerfront') {
+    if (spec.style === 'shaker') {
+      tools.push('Router table with rail-and-stile bits (or dado stack for grooves/tenons)');
+    }
+    if (spec.kind === 'door' && spec.hingeBoring) {
+      tools.push('35mm Forstner bit (hinge cups)');
+    }
+  }
+  if (spec.kind === 'drawerunit') {
+    tools.push('Drawer-slide mounting jig');
+    tools.push('Dovetail or box-joint jig (drawer boxes)');
+    if (spec.frontStyle === 'shaker') {
+      tools.push('Router table with rail-and-stile bits (fronts)');
+    }
+  }
   return tools;
 }
 
@@ -182,6 +244,18 @@ function overviewFor(layout: FurnitureLayout): string {
       return `A ${size} bookshelf with ${layout.spec.shelfCount} adjustable shelves${layout.spec.backPanel ? ' and a back panel that squares the carcass' : ''}. Build order: drill shelf-pin holes flat, assemble the carcass, then fit the back.`;
     case 'cabinet':
       return `A ${size} ${layout.spec.doorCount}-door cabinet on ${layout.spec.legHeightMm > 0 ? 'tapered legs' : 'a plinth'}. Build order: carcass, back, top, then hang and align the doors last.`;
+    case 'drawerbox':
+      return `A ${size} drawer box in ${layout.spec.stockThicknessMm}mm stock with ${layout.spec.joinery === 'dovetail' ? 'dovetailed' : layout.spec.joinery === 'boxjoint' ? 'box-jointed' : 'dadoed'} corners and a ${layout.spec.bottomThicknessMm}mm bottom captured in a groove. Cut the joinery before grooving so the groove hides inside a tail.`;
+    case 'door':
+      return layout.spec.style === 'shaker'
+        ? `A ${size} five-piece shaker door: two stiles, two rails, and a floating center panel. Glue the frame only — the panel must float to allow seasonal movement.`
+        : `A ${size} slab door. Flatness is everything: pick stable stock, finish both faces equally, and store it flat.`;
+    case 'drawerfront':
+      return layout.spec.style === 'shaker'
+        ? `A ${size} five-piece shaker drawer front with a floating panel. Same construction as a door, sized for drawer proportions.`
+        : `A ${size} slab drawer front with horizontal grain.`;
+    case 'drawerunit':
+      return `A ${size} bank of ${layout.spec.drawerCount} drawers on full-extension slides with ${layout.spec.frontStyle} overlay fronts. Build order: carcass, slides, boxes, then fronts aligned last with adjustment screws.`;
   }
 }
 
@@ -258,6 +332,90 @@ function stepsFor(layout: FurnitureLayout): BuildStep[] {
       });
       break;
     }
+    case 'drawerbox': {
+      const j = spec.joinery;
+      steps.push(
+        {
+          title: 'Cut the corner joinery',
+          detail:
+            j === 'dovetail'
+              ? 'Rout half-blind dovetails on all four corners with the jig; test-fit a corner in scrap first and dial in the bit depth until the joint closes hand-tight.'
+              : j === 'boxjoint'
+                ? 'Cut box joints on all four corners at the table saw with the jig. The fit should need light mallet taps — too tight will split when glue swells the fingers.'
+                : 'Cut a dado in each side to receive the front and back, sized for a snug push fit.',
+        },
+        {
+          title: 'Groove for the bottom',
+          detail: `Cut a ${spec.bottomThicknessMm}mm groove 12mm up from the bottom edge on the inside of all four parts, positioned so it runs inside a ${j === 'dado' ? 'dado' : 'tail'} — never through visible joinery.`,
+        },
+        {
+          title: 'Assemble',
+          detail:
+            'Glue the corners, slide the bottom in dry (never glued — it floats), clamp, and compare diagonals before the glue sets. Wipe squeeze-out inside the box immediately.',
+        },
+      );
+      break;
+    }
+    case 'door':
+    case 'drawerfront': {
+      if (spec.style === 'shaker') {
+        steps.push(
+          {
+            title: 'Mill rails and stiles',
+            detail: `Cut stiles and rails to the cut list (${spec.railStileWidthMm}mm wide), then cut the ${spec.panelThicknessMm}mm groove centered on every inside edge.`,
+          },
+          {
+            title: 'Cut the rail tenons',
+            detail: 'Cope the rail ends (or cut stub tenons) to fill the stile grooves exactly — the shoulders set the frame square.',
+          },
+          {
+            title: 'Fit the panel and glue up',
+            detail:
+              'Cut the panel 1mm under groove depth all around, insert with panel spacers, and glue ONLY the frame joints. Clamp flat on a known-flat surface and check the diagonals.',
+          },
+        );
+      } else {
+        steps.push({
+          title: 'Prepare the slab',
+          detail: 'Glue up (or cut) the slab to final size, then flatten both faces equally so internal stresses balance and the piece stays flat.',
+        });
+      }
+      if (spec.kind === 'door' && spec.hingeBoring) {
+        steps.push({
+          title: 'Bore for hinges',
+          detail: 'Drill the two 35mm hinge cups 12mm deep, centered 22.5mm from the hinge-side edge, ~80mm from each end.',
+        });
+      }
+      steps.push({
+        title: 'Break the edges',
+        detail: 'Ease all arrises with a 1mm chamfer or light sanding — crisp but not sharp.',
+      });
+      break;
+    }
+    case 'drawerunit': {
+      steps.push(
+        {
+          title: 'Assemble the carcass',
+          detail:
+            'Join the top and bottom panels between the sides with glue and dowels, square against the back panel, and fasten the back.',
+        },
+        {
+          title: 'Mount the slides',
+          detail: `Lay out ${spec.drawerCount} slide positions with the jig and screw the cabinet members to the sides — identical heights left and right, or the drawers will rack.`,
+        },
+        {
+          title: 'Build the drawer boxes',
+          detail:
+            'Build each box per the cut list (joinery, bottom groove, glue-up), then mount the drawer members of the slides centered on the box sides.',
+        },
+        {
+          title: 'Fit the fronts',
+          detail:
+            'With the boxes installed, attach each front using double-sided tape to position it, then fix from inside with the adjustment screws. Work bottom-up keeping an even 3mm reveal.',
+        },
+      );
+      break;
+    }
     case 'cabinet': {
       steps.push(
         {
@@ -293,7 +451,16 @@ function stepsFor(layout: FurnitureLayout): BuildStep[] {
 function estimateHours(layout: FurnitureLayout): { min: number; max: number } {
   // Crude but useful: scale with distinct operations and part count.
   const partCount = layout.parts.filter((p) => p.role !== 'hardware').length;
-  const base = layout.spec.kind === 'table' ? 8 : layout.spec.kind === 'cabinet' ? 12 : 6;
+  const baseByKind: Record<string, number> = {
+    table: 8,
+    cabinet: 12,
+    bookshelf: 6,
+    drawerbox: 2,
+    door: 3,
+    drawerfront: 2,
+    drawerunit: 10,
+  };
+  const base = baseByKind[layout.spec.kind] ?? 6;
   const min = base + Math.round(partCount * 0.5);
   return { min, max: Math.round(min * 1.8) };
 }
