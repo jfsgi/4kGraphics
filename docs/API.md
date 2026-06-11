@@ -72,17 +72,18 @@ the visible viewport size is irrelevant.
   edgeProfile?:      EdgeProfile, // inner pattern: square|chamfer|roundover|ogee|bead|cove|ovolo|step|thumbnail
   outerEdgeProfile?: EdgeProfile, // outer door-edge detail (same options)
   glassPanel?: boolean,                         // glass pane + retainer hardware
+  frameJoint?: 'cope' | 'miter',                // pattern joints or 45° mitered frame
   hingeBoring: boolean }
 
 // kind: 'drawerfront' — same construction as a door, drawer proportions
 { kind, widthMm, heightMm, thicknessMm, style, railStileWidthMm,
-  panelThicknessMm, raiseProfile?, raiseWidthMm?, edgeProfile?, outerEdgeProfile? }
+  panelThicknessMm, raiseProfile?, raiseWidthMm?, edgeProfile?, outerEdgeProfile?, frameJoint? }
 
 // kind: 'drawerunit' — carcass + N drawer boxes on slides + overlay fronts
 { kind, widthMm, heightMm, depthMm, drawerCount, stockThicknessMm,
   boxStockThicknessMm, frontStyle: 'slab' | 'shaker' | 'raised',
   raiseProfile?, edgeProfile?, outerEdgeProfile?,
-  slideType?: 'sidemount' | 'undermount' }
+  slideType?: 'sidemount' | 'undermount', frameJoint? }
 ```
 
 Cut-list items and overall dimensions also carry fractional-inch strings

@@ -140,6 +140,18 @@ describe('door and drawer front layouts', () => {
     expect(layout.parts[0].grainAxis).toBe('x');
   });
 
+  it('uses long-point rails and flagged members for mitered frames', () => {
+    const miter = buildLayout({ ...defaultCabinetDoorSpec(), frameJoint: 'miter' as const });
+    const rail = miter.parts.find((p) => p.name === 'Door rail')!;
+    expect(rail.sizeMm[0]).toBe(defaultCabinetDoorSpec().widthMm);
+    expect(rail.edgeProfile?.miterEnds).toBe(true);
+    const cope = buildLayout(defaultCabinetDoorSpec());
+    const copeRail = cope.parts.find((p) => p.name === 'Door rail')!;
+    expect(copeRail.sizeMm[0]).toBe(
+      defaultCabinetDoorSpec().widthMm - 2 * defaultCabinetDoorSpec().railStileWidthMm,
+    );
+  });
+
   it('oversizes the floating panel for its grooves', () => {
     const spec = defaultCabinetDoorSpec();
     const layout = buildLayout(spec);

@@ -95,6 +95,9 @@ function edgeProfiledGeometry(
   const innerSide = innerOnVMax ? ('vMax' as const) : ('vMin' as const);
   const geometry = profiledBoardGeometry(L, W, sz, {
     depth,
+    miterEnds: edge.miterEnds
+      ? { outerSide: innerSide === 'vMax' ? 'vMin' : 'vMax' }
+      : undefined,
     inner: edge.inner
       ? {
           profile: edge.inner,

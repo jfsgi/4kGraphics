@@ -38,7 +38,7 @@ function toTexture(canvas: HTMLCanvasElement, srgb: boolean): THREE.CanvasTextur
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
   texture.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-  texture.anisotropy = 8;
+  texture.anisotropy = 16;
   return texture;
 }
 

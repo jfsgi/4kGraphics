@@ -70,6 +70,8 @@ export type EdgeProfile =
   | 'fingerpull'
   | 'classical';
 export type DrawerJoinery = 'dovetail' | 'halfblind' | 'boxjoint' | 'dado';
+/** Frame corner construction: coped pattern joints, or full 45° miters. */
+export type FrameJoint = 'cope' | 'miter';
 export type SlideType = 'sidemount' | 'undermount';
 
 /** A drawer box (the box itself, no front). Outer dimensions. */
@@ -110,6 +112,8 @@ export interface CabinetDoorSpec {
   outerEdgeProfile?: EdgeProfile;
   /** Frame holds a glass pane instead of a wood panel. */
   glassPanel?: boolean;
+  /** Corner construction: coped pattern joints (default) or 45° miters. */
+  frameJoint?: FrameJoint;
   /** Include 35mm hinge-cup boring in the plan. */
   hingeBoring: boolean;
 }
@@ -128,6 +132,7 @@ export interface DrawerFrontSpec {
   raiseWidthMm?: number;
   edgeProfile?: EdgeProfile;
   outerEdgeProfile?: EdgeProfile;
+  frameJoint?: FrameJoint;
 }
 
 /** A bank of drawers: carcass, drawer boxes on slides, overlay fronts. */
@@ -148,6 +153,7 @@ export interface DrawerUnitSpec {
   outerEdgeProfile?: EdgeProfile;
   /** Side-mount (default) or undermount slides — changes box clearances. */
   slideType?: SlideType;
+  frameJoint?: FrameJoint;
 }
 
 export type FurnitureSpec =

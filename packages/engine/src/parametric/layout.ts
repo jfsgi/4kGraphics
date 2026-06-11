@@ -84,6 +84,8 @@ export interface Part {
     axis: 'x' | 'y' | 'slab';
     /** The inner pattern stops this far from each end (the cope line). */
     innerInsetMm?: number;
+    /** 45°-mitered member ends (mitered frame construction). */
+    miterEnds?: boolean;
   };
 }
 
@@ -434,6 +436,7 @@ function pushFrontParts(
     raiseWidthMm?: number;
     edgeProfile?: EdgeProfile;
     outerEdgeProfile?: EdgeProfile;
+    frameJoint?: 'cope' | 'miter';
     glassPanel?: boolean;
     centerXMm: number;
     bottomYMm: number;
@@ -452,6 +455,7 @@ function pushFrontParts(
       ? options.outerEdgeProfile
       : undefined
   ) as EdgeProfileName | undefined;
+  const miter = options.frameJoint === 'miter';
   if (style === 'slab') {
     parts.push({
       name: `${namePrefix}`,
@@ -473,8 +477,15 @@ function pushFrontParts(
       role: 'structure',
       grainAxis: 'y',
       edgeProfile:
-        pattern || outer
-          ? { inner: pattern, outer, innerSide: sx > 0 ? 'x-' : 'x+', axis: 'y', innerInsetMm: rsw }
+        pattern || outer || miter
+          ? {
+              inner: pattern,
+              outer,
+              innerSide: sx > 0 ? 'x-' : 'x+',
+              axis: 'y',
+              innerInsetMm: miter ? 0 : rsw,
+              miterEnds: miter,
+            }
           : undefined,
     });
   }
@@ -482,13 +493,21 @@ function pushFrontParts(
     parts.push({
       name: `${namePrefix} rail`,
       shape: 'box',
-      sizeMm: [w - 2 * rsw, rsw, t],
+      // Mitered rails run the full door width (long-point length).
+      sizeMm: [miter ? w : w - 2 * rsw, rsw, t],
       positionMm: [cx, y0 + (top ? h - rsw / 2 : rsw / 2), cz],
       role: 'structure',
       grainAxis: 'x',
       edgeProfile:
-        pattern || outer
-          ? { inner: pattern, outer, innerSide: top ? 'y-' : 'y+', axis: 'x', innerInsetMm: 0 }
+        pattern || outer || miter
+          ? {
+              inner: pattern,
+              outer,
+              innerSide: top ? 'y-' : 'y+',
+              axis: 'x',
+              innerInsetMm: 0,
+              miterEnds: miter,
+            }
           : undefined,
     });
   }
@@ -539,6 +558,7 @@ function frontPanelLayout(spec: CabinetDoorSpec | DrawerFrontSpec): FurnitureLay
     raiseWidthMm: spec.raiseWidthMm,
     edgeProfile: spec.edgeProfile,
     outerEdgeProfile: spec.outerEdgeProfile,
+    frameJoint: spec.frameJoint,
     glassPanel: spec.kind === 'door' ? spec.glassPanel : undefined,
     centerXMm: 0,
     bottomYMm: 0,
@@ -617,6 +637,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
       raiseWidthMm: 32,
       edgeProfile: spec.edgeProfile,
       outerEdgeProfile: spec.outerEdgeProfile,
+      frameJoint: spec.frameJoint,
       centerXMm: 0,
       bottomYMm: y0,
       centerZMm: frontZ,

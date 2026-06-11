@@ -275,6 +275,14 @@ function buildControls() {
         scheduleRebuild();
       },
     );
+    if (spec.style !== 'slab') {
+      addSelect(host, 'Frame joint', spec.frameJoint ?? 'cope', ['cope', 'miter'], (value) => {
+        if (spec.kind === 'door' || spec.kind === 'drawerfront') {
+          spec.frameJoint = value as typeof spec.frameJoint;
+        }
+        scheduleRebuild();
+      });
+    }
     if (spec.kind === 'door' && spec.style !== 'slab') {
       const row = document.createElement('label');
       row.className = 'field-row';
@@ -327,6 +335,12 @@ function buildControls() {
         scheduleRebuild();
       },
     );
+    if (spec.frontStyle !== 'slab') {
+      addSelect(host, 'Frame joint', spec.frameJoint ?? 'cope', ['cope', 'miter'], (value) => {
+        if (spec.kind === 'drawerunit') spec.frameJoint = value as typeof spec.frameJoint;
+        scheduleRebuild();
+      });
+    }
     addSelect(host, 'Slides', spec.slideType ?? 'sidemount', ['sidemount', 'undermount'], (value) => {
       if (spec.kind === 'drawerunit') spec.slideType = value as typeof spec.slideType;
       scheduleRebuild();

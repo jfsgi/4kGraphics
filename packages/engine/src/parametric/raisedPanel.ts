@@ -9,6 +9,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { displacedFrontFace, nonuniformSamples } from './displacedGrid.js';
 
 export type RaiseProfileId =
   | 'cove'
@@ -62,16 +63,28 @@ export function raisedPanelGeometry(
     return tongueZ + (fieldZ - tongueZ) * profile(s);
   };
 
-  // Front face: displaced grid, dense enough for a smooth raise curve.
-  const step = 0.002;
-  const segX = Math.min(220, Math.max(24, Math.round(width / step)));
-  const segY = Math.min(220, Math.max(24, Math.round(height / step)));
-  const front = new THREE.PlaneGeometry(width, height, segX, segY);
-  const pos = front.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    pos.setZ(i, frontZ(pos.getX(i), pos.getY(i)));
-  }
-  front.computeVertexNormals();
+  // Front face: dense sampling across the raise ring, coarse on the field,
+  // with crease-preserving analytic normals (sharp arris at the field).
+  const ring = TONGUE_LENGTH + raiseWidth + 0.002;
+  const xs = nonuniformSamples(
+    width,
+    [
+      [-width / 2, -width / 2 + ring],
+      [width / 2 - ring, width / 2],
+    ],
+    0.0015,
+    0.01,
+  );
+  const ys = nonuniformSamples(
+    height,
+    [
+      [-height / 2, -height / 2 + ring],
+      [height / 2 - ring, height / 2],
+    ],
+    0.0015,
+    0.01,
+  );
+  const front = displacedFrontFace(xs, ys, frontZ);
 
   // Back face.
   const backFace = new THREE.PlaneGeometry(width, height);
@@ -110,7 +123,7 @@ export function raisedPanelGeometry(
   sides.dispose();
 
   const merged = mergeGeometries(
-    [front.toNonIndexed(), backFace.toNonIndexed(), filtered],
+    [front, backFace.toNonIndexed(), filtered],
     false,
   );
   front.dispose();

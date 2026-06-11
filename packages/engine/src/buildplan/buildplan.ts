@@ -97,7 +97,9 @@ function buildCutList(layout: FurnitureLayout): CutListItem[] {
             ? `Raised panel — ${part.raisedPanel.profile} profile, ${part.raisedPanel.raiseWidthMm}mm raise`
             : part.edgeProfile
               ? [
-                  part.edgeProfile.inner && `${part.edgeProfile.inner} pattern, inner edge (cope & pattern T&G)`,
+                  part.edgeProfile.miterEnds && '45° mitered ends (long-point length)',
+                  part.edgeProfile.inner &&
+                    `${part.edgeProfile.inner} pattern, inner edge${part.edgeProfile.miterEnds ? '' : ' (cope & pattern T&G)'}`,
                   part.edgeProfile.outer && `${part.edgeProfile.outer} door-edge detail, outer edge`,
                 ]
                   .filter(Boolean)
@@ -193,6 +195,9 @@ function hardwareFor(layout: FurnitureLayout): HardwareItem[] {
       } else if (spec.style !== 'slab') {
         items.push({ item: 'Panel spacers (space balls)', quantity: 8 });
       }
+      if (spec.frameJoint === 'miter') {
+        items.push({ item: 'Splines or biscuits (miter reinforcement)', quantity: 4 });
+      }
       items.push({ item: 'Wood glue (250ml)', quantity: 1 });
       break;
     }
@@ -259,11 +264,16 @@ function toolsFor(layout: FurnitureLayout): string[] {
   if (spec.kind === 'door' || spec.kind === 'drawerfront') {
     if (spec.style !== 'slab') {
       const pattern = spec.edgeProfile && spec.edgeProfile !== 'square';
-      tools.push(
-        pattern
-          ? `Cope & pattern cutter set (${spec.edgeProfile} pattern, 1/4" × 3/8" T&G)`
-          : 'Router table with rail-and-stile bits (or dado stack for grooves/tenons)',
-      );
+      if (spec.frameJoint === 'miter') {
+        tools.push('Miter saw or sled with length stops (45° frame joints)');
+        if (pattern) tools.push(`Stick cutter for the ${spec.edgeProfile} pattern (run before mitering)`);
+      } else {
+        tools.push(
+          pattern
+            ? `Cope & pattern cutter set (${spec.edgeProfile} pattern, 1/4" × 3/8" T&G)`
+            : 'Router table with rail-and-stile bits (or dado stack for grooves/tenons)',
+        );
+      }
     }
     if (spec.style === 'raised') {
       tools.push(`Shaper or router panel raiser (${spec.raiseProfile ?? 'cove'} profile insert cutter)`);
@@ -432,16 +442,29 @@ function stepsFor(layout: FurnitureLayout): BuildStep[] {
     case 'door':
     case 'drawerfront': {
       if (spec.style !== 'slab') {
-        steps.push(
-          {
-            title: 'Mill rails and stiles',
-            detail: `Cut stiles and rails to the cut list (${spec.railStileWidthMm}mm wide), then cut the ${spec.style === 'raised' ? 6 : spec.panelThicknessMm}mm groove centered on every inside edge.`,
-          },
-          {
-            title: 'Cut the rail tenons',
-            detail: 'Cope the rail ends (or cut stub tenons) to fill the stile grooves exactly — the shoulders set the frame square.',
-          },
-        );
+        if (spec.frameJoint === 'miter') {
+          steps.push(
+            {
+              title: 'Stick and miter the frame stock',
+              detail: `Run the groove (and pattern profile, if any) along the inside edge of all frame stock, then miter both ends of every member at 45° — long-point lengths per the cut list, identical pairs cut against a stop.`,
+            },
+            {
+              title: 'Reinforce the miters',
+              detail: 'Slot each miter for a spline or biscuit — end-grain glue alone will not hold a door corner.',
+            },
+          );
+        } else {
+          steps.push(
+            {
+              title: 'Mill rails and stiles',
+              detail: `Cut stiles and rails to the cut list (${spec.railStileWidthMm}mm wide), then cut the ${spec.style === 'raised' ? 6 : spec.panelThicknessMm}mm groove centered on every inside edge.`,
+            },
+            {
+              title: 'Cut the rail tenons',
+              detail: 'Cope the rail ends (or cut stub tenons) to fill the stile grooves exactly — the shoulders set the frame square.',
+            },
+          );
+        }
         if (spec.style === 'raised') {
           steps.push({
             title: 'Raise the panel',
