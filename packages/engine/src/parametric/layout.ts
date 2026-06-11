@@ -678,87 +678,121 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
   const n = spec.drawerCount;
   const undermount = spec.slideType === 'undermount';
   const boxT = spec.boxStockThicknessMm;
-  const boxW = w - 2 * t - 2 * (undermount ? 5 : slideClearance);
   const boxD = Math.min(innerDepth - 25, Math.floor((innerDepth - 25) / 50) * 50);
   const boxLift = undermount ? 16 : 10;
+
+  // Columns: interior split by full-height partitions. The column divider
+  // sits back from the front edge by the front thickness; the fronts
+  // extend across it, meeting over its centerline with a reveal-wide gap.
+  const cols = Math.max(1, spec.columnCount ?? 1);
+  const colW = (innerW - (cols - 1) * t) / cols;
+  for (let c = 1; c < cols; c++) {
+    const px = -w / 2 + t + c * (colW + t) - t / 2;
+    parts.push({
+      name: 'Column divider',
+      shape: 'box',
+      sizeMm: [t, h - 2 * t, inset ? caseDepth - frontT : caseDepth],
+      positionMm: [px, h / 2, caseOffsetZ - (inset ? frontT / 2 : 0)],
+      role: 'structure',
+      grainAxis: 'y',
+    });
+  }
+
+  const boxW = colW - 2 * (undermount ? 5 : slideClearance);
 
   // Inset banks show divider rails between the openings; overlay fronts
   // cover the carcass so none are needed.
   const railH = 20;
   const interiorH = h - 2 * t;
   const openingH = inset ? (interiorH - (n - 1) * railH) / n : (h - 4 - 3 * (n - 1)) / n;
-  const frontW = inset ? innerW - 2 * reveal : w - 4;
+  const overlayW = (w - 4 - 3 * (cols - 1)) / cols;
   const frontH = inset ? openingH - 2 * reveal : openingH;
-  const frontZ = inset ? d / 2 - frontT / 2 : d / 2 - frontT / 2;
+  const frontZ = d / 2 - frontT / 2;
 
-  for (let i = 0; i < n; i++) {
-    const openingBottom = inset ? t + i * (openingH + railH) : 2 + i * (openingH + 3);
-    const y0 = openingBottom + (inset ? reveal : 0);
+  for (let c = 0; c < cols; c++) {
+    const colLeft = -w / 2 + t + c * (colW + t);
+    const colRight = colLeft + colW;
+    const colCenter = (colLeft + colRight) / 2;
+    // Inset fronts run from the outer side (full reveal) to the divider
+    // centerline (half the reveal each, so adjacent fronts gap one reveal).
+    const fLeft = inset ? (c === 0 ? colLeft + reveal : colLeft - t / 2 + reveal / 2) : 0;
+    const fRight = inset
+      ? c === cols - 1
+        ? colRight - reveal
+        : colRight + t / 2 - reveal / 2
+      : 0;
+    const frontW = inset ? fRight - fLeft : overlayW;
+    const frontCX = inset ? (fLeft + fRight) / 2 : -w / 2 + 2 + overlayW / 2 + c * (overlayW + 3);
 
-    if (inset && i > 0) {
+    for (let i = 0; i < n; i++) {
+      const openingBottom = inset ? t + i * (openingH + railH) : 2 + i * (openingH + 3);
+      const y0 = openingBottom + (inset ? reveal : 0);
+
+      if (inset && i > 0 && c === 0) {
+        parts.push({
+          name: 'Divider rail',
+          shape: 'box',
+          sizeMm: [innerW, railH, frontT],
+          positionMm: [0, openingBottom - railH / 2, caseFrontZ - frontT / 2],
+          role: 'structure',
+          grainAxis: 'x',
+        });
+      }
+
+      pushFrontParts(parts, {
+        style: spec.frontStyle,
+        widthMm: frontW,
+        heightMm: frontH,
+        thicknessMm: frontT,
+        railStileWidthMm: 50,
+        // Raised fronts use full frame stock (¾"): with the ¼" tongue
+        // centered, the raise gets its true catalog depth.
+        panelThicknessMm: spec.frontStyle === 'raised' ? frontT : 6,
+        raiseProfile: spec.raiseProfile,
+        raiseWidthMm: 32,
+        edgeProfile: spec.edgeProfile,
+        outerEdgeProfile: spec.outerEdgeProfile,
+        frameJoint: spec.frameJoint,
+        fingerPull: spec.fingerPull,
+        centerXMm: frontCX,
+        bottomYMm: y0,
+        centerZMm: frontZ,
+        namePrefix: 'Drawer front',
+        slabGrain: 'x',
+      });
+
+      const boxY0 = openingBottom + boxLift;
+      const boxH = Math.max(60, openingH - (undermount ? 38 : 30));
+      const boxZ = d / 2 - frontT - boxD / 2 - 5;
+      for (const sx of [1, -1]) {
+        parts.push({
+          name: 'Drawer side',
+          shape: 'box',
+          sizeMm: [boxT, boxH, boxD],
+          positionMm: [colCenter + sx * (boxW / 2 - boxT / 2), boxY0 + boxH / 2, boxZ],
+          role: 'structure',
+          grainAxis: 'z',
+        });
+      }
+      for (const sz of [1, -1]) {
+        parts.push({
+          name: sz > 0 ? 'Drawer box front' : 'Drawer box back',
+          shape: 'box',
+          sizeMm: [boxW - 2 * boxT, boxH, boxT],
+          positionMm: [colCenter, boxY0 + boxH / 2, boxZ + sz * (boxD / 2 - boxT / 2)],
+          role: 'structure',
+          grainAxis: 'x',
+        });
+      }
       parts.push({
-        name: 'Divider rail',
+        name: 'Drawer bottom',
         shape: 'box',
-        sizeMm: [innerW, railH, frontT],
-        positionMm: [0, openingBottom - railH / 2, caseFrontZ - frontT / 2],
-        role: 'structure',
+        sizeMm: [boxW - 2 * boxT + 12, 6, boxD - 2 * boxT + 12],
+        positionMm: [colCenter, boxY0 + 12 + 3, boxZ],
+        role: 'panel',
         grainAxis: 'x',
       });
     }
-
-    pushFrontParts(parts, {
-      style: spec.frontStyle,
-      widthMm: frontW,
-      heightMm: frontH,
-      thicknessMm: frontT,
-      railStileWidthMm: 50,
-      // Raised fronts use full frame stock (¾"): with the ¼" tongue
-      // centered, the raise gets its true catalog depth.
-      panelThicknessMm: spec.frontStyle === 'raised' ? frontT : 6,
-      raiseProfile: spec.raiseProfile,
-      raiseWidthMm: 32,
-      edgeProfile: spec.edgeProfile,
-      outerEdgeProfile: spec.outerEdgeProfile,
-      frameJoint: spec.frameJoint,
-      fingerPull: spec.fingerPull,
-      centerXMm: 0,
-      bottomYMm: y0,
-      centerZMm: frontZ,
-      namePrefix: 'Drawer front',
-      slabGrain: 'x',
-    });
-
-    const boxY0 = openingBottom + boxLift;
-    const boxH = Math.max(60, openingH - (undermount ? 38 : 30));
-    const boxZ = d / 2 - frontT - boxD / 2 - 5;
-    for (const sx of [1, -1]) {
-      parts.push({
-        name: 'Drawer side',
-        shape: 'box',
-        sizeMm: [boxT, boxH, boxD],
-        positionMm: [sx * (boxW / 2 - boxT / 2), boxY0 + boxH / 2, boxZ],
-        role: 'structure',
-        grainAxis: 'z',
-      });
-    }
-    for (const sz of [1, -1]) {
-      parts.push({
-        name: sz > 0 ? 'Drawer box front' : 'Drawer box back',
-        shape: 'box',
-        sizeMm: [boxW - 2 * boxT, boxH, boxT],
-        positionMm: [0, boxY0 + boxH / 2, boxZ + sz * (boxD / 2 - boxT / 2)],
-        role: 'structure',
-        grainAxis: 'x',
-      });
-    }
-    parts.push({
-      name: 'Drawer bottom',
-      shape: 'box',
-      sizeMm: [boxW - 2 * boxT + 12, 6, boxD - 2 * boxT + 12],
-      positionMm: [0, boxY0 + 12 + 3, boxZ],
-      role: 'panel',
-      grainAxis: 'x',
-    });
   }
 
   return { spec, parts, overallMm: [w, h, d] };

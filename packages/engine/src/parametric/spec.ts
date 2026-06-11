@@ -147,6 +147,12 @@ export interface DrawerUnitSpec {
   heightMm: number;
   depthMm: number;
   drawerCount: number;
+  /**
+   * Side-by-side drawer banks. The column dividers sit back from the front
+   * edge by the front thickness; inset fronts extend across them, gapped
+   * one reveal apart.
+   */
+  columnCount?: number;
   /** Carcass stock. */
   stockThicknessMm: number;
   /** Drawer box stock. */
@@ -269,6 +275,7 @@ export function defaultDrawerUnitSpec(): DrawerUnitSpec {
     heightMm: 750,
     depthMm: 500,
     drawerCount: 3,
+    columnCount: 1,
     stockThicknessMm: 18,
     boxStockThicknessMm: 13,
     frontStyle: 'shaker',
@@ -407,6 +414,14 @@ export function validateSpec(spec: FurnitureSpec): void {
       }
       if (spec.fingerPull && spec.frontStyle !== 'slab') {
         throw new Error('drawerunit: fingerPull is routed into slab fronts — set frontStyle to "slab"');
+      }
+      const cols = spec.columnCount ?? 1;
+      if (!Number.isInteger(cols) || cols < 1 || cols > 4) {
+        throw new Error('drawerunit: columnCount must be an integer between 1 and 4');
+      }
+      const colWidth = (spec.widthMm - 2 * spec.stockThicknessMm - (cols - 1) * spec.stockThicknessMm) / cols;
+      if (colWidth <= 2 * 13 + 50) {
+        throw new Error('drawerunit: too many columns for the width — drawer boxes need room for slides');
       }
       break;
     }

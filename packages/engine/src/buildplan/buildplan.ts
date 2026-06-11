@@ -220,12 +220,12 @@ function hardwareFor(layout: FurnitureLayout): HardwareItem[] {
           spec.slideType === 'undermount'
             ? 'Undermount soft-close slides (pair per drawer)'
             : 'Full-extension side-mount slides (pair per drawer)',
-        quantity: spec.drawerCount,
+        quantity: spec.drawerCount * (spec.columnCount ?? 1),
       });
       items.push({ item: '16mm panel nails or staples (back panel)', quantity: 24 });
-      items.push({ item: '4 × 30mm screws (front adjustment, 4 per drawer)', quantity: spec.drawerCount * 4 });
+      items.push({ item: '4 × 30mm screws (front adjustment, 4 per drawer)', quantity: spec.drawerCount * (spec.columnCount ?? 1) * 4 });
       if (spec.frontStyle !== 'slab') {
-        items.push({ item: 'Panel spacers (space balls)', quantity: spec.drawerCount * 8 });
+        items.push({ item: 'Panel spacers (space balls)', quantity: spec.drawerCount * (spec.columnCount ?? 1) * 8 });
       }
       items.push({ item: 'Wood glue (250ml)', quantity: 1 });
       break;
@@ -522,7 +522,7 @@ function stepsFor(layout: FurnitureLayout): BuildStep[] {
         },
         {
           title: 'Mount the slides',
-          detail: `Lay out ${spec.drawerCount} slide positions with the jig and screw the cabinet members to the sides — identical heights left and right, or the drawers will rack.`,
+          detail: `Lay out ${spec.drawerCount * (spec.columnCount ?? 1)} slide positions with the jig and screw the cabinet members to the sides — identical heights left and right, or the drawers will rack.`,
         },
         {
           title: 'Build the drawer boxes',

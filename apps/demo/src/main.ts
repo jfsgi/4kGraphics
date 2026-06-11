@@ -103,10 +103,11 @@ const FIELDS: Record<FurnitureKind, NumberField[]> = {
     { key: 'railStileWidthMm', label: 'Rail/stile width (mm)', min: 30, max: 90, step: 2 },
   ],
   drawerunit: [
-    { key: 'widthMm', label: 'Width (mm)', min: 300, max: 1200 },
+    { key: 'widthMm', label: 'Width (mm)', min: 300, max: 2400 },
     { key: 'heightMm', label: 'Height (mm)', min: 300, max: 1500 },
     { key: 'depthMm', label: 'Depth (mm)', min: 350, max: 650 },
-    { key: 'drawerCount', label: 'Drawers', min: 1, max: 6, step: 1 },
+    { key: 'drawerCount', label: 'Drawers per column', min: 1, max: 6, step: 1 },
+    { key: 'columnCount', label: 'Columns', min: 1, max: 4, step: 1 },
   ],
 };
 

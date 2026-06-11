@@ -81,7 +81,10 @@ the visible viewport size is irrelevant.
   fingerPull?: boolean }                        // routed top-edge pull channel (slab style)
 
 // kind: 'drawerunit' — carcass + N drawer boxes on slides + overlay fronts
-{ kind, widthMm, heightMm, depthMm, drawerCount, stockThicknessMm,
+{ kind, widthMm, heightMm, depthMm, drawerCount,  // drawers per column
+  columnCount?: number,                         // side-by-side banks; dividers recessed a front
+                                                // thickness, inset fronts gap one reveal over them
+  stockThicknessMm,
   boxStockThicknessMm, frontStyle: 'slab' | 'shaker' | 'raised',
   raiseProfile?, edgeProfile?, outerEdgeProfile?,
   slideType?: 'sidemount' | 'undermount', frameJoint?,
