@@ -1,10 +1,63 @@
 # Using the engine from another app (MEJA production)
 
-The engine ships as a standard npm package: `@4kgraphics/engine`. Until it's
-published to a registry, consume it as a tarball — `releases/4kgraphics-engine-<version>.tgz`
-in this repository (39 KB; Three.js is a peer dependency, not bundled).
+Two artifacts in `releases/`, for two kinds of consumers:
 
-## Installing in the MEJA app
+| Artifact | For |
+| --- | --- |
+| `4kgraphics-engine.browser.js` | **Server-rendered apps (Flask, Django, PHP…)** — one self-contained ES module (Three.js included, ~700 KB). Serve it as a static file; no Node toolchain needed. |
+| `4kgraphics-engine-<version>.tgz` | **Node/React/Vite apps** — standard npm package (39 KB; Three.js is a peer dependency). |
+
+## Flask apps (meja-production)
+
+1. Copy `releases/4kgraphics-engine.browser.js` into the Flask static folder —
+   in meja-production that's the folder Flask serves assets from (typically
+   `app/static/`). Putting it in a `vendor/` subfolder keeps it tidy:
+   `app/static/vendor/4kgraphics-engine.browser.js`. Git creates folders
+   implicitly — just commit the file at that path.
+
+2. In any Jinja template:
+
+```html
+<div id="furniture-viewer" style="width: 100%; height: 480px;"></div>
+<script type="module">
+  import { FurnitureEngine } from
+    "{{ url_for('static', filename='vendor/4kgraphics-engine.browser.js') }}";
+
+  const engine = new FurnitureEngine({
+    container: document.getElementById('furniture-viewer'),
+  });
+
+  // Build the spec from your quote/order data (all millimeters):
+  engine.showFurniture({{ spec | tojson }});
+  engine.setMaterial('{{ material_id }}');   // oak | walnut | cherry | cedar | ...
+</script>
+```
+
+3. The page now has an orbitable 3D preview. Client-side extras:
+   `await engine.renderSnapshot()` returns a 4K PNG Blob (e.g. attach to a
+   quote), `engine.getBuildPlan()` returns the cut-list JSON.
+
+To upgrade later: replace the one file.
+
+## Server-side renders from Python (optional)
+
+For images generated **on the backend** (quote PDFs, catalog files), run the
+render service (`packages/server`) as another container next to the Flask app
+and call it from Python:
+
+```python
+import requests
+
+png = requests.post('http://render:8787/v1/render', json={
+    'spec': spec_dict, 'material': 'walnut', 'textureSize': 4096,
+}).content
+
+plan = requests.post('http://render:8787/v1/buildplan', json={'spec': spec_dict}).json()
+```
+
+Ask for the Dockerfile/compose entry when you want this wired up.
+
+## Node / React / Vite apps
 
 1. Copy `releases/4kgraphics-engine-0.1.0.tgz` into the MEJA repo (e.g. `vendor/`).
 2. In the MEJA repo:
