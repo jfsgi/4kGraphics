@@ -175,6 +175,8 @@ export class MaterialLibrary {
       clearcoat: preset.clearcoat,
       clearcoatRoughness: 0.35,
       normalScale: new THREE.Vector2(0.6, 0.6),
+      // End-grain darkening rides in vertex colors (see applyBoxUVs).
+      vertexColors: true,
     });
     material.name = id;
     this.cache.set(id, material);

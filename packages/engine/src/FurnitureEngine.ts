@@ -141,7 +141,11 @@ export class FurnitureEngine {
     }
     if (!this.currentObject) return;
     this.currentObject.traverse((child) => {
-      if (child instanceof THREE.Mesh && (!partName || child.name === partName)) {
+      if (
+        child instanceof THREE.Mesh &&
+        !child.userData.isGlass &&
+        (!partName || child.name === partName)
+      ) {
         child.material = material;
       }
     });

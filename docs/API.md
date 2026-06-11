@@ -62,18 +62,31 @@ the visible viewport size is irrelevant.
 { kind, widthMm, depthMm, heightMm, stockThicknessMm, bottomThicknessMm,
   joinery: 'dovetail' | 'boxjoint' | 'dado' }
 
-// kind: 'door' — slab or five-piece shaker cabinet door
-{ kind, widthMm, heightMm, thicknessMm, style: 'slab' | 'shaker',
-  railStileWidthMm, panelThicknessMm, hingeBoring: boolean }
+// kind: 'door' — slab, five-piece shaker, raised panel, or glass panel
+{ kind, widthMm, heightMm, thicknessMm,
+  style: 'slab' | 'shaker' | 'raised',
+  railStileWidthMm, panelThicknessMm,           // ~6 shaker, 16–19 raised
+  raiseProfile?: 'cove' | 'ogee' | 'bevel',     // raised style
+  raiseWidthMm?: number,                        // raised style, default 38
+  edgeProfile?:      'square' | 'chamfer' | 'roundover' | 'ogee' | 'bead', // inner (cope & pattern)
+  outerEdgeProfile?: 'square' | 'chamfer' | 'roundover' | 'ogee' | 'bead', // door-edge detail
+  glassPanel?: boolean,                         // glass pane + retainer hardware
+  hingeBoring: boolean }
 
 // kind: 'drawerfront' — same construction as a door, drawer proportions
-{ kind, widthMm, heightMm, thicknessMm, style: 'slab' | 'shaker',
-  railStileWidthMm, panelThicknessMm }
+{ kind, widthMm, heightMm, thicknessMm, style, railStileWidthMm,
+  panelThicknessMm, raiseProfile?, raiseWidthMm?, edgeProfile?, outerEdgeProfile? }
 
 // kind: 'drawerunit' — carcass + N drawer boxes on slides + overlay fronts
-{ kind, widthMm, heightMm, depthMm, drawerCount,
-  stockThicknessMm, boxStockThicknessMm, frontStyle: 'slab' | 'shaker' }
+{ kind, widthMm, heightMm, depthMm, drawerCount, stockThicknessMm,
+  boxStockThicknessMm, frontStyle: 'slab' | 'shaker' | 'raised',
+  raiseProfile?, edgeProfile?, outerEdgeProfile? }
 ```
+
+Cut-list items and overall dimensions also carry fractional-inch strings
+(`lengthIn`, `widthIn`, `thicknessIn`, `overallDimensionsIn`) rounded to 1/16";
+`inchesToMm` / `mmToInches` / `formatInches` are exported for converting at
+your app's boundaries.
 
 `defaultTableSpec()` / `defaultBookshelfSpec()` / `defaultCabinetSpec()` /
 `defaultSpec(kind)` give sensible starting points; `validateSpec(spec)` throws a

@@ -1,6 +1,7 @@
 import {
   FurnitureEngine,
   defaultSpec,
+  formatInches,
   type BuildPlan,
   type FurnitureKind,
   type FurnitureSpec,
@@ -144,7 +145,9 @@ function buildControls() {
     const row = document.createElement('label');
     row.className = 'slider-row';
     const value = (spec as unknown as Record<string, number>)[field.key];
-    row.innerHTML = `<span>${field.label}</span><output>${value}</output>`;
+    const isLength = field.key.endsWith('Mm');
+    const display = (v: number) => (isLength ? `${v} · ${formatInches(v)}` : String(v));
+    row.innerHTML = `<span>${field.label}</span><output>${display(value)}</output>`;
     const input = document.createElement('input');
     input.type = 'range';
     input.min = String(field.min);
@@ -153,7 +156,7 @@ function buildControls() {
     input.value = String(value);
     input.oninput = () => {
       (spec as unknown as Record<string, number>)[field.key] = Number(input.value);
-      row.querySelector('output')!.textContent = input.value;
+      row.querySelector('output')!.textContent = display(Number(input.value));
       scheduleRebuild();
     };
     row.appendChild(input);
@@ -216,12 +219,64 @@ function buildControls() {
   }
 
   if (spec.kind === 'door' || spec.kind === 'drawerfront') {
-    addSelect(host, 'Style', spec.style, ['shaker', 'slab'], (value) => {
+    addSelect(host, 'Style', spec.style, ['shaker', 'raised', 'slab'], (value) => {
       if (spec.kind === 'door' || spec.kind === 'drawerfront') {
         spec.style = value as typeof spec.style;
+        // Raised panels need thick stock; shaker panels are thin plywood.
+        if (spec.style === 'raised' && spec.panelThicknessMm < 12) spec.panelThicknessMm = 17;
+        if (spec.style === 'shaker' && spec.panelThicknessMm > 12) spec.panelThicknessMm = 6;
       }
+      buildControls();
       scheduleRebuild();
     });
+    if (spec.style === 'raised') {
+      addSelect(host, 'Raise profile', spec.raiseProfile ?? 'cove', ['cove', 'ogee', 'bevel'], (value) => {
+        if (spec.kind === 'door' || spec.kind === 'drawerfront') {
+          spec.raiseProfile = value as typeof spec.raiseProfile;
+        }
+        scheduleRebuild();
+      });
+    }
+    if (spec.style !== 'slab') {
+      addSelect(
+        host,
+        'Edge pattern (inner)',
+        spec.edgeProfile ?? 'square',
+        ['square', 'chamfer', 'roundover', 'ogee', 'bead'],
+        (value) => {
+          if (spec.kind === 'door' || spec.kind === 'drawerfront') {
+            spec.edgeProfile = value as typeof spec.edgeProfile;
+          }
+          scheduleRebuild();
+        },
+      );
+    }
+    addSelect(
+      host,
+      'Door edge (outer)',
+      spec.outerEdgeProfile ?? 'square',
+      ['square', 'chamfer', 'roundover', 'ogee', 'bead'],
+      (value) => {
+        if (spec.kind === 'door' || spec.kind === 'drawerfront') {
+          spec.outerEdgeProfile = value as typeof spec.outerEdgeProfile;
+        }
+        scheduleRebuild();
+      },
+    );
+    if (spec.kind === 'door' && spec.style !== 'slab') {
+      const row = document.createElement('label');
+      row.className = 'field-row';
+      row.innerHTML = '<span>Glass panel</span>';
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.checked = spec.glassPanel ?? false;
+      check.onchange = () => {
+        if (spec.kind === 'door') spec.glassPanel = check.checked;
+        scheduleRebuild();
+      };
+      row.appendChild(check);
+      host.appendChild(row);
+    }
     if (spec.kind === 'door') {
       const row = document.createElement('label');
       row.className = 'field-row';
@@ -239,10 +294,27 @@ function buildControls() {
   }
 
   if (spec.kind === 'drawerunit') {
-    addSelect(host, 'Front style', spec.frontStyle, ['shaker', 'slab'], (value) => {
+    addSelect(host, 'Front style', spec.frontStyle, ['shaker', 'raised', 'slab'], (value) => {
       if (spec.kind === 'drawerunit') spec.frontStyle = value as typeof spec.frontStyle;
+      buildControls();
       scheduleRebuild();
     });
+    if (spec.frontStyle === 'raised') {
+      addSelect(host, 'Raise profile', spec.raiseProfile ?? 'cove', ['cove', 'ogee', 'bevel'], (value) => {
+        if (spec.kind === 'drawerunit') spec.raiseProfile = value as typeof spec.raiseProfile;
+        scheduleRebuild();
+      });
+    }
+    addSelect(
+      host,
+      'Front edge (outer)',
+      spec.outerEdgeProfile ?? 'square',
+      ['square', 'chamfer', 'roundover', 'ogee', 'bead'],
+      (value) => {
+        if (spec.kind === 'drawerunit') spec.outerEdgeProfile = value as typeof spec.outerEdgeProfile;
+        scheduleRebuild();
+      },
+    );
   }
 }
 
@@ -430,7 +502,8 @@ function renderPlanHtml(plan: BuildPlan): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   return `
     <p class="plan-overview">${esc(plan.overview)}</p>
-    <p class="muted">Overall: ${Math.round(dims.width)} × ${Math.round(dims.depth)} × ${Math.round(dims.height)} mm (W×D×H)
+    <p class="muted">Overall: ${Math.round(dims.width)} × ${Math.round(dims.depth)} × ${Math.round(dims.height)} mm
+      (${plan.overallDimensionsIn.width} × ${plan.overallDimensionsIn.depth} × ${plan.overallDimensionsIn.height}) W×D×H
       · ~${plan.boardFeet} board feet · ${plan.estimatedHours.min}–${plan.estimatedHours.max} shop hours</p>
     <h3>Cut list</h3>
     <table>
@@ -439,7 +512,11 @@ function renderPlanHtml(plan: BuildPlan): string {
         ${plan.cutList
           .map(
             (item) =>
-              `<tr><td>${esc(item.part)}</td><td>${item.quantity}</td><td>${item.lengthMm}</td><td>${item.widthMm}</td><td>${item.thicknessMm}</td><td>${esc(item.notes ?? '')}</td></tr>`,
+              `<tr><td>${esc(item.part)}</td><td>${item.quantity}</td>` +
+              `<td>${item.lengthMm}<div class="muted">${item.lengthIn}</div></td>` +
+              `<td>${item.widthMm}<div class="muted">${item.widthIn}</div></td>` +
+              `<td>${item.thicknessMm}<div class="muted">${item.thicknessIn}</div></td>` +
+              `<td>${esc(item.notes ?? '')}</td></tr>`,
           )
           .join('')}
       </tbody>

@@ -45,7 +45,10 @@ export interface CabinetSpec {
   legHeightMm: number;
 }
 
-export type FrontStyle = 'slab' | 'shaker';
+export type FrontStyle = 'slab' | 'shaker' | 'raised';
+export type RaiseProfile = 'cove' | 'ogee' | 'bevel';
+/** Pattern cut on the inner front edge of stiles and rails (cope & pattern sets). */
+export type EdgeProfile = 'square' | 'chamfer' | 'roundover' | 'ogee' | 'bead';
 export type DrawerJoinery = 'dovetail' | 'boxjoint' | 'dado';
 
 /** A drawer box (the box itself, no front). Outer dimensions. */
@@ -72,8 +75,18 @@ export interface CabinetDoorSpec {
   style: FrontStyle;
   /** Rail/stile width for shaker style. */
   railStileWidthMm: number;
-  /** Floating panel stock for shaker style. */
+  /** Floating panel stock: ~6 for shaker, 16–19 for raised panels. */
   panelThicknessMm: number;
+  /** Raise cutter profile (raised style only). */
+  raiseProfile?: RaiseProfile;
+  /** Width of the raise bevel around the field (raised style only). */
+  raiseWidthMm?: number;
+  /** Pattern profile on the frame's inner edges (cope & pattern T&G). */
+  edgeProfile?: EdgeProfile;
+  /** Door-edge detail around the outer perimeter of the front face. */
+  outerEdgeProfile?: EdgeProfile;
+  /** Frame holds a glass pane instead of a wood panel. */
+  glassPanel?: boolean;
   /** Include 35mm hinge-cup boring in the plan. */
   hingeBoring: boolean;
 }
@@ -88,6 +101,10 @@ export interface DrawerFrontSpec {
   style: FrontStyle;
   railStileWidthMm: number;
   panelThicknessMm: number;
+  raiseProfile?: RaiseProfile;
+  raiseWidthMm?: number;
+  edgeProfile?: EdgeProfile;
+  outerEdgeProfile?: EdgeProfile;
 }
 
 /** A bank of drawers: carcass, drawer boxes on slides, overlay fronts. */
@@ -103,6 +120,9 @@ export interface DrawerUnitSpec {
   /** Drawer box stock. */
   boxStockThicknessMm: number;
   frontStyle: FrontStyle;
+  raiseProfile?: RaiseProfile;
+  edgeProfile?: EdgeProfile;
+  outerEdgeProfile?: EdgeProfile;
 }
 
 export type FurnitureSpec =
@@ -300,14 +320,24 @@ export function validateSpec(spec: FurnitureSpec): void {
       positive(spec.widthMm, 'widthMm');
       positive(spec.heightMm, 'heightMm');
       positive(spec.thicknessMm, 'thicknessMm');
-      if (spec.style === 'shaker') {
+      if (spec.style !== 'slab') {
         positive(spec.railStileWidthMm, 'railStileWidthMm');
         positive(spec.panelThicknessMm, 'panelThicknessMm');
-        if (spec.panelThicknessMm >= spec.thicknessMm) {
+        if (spec.style === 'shaker' && spec.panelThicknessMm >= spec.thicknessMm) {
           throw new Error(`${spec.kind}: panelThicknessMm must be less than thicknessMm`);
         }
         if (2 * spec.railStileWidthMm + 50 > spec.widthMm || 2 * spec.railStileWidthMm + 50 > spec.heightMm) {
           throw new Error(`${spec.kind}: railStileWidthMm too wide — no room for the center panel`);
+        }
+        if (spec.style === 'raised') {
+          const raiseWidth = spec.raiseWidthMm ?? 38;
+          const opening = Math.min(
+            spec.widthMm - 2 * spec.railStileWidthMm,
+            spec.heightMm - 2 * spec.railStileWidthMm,
+          );
+          if (2 * raiseWidth + 20 > opening) {
+            throw new Error(`${spec.kind}: raiseWidthMm too wide — no flat field left on the panel`);
+          }
         }
       }
       break;

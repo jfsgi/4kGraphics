@@ -20,6 +20,8 @@ export {
   type DrawerUnitSpec,
   type LegStyle,
   type FrontStyle,
+  type RaiseProfile,
+  type EdgeProfile,
   type DrawerJoinery,
 } from './parametric/spec.js';
 export { buildLayout, type FurnitureLayout, type Part } from './parametric/layout.js';
@@ -47,3 +49,4 @@ export {
   type LightingPresetInfo,
 } from './lighting/presets.js';
 export { renderSnapshot, type SnapshotOptions, type SnapshotContext } from './render/SnapshotRenderer.js';
+export { inchesToMm, mmToInches, formatInches, MM_PER_INCH } from './units.js';

@@ -6,6 +6,10 @@ import * as THREE from 'three';
  * If `grainAxis` lies in a face's plane, the V axis (texture grain direction)
  * is aligned to it, so wood grain runs along legs, rails, and panels the way
  * a woodworker would orient the stock.
+ *
+ * Also writes a vertex-color attribute that darkens end-grain faces (faces
+ * whose normal runs along the grain) — this is what makes dovetail tails
+ * and pins read against the surrounding face grain, just like real wood.
  */
 export function applyBoxUVs(
   geometry: THREE.BufferGeometry,
@@ -18,6 +22,7 @@ export function applyBoxUVs(
   const normal = geometry.attributes.normal;
   if (!normal) return;
   const uvs = new Float32Array(position.count * 2);
+  const colors = new Float32Array(position.count * 3);
   const axes: Array<'x' | 'y' | 'z'> = ['x', 'y', 'z'];
 
   for (let i = 0; i < position.count; i++) {
@@ -36,7 +41,14 @@ export function applyBoxUVs(
     const coord = { x: position.getX(i), y: position.getY(i), z: position.getZ(i) };
     uvs[i * 2] = coord[uAxis] / tileSizeM + offsetU;
     uvs[i * 2 + 1] = coord[vAxis] / tileSizeM + offsetV;
+
+    // End grain: face normal parallel to the grain — darker and warmer.
+    const endGrain = dominant === grainAxis;
+    colors[i * 3] = endGrain ? 0.72 : 1;
+    colors[i * 3 + 1] = endGrain ? 0.64 : 1;
+    colors[i * 3 + 2] = endGrain ? 0.56 : 1;
   }
 
   geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 }

@@ -63,6 +63,16 @@ export async function loadModel(
       if (child instanceof THREE.Mesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        // Library materials use vertex colors (end-grain tinting); give
+        // imported geometry a neutral color attribute so they apply cleanly.
+        const geometry = child.geometry as THREE.BufferGeometry;
+        if (!geometry.getAttribute('color') && geometry.getAttribute('position')) {
+          const count = geometry.getAttribute('position').count;
+          geometry.setAttribute(
+            'color',
+            new THREE.BufferAttribute(new Float32Array(count * 3).fill(1), 3),
+          );
+        }
       }
     });
     if (options.normalize ?? true) {

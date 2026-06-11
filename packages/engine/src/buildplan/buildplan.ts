@@ -7,6 +7,7 @@
 import type { FurnitureLayout, Part } from '../parametric/layout.js';
 import { buildLayout } from '../parametric/layout.js';
 import type { FurnitureSpec } from '../parametric/spec.js';
+import { formatInches } from '../units.js';
 
 export interface CutListItem {
   part: string;
@@ -15,6 +16,10 @@ export interface CutListItem {
   lengthMm: number;
   widthMm: number;
   thicknessMm: number;
+  /** The same dimensions as fractional inches (nearest 1/16"). */
+  lengthIn: string;
+  widthIn: string;
+  thicknessIn: string;
   notes?: string;
 }
 
@@ -32,6 +37,8 @@ export interface BuildPlan {
   title: string;
   overview: string;
   overallDimensionsMm: { width: number; height: number; depth: number };
+  /** Overall size as fractional inches (nearest 1/16"). */
+  overallDimensionsIn: { width: string; height: string; depth: string };
   cutList: CutListItem[];
   hardware: HardwareItem[];
   tools: string[];
@@ -49,6 +56,11 @@ export function generateBuildPlan(spec: FurnitureSpec): BuildPlan {
     title: spec.name ?? `Custom ${spec.kind}`,
     overview: overviewFor(layout),
     overallDimensionsMm: { width: w, height: h, depth: d },
+    overallDimensionsIn: {
+      width: formatInches(w),
+      height: formatInches(h),
+      depth: formatInches(d),
+    },
     cutList,
     hardware: hardwareFor(layout),
     tools: toolsFor(layout),
@@ -74,7 +86,25 @@ function buildCutList(layout: FurnitureLayout): CutListItem[] {
         lengthMm: dims[0],
         widthMm: dims[1],
         thicknessMm: dims[2],
-        notes: part.shape === 'taperedLeg' ? 'Taper to 60% at the foot' : part.shape === 'cylinder' ? 'Turned round' : undefined,
+        lengthIn: formatInches(dims[0]),
+        widthIn: formatInches(dims[1]),
+        thicknessIn: formatInches(dims[2]),
+        notes: part.role === 'glass'
+          ? 'Glass — order tempered from supplier'
+          : part.raisedPanel
+            ? `Raised panel — ${part.raisedPanel.profile} profile, ${part.raisedPanel.raiseWidthMm}mm raise`
+            : part.edgeProfile
+              ? [
+                  part.edgeProfile.inner && `${part.edgeProfile.inner} pattern, inner edge (cope & pattern T&G)`,
+                  part.edgeProfile.outer && `${part.edgeProfile.outer} door-edge detail, outer edge`,
+                ]
+                  .filter(Boolean)
+                  .join('; ')
+              : part.shape === 'taperedLeg'
+                ? 'Taper to 60% at the foot'
+                : part.shape === 'cylinder'
+                  ? 'Turned round'
+                  : undefined,
       });
     }
   }
@@ -98,7 +128,7 @@ function boardFeetFor(layout: FurnitureLayout): number {
   // less are assumed to be sheet goods).
   let cubicMm = 0;
   for (const part of layout.parts) {
-    if (part.role === 'hardware') continue;
+    if (part.role === 'hardware' || part.role === 'glass') continue;
     const [x, y, z] = part.sizeMm;
     if (Math.min(x, y, z) <= 6) continue;
     cubicMm += x * y * z;
@@ -155,7 +185,10 @@ function hardwareFor(layout: FurnitureLayout): HardwareItem[] {
       if (spec.hingeBoring) {
         items.push({ item: 'Concealed euro hinges (pair)', quantity: 2 });
       }
-      if (spec.style === 'shaker') {
+      if (spec.glassPanel && spec.style !== 'slab') {
+        items.push({ item: 'Glass retainer strips (or glazing clips)', quantity: 4 });
+        items.push({ item: 'Clear silicone (small tube)', quantity: 1 });
+      } else if (spec.style !== 'slab') {
         items.push({ item: 'Panel spacers (space balls)', quantity: 8 });
       }
       items.push({ item: 'Wood glue (250ml)', quantity: 1 });
@@ -164,7 +197,7 @@ function hardwareFor(layout: FurnitureLayout): HardwareItem[] {
     case 'drawerfront': {
       items.push({ item: 'Drawer pull', quantity: 1 });
       items.push({ item: 'M4 × 25mm pull screws', quantity: 2 });
-      if (spec.style === 'shaker') {
+      if (spec.style !== 'slab') {
         items.push({ item: 'Panel spacers (space balls)', quantity: 8 });
       }
       items.push({ item: 'Wood glue (250ml)', quantity: 1 });
@@ -179,7 +212,7 @@ function hardwareFor(layout: FurnitureLayout): HardwareItem[] {
       items.push({ item: '8mm × 40mm dowels or confirmat screws (carcass)', quantity: 16 });
       items.push({ item: '16mm panel nails or staples (back panel)', quantity: 24 });
       items.push({ item: '4 × 30mm screws (front adjustment, 4 per drawer)', quantity: spec.drawerCount * 4 });
-      if (spec.frontStyle === 'shaker') {
+      if (spec.frontStyle !== 'slab') {
         items.push({ item: 'Panel spacers (space balls)', quantity: spec.drawerCount * 8 });
       }
       items.push({ item: 'Wood glue (250ml)', quantity: 1 });
@@ -217,8 +250,19 @@ function toolsFor(layout: FurnitureLayout): string[] {
     tools.push('6mm slot cutter or dado (bottom groove)');
   }
   if (spec.kind === 'door' || spec.kind === 'drawerfront') {
-    if (spec.style === 'shaker') {
-      tools.push('Router table with rail-and-stile bits (or dado stack for grooves/tenons)');
+    if (spec.style !== 'slab') {
+      const pattern = spec.edgeProfile && spec.edgeProfile !== 'square';
+      tools.push(
+        pattern
+          ? `Cope & pattern cutter set (${spec.edgeProfile} pattern, 1/4" × 3/8" T&G)`
+          : 'Router table with rail-and-stile bits (or dado stack for grooves/tenons)',
+      );
+    }
+    if (spec.style === 'raised') {
+      tools.push(`Shaper or router panel raiser (${spec.raiseProfile ?? 'cove'} profile insert cutter)`);
+    }
+    if (spec.outerEdgeProfile && spec.outerEdgeProfile !== 'square') {
+      tools.push(`Door-edge detail cutter (${spec.outerEdgeProfile})`);
     }
     if (spec.kind === 'door' && spec.hingeBoring) {
       tools.push('35mm Forstner bit (hinge cups)');
@@ -227,8 +271,11 @@ function toolsFor(layout: FurnitureLayout): string[] {
   if (spec.kind === 'drawerunit') {
     tools.push('Drawer-slide mounting jig');
     tools.push('Dovetail or box-joint jig (drawer boxes)');
-    if (spec.frontStyle === 'shaker') {
+    if (spec.frontStyle !== 'slab') {
       tools.push('Router table with rail-and-stile bits (fronts)');
+    }
+    if (spec.frontStyle === 'raised') {
+      tools.push(`Shaper or router panel raiser (${spec.raiseProfile ?? 'cove'} profile insert cutter)`);
     }
   }
   return tools;
@@ -358,22 +405,43 @@ function stepsFor(layout: FurnitureLayout): BuildStep[] {
     }
     case 'door':
     case 'drawerfront': {
-      if (spec.style === 'shaker') {
+      if (spec.style !== 'slab') {
         steps.push(
           {
             title: 'Mill rails and stiles',
-            detail: `Cut stiles and rails to the cut list (${spec.railStileWidthMm}mm wide), then cut the ${spec.panelThicknessMm}mm groove centered on every inside edge.`,
+            detail: `Cut stiles and rails to the cut list (${spec.railStileWidthMm}mm wide), then cut the ${spec.style === 'raised' ? 6 : spec.panelThicknessMm}mm groove centered on every inside edge.`,
           },
           {
             title: 'Cut the rail tenons',
             detail: 'Cope the rail ends (or cut stub tenons) to fill the stile grooves exactly — the shoulders set the frame square.',
           },
-          {
+        );
+        if (spec.style === 'raised') {
+          steps.push({
+            title: 'Raise the panel',
+            detail: `Glue up the ${spec.panelThicknessMm}mm panel blank, cut to the cut-list size, then raise all four edges with the ${spec.raiseProfile ?? 'cove'} cutter (${spec.raiseWidthMm ?? 38}mm raise) — end grain first, then long grain, sneaking up on a 6mm tongue that fits the groove.`,
+          });
+        }
+        if (spec.kind === 'door' && spec.glassPanel) {
+          steps.push(
+            {
+              title: 'Glue the frame and rout the glass rabbet',
+              detail:
+                'Glue the frame without a panel, check the diagonals, then rout away the back side of the groove to leave an open rabbet. Square the rabbet corners with a chisel.',
+            },
+            {
+              title: 'Fit the glass',
+              detail:
+                'After finishing, bed the tempered pane in the rabbet on a thin bead of clear silicone and fix the retainer strips with brads — never glue the glass hard.',
+            },
+          );
+        } else {
+          steps.push({
             title: 'Fit the panel and glue up',
             detail:
               'Cut the panel 1mm under groove depth all around, insert with panel spacers, and glue ONLY the frame joints. Clamp flat on a known-flat surface and check the diagonals.',
-          },
-        );
+          });
+        }
       } else {
         steps.push({
           title: 'Prepare the slab',

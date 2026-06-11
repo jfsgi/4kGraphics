@@ -22,7 +22,7 @@ import { validateSpec } from './spec.js';
 
 export type PartShape = 'box' | 'cylinder' | 'taperedLeg';
 
-export type PartRole = 'structure' | 'surface' | 'panel' | 'hardware';
+export type PartRole = 'structure' | 'surface' | 'panel' | 'hardware' | 'glass';
 
 export interface Part {
   /** Human-readable part name; identical parts share a name (e.g. "Leg"). */
@@ -40,6 +40,43 @@ export interface Part {
   role: PartRole;
   /** Axis the wood grain runs along, for the cut list. */
   grainAxis: 'x' | 'y' | 'z';
+  /**
+   * Renders interlocking corner joinery on the board ends (the cut list is
+   * unaffected — joinery lives within the board's nominal dimensions).
+   * Tails boards show tail end-grain on the mating face; pins boards carry
+   * the complementary pins. `matingThicknessMm` is the joint depth.
+   */
+  joinery?: {
+    type: 'dovetail' | 'boxjoint';
+    role: 'tails' | 'pins';
+    matingThicknessMm: number;
+    /** For pins boards: which z face is the outside of the box. */
+    pinsOuterSign?: 1 | -1;
+  };
+  /**
+   * Renders a raised-panel profile on the front face: a flat tongue at the
+   * edges (hidden in the frame grooves), a profiled raise, and a proud flat
+   * field. The cut list keeps the part's nominal dimensions.
+   */
+  raisedPanel?: {
+    profile: 'cove' | 'ogee' | 'bevel';
+    raiseWidthMm: number;
+    /** Tongue thickness at the panel edge (fits the frame groove). */
+    tongueThicknessMm: number;
+  };
+  /**
+   * Edge details on a member's front face. `inner` is the cope & pattern
+   * profile toward the panel opening; `outer` is the door-edge detail on
+   * the outside of the door. axis 'slab' profiles the outer edge around
+   * all four sides of a slab front.
+   */
+  edgeProfile?: {
+    inner?: 'chamfer' | 'roundover' | 'ogee' | 'bead';
+    outer?: 'chamfer' | 'roundover' | 'ogee' | 'bead';
+    /** Which local side faces the opening: 'x+' | 'x-' | 'y+' | 'y-'. */
+    innerSide?: 'x+' | 'x-' | 'y+' | 'y-';
+    axis: 'x' | 'y' | 'slab';
+  };
 }
 
 export interface FurnitureLayout {
@@ -313,6 +350,11 @@ function cabinetLayout(spec: CabinetSpec): FurnitureLayout {
 function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   const parts: Part[] = [];
   const { widthMm: w, depthMm: d, heightMm: h, stockThicknessMm: t } = spec;
+  const interlocking = spec.joinery !== 'dado';
+  const joint = (role: 'tails' | 'pins', pinsOuterSign?: 1 | -1) =>
+    interlocking
+      ? { type: spec.joinery as 'dovetail' | 'boxjoint', role, matingThicknessMm: t, pinsOuterSign }
+      : undefined;
 
   for (const sx of [1, -1]) {
     parts.push({
@@ -322,16 +364,20 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
       positionMm: [sx * (w / 2 - t / 2), h / 2, 0],
       role: 'structure',
       grainAxis: 'z',
+      joinery: joint('tails'),
     });
   }
   for (const sz of [1, -1]) {
     parts.push({
       name: sz > 0 ? 'Drawer front (box)' : 'Drawer back (box)',
       shape: 'box',
-      sizeMm: [w - 2 * t, h, t],
+      // Through-jointed fronts/backs run the full width; dadoed ones sit
+      // between the sides.
+      sizeMm: [interlocking ? w : w - 2 * t, h, t],
       positionMm: [0, h / 2, sz * (d / 2 - t / 2)],
       role: 'structure',
       grainAxis: 'x',
+      joinery: joint('pins', sz as 1 | -1),
     });
   }
   // Bottom rides in a groove ~12mm above the lower edge.
@@ -361,6 +407,11 @@ function pushFrontParts(
     thicknessMm: number;
     railStileWidthMm: number;
     panelThicknessMm: number;
+    raiseProfile?: 'cove' | 'ogee' | 'bevel';
+    raiseWidthMm?: number;
+    edgeProfile?: 'square' | 'chamfer' | 'roundover' | 'ogee' | 'bead';
+    outerEdgeProfile?: 'square' | 'chamfer' | 'roundover' | 'ogee' | 'bead';
+    glassPanel?: boolean;
     centerXMm: number;
     bottomYMm: number;
     centerZMm: number;
@@ -370,6 +421,12 @@ function pushFrontParts(
 ): void {
   const { style, widthMm: w, heightMm: h, thicknessMm: t, railStileWidthMm: rsw } = options;
   const { centerXMm: cx, bottomYMm: y0, centerZMm: cz, namePrefix } = options;
+  const pattern =
+    options.edgeProfile && options.edgeProfile !== 'square' ? options.edgeProfile : undefined;
+  const outer =
+    options.outerEdgeProfile && options.outerEdgeProfile !== 'square'
+      ? options.outerEdgeProfile
+      : undefined;
   if (style === 'slab') {
     parts.push({
       name: `${namePrefix}`,
@@ -378,6 +435,7 @@ function pushFrontParts(
       positionMm: [cx, y0 + h / 2, cz],
       role: 'panel',
       grainAxis: options.slabGrain,
+      edgeProfile: outer ? { outer, axis: 'slab' } : undefined,
     });
     return;
   }
@@ -389,6 +447,10 @@ function pushFrontParts(
       positionMm: [cx + sx * (w / 2 - rsw / 2), y0 + h / 2, cz],
       role: 'structure',
       grainAxis: 'y',
+      edgeProfile:
+        pattern || outer
+          ? { inner: pattern, outer, innerSide: sx > 0 ? 'x-' : 'x+', axis: 'y' }
+          : undefined,
     });
   }
   for (const top of [0, 1]) {
@@ -399,17 +461,43 @@ function pushFrontParts(
       positionMm: [cx, y0 + (top ? h - rsw / 2 : rsw / 2), cz],
       role: 'structure',
       grainAxis: 'x',
+      edgeProfile:
+        pattern || outer
+          ? { inner: pattern, outer, innerSide: top ? 'y-' : 'y+', axis: 'x' }
+          : undefined,
     });
   }
-  // Floating panel, recessed ~6mm from the front face.
+  if (options.glassPanel) {
+    // Glass pane sits in a back rabbet with retainer strips; the pane is
+    // cut 12mm larger than the opening on each edge.
+    parts.push({
+      name: `${namePrefix} glass`,
+      shape: 'box',
+      sizeMm: [w - 2 * rsw + 24, h - 2 * rsw + 24, 4],
+      positionMm: [cx, y0 + h / 2, cz + t / 2 - 10],
+      role: 'glass',
+      grainAxis: options.slabGrain,
+    });
+    return;
+  }
+  // Floating panel: shaker panels sit recessed ~6mm; raised panels run
+  // flush with the frame face and carry the profiled raise.
   const pt = options.panelThicknessMm;
+  const raised = style === 'raised';
   parts.push({
     name: `${namePrefix} panel`,
     shape: 'box',
     sizeMm: [w - 2 * rsw + 20, h - 2 * rsw + 20, pt],
-    positionMm: [cx, y0 + h / 2, cz + t / 2 - 6 - pt / 2],
+    positionMm: [cx, y0 + h / 2, raised ? cz + (t - pt) / 2 : cz + t / 2 - 6 - pt / 2],
     role: 'panel',
     grainAxis: options.slabGrain,
+    raisedPanel: raised
+      ? {
+          profile: options.raiseProfile ?? 'cove',
+          raiseWidthMm: options.raiseWidthMm ?? 38,
+          tongueThicknessMm: 6,
+        }
+      : undefined,
   });
 }
 
@@ -422,6 +510,11 @@ function frontPanelLayout(spec: CabinetDoorSpec | DrawerFrontSpec): FurnitureLay
     thicknessMm: spec.thicknessMm,
     railStileWidthMm: spec.railStileWidthMm,
     panelThicknessMm: spec.panelThicknessMm,
+    raiseProfile: spec.raiseProfile,
+    raiseWidthMm: spec.raiseWidthMm,
+    edgeProfile: spec.edgeProfile,
+    outerEdgeProfile: spec.outerEdgeProfile,
+    glassPanel: spec.kind === 'door' ? spec.glassPanel : undefined,
     centerXMm: 0,
     bottomYMm: 0,
     centerZMm: 0,
@@ -490,7 +583,11 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
       heightMm: frontH,
       thicknessMm: frontT,
       railStileWidthMm: 50,
-      panelThicknessMm: 6,
+      panelThicknessMm: spec.frontStyle === 'raised' ? 16 : 6,
+      raiseProfile: spec.raiseProfile,
+      raiseWidthMm: 32,
+      edgeProfile: spec.edgeProfile,
+      outerEdgeProfile: spec.outerEdgeProfile,
       centerXMm: 0,
       bottomYMm: y0,
       centerZMm: frontZ,
