@@ -237,20 +237,26 @@ export function profiledBoardGeometry(
       0.0008,
       0.004,
     );
-    const zsCap = nonuniformSamples(
-      T,
-      [
-        [-grooveWidth / 2 - 0.002, grooveWidth / 2 + 0.002],
-        [T / 2 - pd - 0.002, T / 2],
-      ],
-      0.0008,
-      0.003,
-    );
     const buildCap = (sign: 1 | -1): THREE.BufferGeometry => {
       const endU = L / 2;
-      // Build for the +u end; the −u cap is the same rotated 180° about z
-      // with the inner side pre-flipped by the caller convention below.
-      const grid = displacedFrontFace(vsCap, zsCap, (v, z) => endU - recess(sign > 0 ? v : -v, z));
+      // Build in the +u end's local frame; the −u cap is the same rotated
+      // 180° about z, so its sampling uses mirrored v.
+      const localV = (a: number) => (sign > 0 ? a : -a);
+      // The cap silhouette follows the end face: where the door-edge detail
+      // wraps the end, the front boundary is the profiled edge, not T/2 —
+      // otherwise the cap would stand proud of the rounded-over edge.
+      const topZ = (a: number) => frontZ(endU, localV(a));
+      const tSamples = nonuniformSamples(1, [], 0.04, 0.04); // 26 rows
+      const capMap = (a: number, b: number): [number, number] => [
+        a,
+        -T / 2 + (b + 0.5) * (topZ(a) + T / 2),
+      ];
+      const grid = displacedFrontFace(
+        vsCap,
+        tSamples,
+        (x, y) => endU - recess(sign > 0 ? x : -x, y),
+        capMap,
+      );
       // Permute (v, z, x) → (x, v, z): cyclic, so winding stays correct.
       const pos = grid.attributes.position;
       const nor = grid.attributes.normal;
