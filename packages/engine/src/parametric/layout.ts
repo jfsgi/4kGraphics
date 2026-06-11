@@ -489,7 +489,8 @@ function pushFrontParts(
         outer,
         innerSide: sx > 0 ? 'x-' : 'x+',
         axis: 'y',
-        innerInsetMm: miter ? 0 : rsw,
+        // The stick cut runs the stile's full length; the rail copes onto it.
+        innerInsetMm: 0,
         miterEnds: miter,
         stickGroove: !miter,
       },

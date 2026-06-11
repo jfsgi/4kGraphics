@@ -89,6 +89,11 @@ export interface ProfiledBoardOptions {
     side: 'vMin' | 'vMax';
     /** Pattern stops this far from each board end (the cope line). */
     endInset: number;
+    /**
+     * Coped ends (rails): the same profile applied across the board ends,
+     * so the face descends to mate the mating stile's full-length stick.
+     */
+    copeEnds?: boolean;
   };
   /**
    * Mitered frame member: both ends cut at 45° (a sheared trapezoid running
@@ -137,6 +142,10 @@ export function profiledBoardGeometry(
       const over = Math.abs(u) - (L / 2 - endInset);
       const dist = over > 0 ? Math.max(over, dEdge) : dEdge;
       d = Math.max(d, band(dist, opts.inner.profile, opts.inner.width));
+      if (opts.inner.copeEnds && !miter) {
+        // The coped end: profile carried across the end of the rail.
+        d = Math.max(d, band(L / 2 - Math.abs(u), opts.inner.profile, opts.inner.width));
+      }
     }
     return d;
   };
@@ -171,6 +180,9 @@ export function profiledBoardGeometry(
         const corner = sign * (L / 2 - endInset);
         uZones.push([corner - pw, corner + pw]);
       }
+    }
+    if (opts.inner.copeEnds) {
+      uZones.push([-L / 2, -L / 2 + pw], [L / 2 - pw, L / 2]);
     }
   }
   if (miter) {

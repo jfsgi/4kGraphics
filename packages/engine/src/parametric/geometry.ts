@@ -127,6 +127,8 @@ function edgeProfiledGeometry(
           width: innerWidth,
           side: innerSide,
           endInset: (edge.innerInsetMm ?? 0) * MM_TO_M,
+          // Rails carry the inverse profile across their ends (the cope).
+          copeEnds: !alongY && !edge.miterEnds,
         }
       : undefined,
     outer: edge.outer
