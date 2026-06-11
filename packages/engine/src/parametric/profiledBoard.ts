@@ -14,23 +14,36 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 
 export type EdgeProfileId =
   | 'chamfer'
+  | 'bevel30'
   | 'roundover'
   | 'ogee'
   | 'bead'
   | 'cove'
   | 'ovolo'
   | 'step'
-  | 'thumbnail';
+  | 'thumbnail'
+  | 'fingerpull'
+  | 'classical';
+
+/** Cut depth relative to the base profile depth — shallow bevels vs deep pulls. */
+const DEPTH_SCALE: Partial<Record<EdgeProfileId, number>> = {
+  bevel30: 0.55,
+  fingerpull: 1.5,
+};
 
 /** Drop curves: s = 0 at the field side of the band → 0; s = 1 at the edge → 1. */
 function shape(profile: EdgeProfileId, s: number): number {
   switch (profile) {
     case 'chamfer':
+    case 'bevel30':
       return s;
     case 'roundover':
       return 1 - Math.sqrt(Math.max(0, 1 - s * s));
     case 'cove':
       return Math.sin((s * Math.PI) / 2);
+    case 'fingerpull':
+      // Deep sweeping cove for handle-less fronts.
+      return Math.sin((Math.pow(s, 0.8) * Math.PI) / 2);
     case 'ogee':
       return s * s * (3 - 2 * s);
     case 'bead': {
@@ -49,6 +62,11 @@ function shape(profile: EdgeProfileId, s: number): number {
     case 'thumbnail': {
       const t = s * s * (3 - 2 * s);
       return Math.pow(t, 1.4);
+    }
+    case 'classical': {
+      // Quirk-and-bead at the field, sweeping cove to the edge.
+      if (s < 0.2) return 0.18 * (s / 0.2) * (s / 0.2) * (3 - 2 * (s / 0.2));
+      return 0.18 + 0.82 * Math.sin((((s - 0.2) / 0.8) * Math.PI) / 2);
     }
   }
 }
@@ -83,7 +101,9 @@ export function profiledBoardGeometry(
   const drop = (u: number, v: number): number => {
     let d = 0;
     const band = (dist: number, profile: EdgeProfileId, pw: number) =>
-      dist < pw ? pd * shape(profile, 1 - dist / pw) : 0;
+      dist < pw
+        ? pd * (DEPTH_SCALE[profile] ?? 1) * shape(profile, 1 - dist / pw)
+        : 0;
     if (opts.outer) {
       const { profile, width: pw } = opts.outer;
       if (opts.outer.vMax) d = Math.max(d, band(W / 2 - v, profile, pw));
@@ -91,8 +111,13 @@ export function profiledBoardGeometry(
       if (opts.outer.uMax) d = Math.max(d, band(L / 2 - u, profile, pw));
       if (opts.outer.uMin) d = Math.max(d, band(u + L / 2, profile, pw));
     }
-    if (opts.inner && u >= -L / 2 + opts.inner.endInset && u <= L / 2 - opts.inner.endInset) {
-      const dist = opts.inner.side === 'vMax' ? W / 2 - v : v + W / 2;
+    if (opts.inner) {
+      const dEdge = opts.inner.side === 'vMax' ? W / 2 - v : v + W / 2;
+      // Beyond the cope line the profile wraps the opening corner: use the
+      // true distance to the opening so the contours carry through instead
+      // of ending square.
+      const over = Math.abs(u) - (L / 2 - opts.inner.endInset);
+      const dist = over > 0 ? Math.hypot(over, dEdge) : dEdge;
       d = Math.max(d, band(dist, opts.inner.profile, opts.inner.width));
     }
     return d;

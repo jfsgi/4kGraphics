@@ -242,7 +242,7 @@ function buildControls() {
       scheduleRebuild();
     });
     if (spec.style === 'raised') {
-      addSelect(host, 'Raise profile', spec.raiseProfile ?? 'cove', ['cove', 'ogee', 'bevel', 'roundover', 'stepcove'], (value) => {
+      addSelect(host, 'Raise profile', spec.raiseProfile ?? 'cove', ['cove', 'ogee', 'bevel', 'roundover', 'stepcove', 'bevelstep', 'covebead', 'ogeebead'], (value) => {
         if (spec.kind === 'door' || spec.kind === 'drawerfront') {
           spec.raiseProfile = value as typeof spec.raiseProfile;
         }
@@ -254,7 +254,7 @@ function buildControls() {
         host,
         'Edge pattern (inner)',
         spec.edgeProfile ?? 'square',
-        ['square', 'chamfer', 'roundover', 'ogee', 'bead', 'cove', 'ovolo', 'step', 'thumbnail'],
+        ['square', 'chamfer', 'bevel30', 'roundover', 'ogee', 'bead', 'cove', 'ovolo', 'step', 'thumbnail', 'fingerpull', 'classical'],
         (value) => {
           if (spec.kind === 'door' || spec.kind === 'drawerfront') {
             spec.edgeProfile = value as typeof spec.edgeProfile;
@@ -267,7 +267,7 @@ function buildControls() {
       host,
       'Door edge (outer)',
       spec.outerEdgeProfile ?? 'square',
-      ['square', 'chamfer', 'roundover', 'ogee', 'bead', 'cove', 'ovolo', 'step', 'thumbnail'],
+      ['square', 'chamfer', 'bevel30', 'roundover', 'ogee', 'bead', 'cove', 'ovolo', 'step', 'thumbnail', 'fingerpull', 'classical'],
       (value) => {
         if (spec.kind === 'door' || spec.kind === 'drawerfront') {
           spec.outerEdgeProfile = value as typeof spec.outerEdgeProfile;
@@ -312,7 +312,7 @@ function buildControls() {
       scheduleRebuild();
     });
     if (spec.frontStyle === 'raised') {
-      addSelect(host, 'Raise profile', spec.raiseProfile ?? 'cove', ['cove', 'ogee', 'bevel', 'roundover', 'stepcove'], (value) => {
+      addSelect(host, 'Raise profile', spec.raiseProfile ?? 'cove', ['cove', 'ogee', 'bevel', 'roundover', 'stepcove', 'bevelstep', 'covebead', 'ogeebead'], (value) => {
         if (spec.kind === 'drawerunit') spec.raiseProfile = value as typeof spec.raiseProfile;
         scheduleRebuild();
       });
@@ -321,7 +321,7 @@ function buildControls() {
       host,
       'Front edge (outer)',
       spec.outerEdgeProfile ?? 'square',
-      ['square', 'chamfer', 'roundover', 'ogee', 'bead', 'cove', 'ovolo', 'step', 'thumbnail'],
+      ['square', 'chamfer', 'bevel30', 'roundover', 'ogee', 'bead', 'cove', 'ovolo', 'step', 'thumbnail', 'fingerpull', 'classical'],
       (value) => {
         if (spec.kind === 'drawerunit') spec.outerEdgeProfile = value as typeof spec.outerEdgeProfile;
         scheduleRebuild();

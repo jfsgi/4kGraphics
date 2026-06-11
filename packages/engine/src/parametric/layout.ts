@@ -24,15 +24,7 @@ import { validateSpec } from './spec.js';
 
 export type PartShape = 'box' | 'cylinder' | 'taperedLeg';
 
-type EdgeProfileName =
-  | 'chamfer'
-  | 'roundover'
-  | 'ogee'
-  | 'bead'
-  | 'cove'
-  | 'ovolo'
-  | 'step'
-  | 'thumbnail';
+type EdgeProfileName = Exclude<EdgeProfile, 'square'>;
 
 export type PartRole = 'structure' | 'surface' | 'panel' | 'hardware' | 'glass';
 
@@ -71,7 +63,7 @@ export interface Part {
    * field. The cut list keeps the part's nominal dimensions.
    */
   raisedPanel?: {
-    profile: 'cove' | 'ogee' | 'bevel' | 'roundover' | 'stepcove';
+    profile: RaiseProfile;
     raiseWidthMm: number;
     /** Tongue thickness at the panel edge (fits the frame groove). */
     tongueThicknessMm: number;

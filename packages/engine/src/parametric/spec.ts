@@ -46,18 +46,29 @@ export interface CabinetSpec {
 }
 
 export type FrontStyle = 'slab' | 'shaker' | 'raised';
-export type RaiseProfile = 'cove' | 'ogee' | 'bevel' | 'roundover' | 'stepcove';
+export type RaiseProfile =
+  | 'cove'
+  | 'ogee'
+  | 'bevel'
+  | 'roundover'
+  | 'stepcove'
+  | 'bevelstep'
+  | 'covebead'
+  | 'ogeebead';
 /** Pattern cut on the inner front edge of stiles and rails (cope & pattern sets). */
 export type EdgeProfile =
   | 'square'
   | 'chamfer'
+  | 'bevel30'
   | 'roundover'
   | 'ogee'
   | 'bead'
   | 'cove'
   | 'ovolo'
   | 'step'
-  | 'thumbnail';
+  | 'thumbnail'
+  | 'fingerpull'
+  | 'classical';
 export type DrawerJoinery = 'dovetail' | 'halfblind' | 'boxjoint' | 'dado';
 export type SlideType = 'sidemount' | 'undermount';
 

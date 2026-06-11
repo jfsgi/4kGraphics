@@ -10,16 +10,33 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-export type RaiseProfileId = 'cove' | 'ogee' | 'bevel' | 'roundover' | 'stepcove';
+export type RaiseProfileId =
+  | 'cove'
+  | 'ogee'
+  | 'bevel'
+  | 'roundover'
+  | 'stepcove'
+  | 'bevelstep'
+  | 'covebead'
+  | 'ogeebead';
+
+const smooth = (s: number) => s * s * (3 - 2 * s);
 
 /** Normalized raise curves: s ∈ [0,1] across the raise width → height 0..1. */
 const PROFILES: Record<RaiseProfileId, (s: number) => number> = {
   bevel: (s) => s,
   cove: (s) => 1 - Math.cos((s * Math.PI) / 2),
-  ogee: (s) => s * s * (3 - 2 * s),
+  ogee: smooth,
   roundover: (s) => Math.sin((s * Math.PI) / 2),
   stepcove: (s) =>
     s < 0.12 ? (s / 0.12) * 0.35 : 0.35 + 0.65 * (1 - Math.cos((((s - 0.12) / 0.88) * Math.PI) / 2)),
+  // Straight bevel with a small shoulder fillet at the field.
+  bevelstep: (s) => (s < 0.88 ? s * 0.86 : 0.757 + smooth((s - 0.88) / 0.12) * 0.243),
+  // Cove body with a bead rolling over at the field.
+  covebead: (s) =>
+    s < 0.78 ? (1 - Math.cos(((s / 0.78) * Math.PI) / 2)) * 0.82 : 0.82 + smooth((s - 0.78) / 0.22) * 0.18,
+  // Ogee body with a bead at the field.
+  ogeebead: (s) => (s < 0.8 ? smooth(s / 0.8) * 0.84 : 0.84 + smooth((s - 0.8) / 0.2) * 0.16),
 };
 
 const TONGUE_LENGTH = 0.012; // flat tongue at the panel edge (in the groove)
