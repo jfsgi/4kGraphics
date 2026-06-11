@@ -135,6 +135,8 @@ export interface DrawerFrontSpec {
   edgeProfile?: EdgeProfile;
   outerEdgeProfile?: EdgeProfile;
   frameJoint?: FrameJoint;
+  /** Finger-pull channel routed along the top edge (slab fronts) — handle-less. */
+  fingerPull?: boolean;
 }
 
 /** A bank of drawers: carcass, drawer boxes on slides, overlay fronts. */
@@ -158,6 +160,8 @@ export interface DrawerUnitSpec {
   /** Overlay fronts (default) or inset fronts flush in the openings. */
   frontMount?: FrontMount;
   frameJoint?: FrameJoint;
+  /** Finger-pull channel routed along each front's top edge (slab fronts). */
+  fingerPull?: boolean;
 }
 
 export type FurnitureSpec =
@@ -364,6 +368,9 @@ export function validateSpec(spec: FurnitureSpec): void {
         if (2 * spec.railStileWidthMm + 50 > spec.widthMm || 2 * spec.railStileWidthMm + 50 > spec.heightMm) {
           throw new Error(`${spec.kind}: railStileWidthMm too wide — no room for the center panel`);
         }
+        if (spec.kind === 'drawerfront' && spec.fingerPull) {
+          throw new Error(`${spec.kind}: fingerPull is routed into slab fronts — set style to "slab"`);
+        }
         if (spec.style === 'raised') {
           const raiseWidth = spec.raiseWidthMm ?? 38;
           const opening = Math.min(
@@ -392,6 +399,9 @@ export function validateSpec(spec: FurnitureSpec): void {
       }
       if (spec.widthMm <= 2 * spec.stockThicknessMm + 2 * 13 + 50) {
         throw new Error('drawerunit: widthMm too small for slides and drawer boxes');
+      }
+      if (spec.fingerPull && spec.frontStyle !== 'slab') {
+        throw new Error('drawerunit: fingerPull is routed into slab fronts — set frontStyle to "slab"');
       }
       break;
     }

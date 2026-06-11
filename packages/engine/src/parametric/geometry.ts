@@ -4,6 +4,7 @@ import type { FurnitureLayout, Part } from './layout.js';
 import { pinsBoardGeometry, scoopedBoardGeometry, tailsBoardGeometry } from './joinery.js';
 import { profiledBoardGeometry } from './profiledBoard.js';
 import { raisedPanelGeometry } from './raisedPanel.js';
+import { fingerPullFrontGeometry } from './fingerPull.js';
 
 const MM_TO_M = 0.001;
 
@@ -162,6 +163,9 @@ function edgeProfiledGeometry(
 
 function partGeometry(part: Part): THREE.BufferGeometry {
   const [w, h, d] = part.sizeMm.map((v) => v * MM_TO_M) as [number, number, number];
+  if (part.fingerPullTop && part.shape === 'box') {
+    return fingerPullFrontGeometry(w, h, d, part.edgeProfile?.outer);
+  }
   if (part.raisedPanel && part.shape === 'box') {
     return raisedPanelGeometry(
       w,

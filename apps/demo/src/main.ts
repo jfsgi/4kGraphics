@@ -283,6 +283,20 @@ function buildControls() {
         scheduleRebuild();
       });
     }
+    if (spec.kind === 'drawerfront' && spec.style === 'slab') {
+      const row = document.createElement('label');
+      row.className = 'field-row';
+      row.innerHTML = '<span>Finger pull (top edge)</span>';
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.checked = spec.fingerPull ?? false;
+      check.onchange = () => {
+        if (spec.kind === 'drawerfront') spec.fingerPull = check.checked;
+        scheduleRebuild();
+      };
+      row.appendChild(check);
+      host.appendChild(row);
+    }
     if (spec.kind === 'door' && spec.style !== 'slab') {
       const row = document.createElement('label');
       row.className = 'field-row';
@@ -340,6 +354,20 @@ function buildControls() {
         if (spec.kind === 'drawerunit') spec.frameJoint = value as typeof spec.frameJoint;
         scheduleRebuild();
       });
+    }
+    if (spec.frontStyle === 'slab') {
+      const row = document.createElement('label');
+      row.className = 'field-row';
+      row.innerHTML = '<span>Finger pull (top edges)</span>';
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.checked = spec.fingerPull ?? false;
+      check.onchange = () => {
+        if (spec.kind === 'drawerunit') spec.fingerPull = check.checked;
+        scheduleRebuild();
+      };
+      row.appendChild(check);
+      host.appendChild(row);
     }
     addSelect(host, 'Front mount', spec.frontMount ?? 'overlay', ['overlay', 'inset'], (value) => {
       if (spec.kind === 'drawerunit') spec.frontMount = value as typeof spec.frontMount;

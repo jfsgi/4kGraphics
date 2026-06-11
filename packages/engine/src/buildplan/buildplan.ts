@@ -91,6 +91,8 @@ function buildCutList(layout: FurnitureLayout): CutListItem[] {
         thicknessIn: formatInches(dims[2]),
         notes: part.role === 'glass'
           ? 'Glass — order tempered from supplier'
+          : part.fingerPullTop
+            ? `Finger-pull channel routed along the top edge (Freeborn 57-024 style)${part.edgeProfile?.outer ? `; ${part.edgeProfile.outer} door-edge detail, sides and bottom` : ''}`
           : part.scoop
             ? `Finger scoop ${Math.round(part.scoop.widthMm)} × ${Math.round(part.scoop.depthMm)}mm in top edge`
             : part.raisedPanel

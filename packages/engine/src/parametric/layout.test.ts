@@ -160,6 +160,20 @@ describe('door and drawer front layouts', () => {
     const panel = layout.parts.find((p) => p.name === 'Door panel')!;
     expect(panel.sizeMm[0]).toBe(spec.widthMm - 2 * spec.railStileWidthMm + 20);
   });
+
+  it('flags the slab for a finger-pull top at nominal dimensions', () => {
+    const spec = { ...defaultDrawerFrontSpec(), style: 'slab' as const, fingerPull: true };
+    const layout = buildLayout(spec);
+    expect(layout.parts).toHaveLength(1);
+    expect(layout.parts[0].fingerPullTop).toBe(true);
+    expect(layout.parts[0].sizeMm).toEqual([spec.widthMm, spec.heightMm, spec.thicknessMm]);
+  });
+
+  it('rejects finger pull on framed fronts', () => {
+    expect(() =>
+      validateSpec({ ...defaultDrawerFrontSpec(), style: 'shaker', fingerPull: true }),
+    ).toThrow(/slab/);
+  });
 });
 
 describe('drawer unit layout', () => {

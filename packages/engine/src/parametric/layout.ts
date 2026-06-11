@@ -71,6 +71,11 @@ export interface Part {
   /** Finger-scoop cutout on a board's top edge (drawer-box fronts). */
   scoop?: { widthMm: number; depthMm: number };
   /**
+   * Finger-pull channel routed along the board's top edge (handle-less
+   * slab fronts). The cut list keeps the part's nominal dimensions.
+   */
+  fingerPullTop?: boolean;
+  /**
    * Panel sitting recessed inside a frame: bakes contact shading (ambient
    * occlusion) that darkens toward the frame on all four sides.
    * `overlapMm` is hidden in the grooves; shading fades over `reachMm`.
@@ -448,6 +453,7 @@ function pushFrontParts(
     outerEdgeProfile?: EdgeProfile;
     frameJoint?: 'cope' | 'miter';
     glassPanel?: boolean;
+    fingerPull?: boolean;
     centerXMm: number;
     bottomYMm: number;
     centerZMm: number;
@@ -474,6 +480,7 @@ function pushFrontParts(
       positionMm: [cx, y0 + h / 2, cz],
       role: 'panel',
       grainAxis: options.slabGrain,
+      fingerPullTop: options.fingerPull || undefined,
       edgeProfile: outer ? { outer, axis: 'slab' } : undefined,
     });
     return;
@@ -571,6 +578,7 @@ function frontPanelLayout(spec: CabinetDoorSpec | DrawerFrontSpec): FurnitureLay
     outerEdgeProfile: spec.outerEdgeProfile,
     frameJoint: spec.frameJoint,
     glassPanel: spec.kind === 'door' ? spec.glassPanel : undefined,
+    fingerPull: spec.kind === 'drawerfront' ? spec.fingerPull : undefined,
     centerXMm: 0,
     bottomYMm: 0,
     centerZMm: 0,
@@ -672,6 +680,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
       edgeProfile: spec.edgeProfile,
       outerEdgeProfile: spec.outerEdgeProfile,
       frameJoint: spec.frameJoint,
+      fingerPull: spec.fingerPull,
       centerXMm: 0,
       bottomYMm: y0,
       centerZMm: frontZ,

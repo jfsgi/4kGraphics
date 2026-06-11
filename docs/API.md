@@ -77,14 +77,16 @@ the visible viewport size is irrelevant.
 
 // kind: 'drawerfront' — same construction as a door, drawer proportions
 { kind, widthMm, heightMm, thicknessMm, style, railStileWidthMm,
-  panelThicknessMm, raiseProfile?, raiseWidthMm?, edgeProfile?, outerEdgeProfile?, frameJoint? }
+  panelThicknessMm, raiseProfile?, raiseWidthMm?, edgeProfile?, outerEdgeProfile?, frameJoint?,
+  fingerPull?: boolean }                        // routed top-edge pull channel (slab style)
 
 // kind: 'drawerunit' — carcass + N drawer boxes on slides + overlay fronts
 { kind, widthMm, heightMm, depthMm, drawerCount, stockThicknessMm,
   boxStockThicknessMm, frontStyle: 'slab' | 'shaker' | 'raised',
   raiseProfile?, edgeProfile?, outerEdgeProfile?,
   slideType?: 'sidemount' | 'undermount', frameJoint?,
-  frontMount?: 'overlay' | 'inset' }            // inset adds divider rails + 2mm reveals
+  frontMount?: 'overlay' | 'inset',             // inset adds divider rails + 2mm reveals
+  fingerPull?: boolean }                        // pull channel on each front's top edge (slab)
 ```
 
 Cut-list items and overall dimensions also carry fractional-inch strings
