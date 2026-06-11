@@ -252,21 +252,36 @@ export function profiledBoardGeometry(
     const innerSign = opts.stickCaps.innerSide === 'vMin' ? -1 : 1;
     const vIn = innerSign * (W / 2);
     const innerBand = opts.inner;
+    // Assembled-joint witness: crisp seam LINES (not sunken areas) outlining
+    // the rail tenon's end grain in the groove and the cope line along the
+    // pattern profile — how the joint reads on a real door's top edge.
+    const seam = 0.0005;
     const recess = (v: number, z: number): number => {
       const distIn = innerSign > 0 ? W / 2 - v : v + W / 2;
-      if (distIn < grooveDepth && Math.abs(z) < grooveWidth / 2) return capDepth;
-      if (innerBand && distIn < innerBand.width) {
+      // Tenon outline: border of the groove rectangle.
+      if (distIn < grooveDepth + seam && Math.abs(z) < grooveWidth / 2 + seam) {
+        const inside = distIn < grooveDepth && Math.abs(z) < grooveWidth / 2;
+        const borderDist = Math.min(
+          grooveDepth - distIn,
+          grooveWidth / 2 - Math.abs(z),
+        );
+        if (!inside || borderDist < seam) return capDepth;
+      }
+      // Cope seam: a line tracing the pattern profile cross-section.
+      if (innerBand && distIn < innerBand.width + seam) {
         const dropHere =
-          pd * (DEPTH_SCALE[innerBand.profile] ?? 1) * shape(innerBand.profile, 1 - distIn / innerBand.width);
-        if (z > T / 2 - dropHere) return capDepth;
+          pd *
+          (DEPTH_SCALE[innerBand.profile] ?? 1) *
+          shape(innerBand.profile, Math.max(0, 1 - distIn / innerBand.width));
+        if (Math.abs(z - (T / 2 - dropHere)) < seam) return capDepth;
       }
       return 0;
     };
     const vsCap = nonuniformSamples(
       W,
       [innerSign > 0 ? [vIn - grooveDepth - 0.004, vIn] : [vIn, vIn + grooveDepth + 0.004]],
-      0.0008,
-      0.004,
+      0.0004,
+      0.003,
     );
     const buildCap = (sign: 1 | -1): THREE.BufferGeometry => {
       const endU = L / 2;
@@ -277,7 +292,7 @@ export function profiledBoardGeometry(
       // wraps the end, the front boundary is the profiled edge, not T/2 —
       // otherwise the cap would stand proud of the rounded-over edge.
       const topZ = (a: number) => frontZ(endU, localV(a));
-      const tSamples = nonuniformSamples(1, [], 0.04, 0.04); // 26 rows
+      const tSamples = nonuniformSamples(1, [], 0.018, 0.018); // ~56 rows
       const capMap = (a: number, b: number): [number, number] => [
         a,
         -T / 2 + (b + 0.5) * (topZ(a) + T / 2),
