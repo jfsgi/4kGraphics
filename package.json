@@ -1,0 +1,20 @@
+{
+  "name": "4kgraphics",
+  "private": true,
+  "version": "0.1.0",
+  "description": "4K furniture rendering engine: embeddable library, demo UI, and headless render service",
+  "workspaces": [
+    "packages/engine",
+    "packages/server",
+    "apps/demo"
+  ],
+  "scripts": {
+    "build": "npm run build -w packages/engine && npm run build -w packages/server && npm run build -w apps/demo",
+    "test": "npm run test -w packages/engine",
+    "demo": "npm run dev -w apps/demo",
+    "serve": "npm run start -w packages/server"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
