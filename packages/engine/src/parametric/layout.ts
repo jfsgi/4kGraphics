@@ -56,6 +56,10 @@ export interface Part {
     matingThicknessMm: number;
     /** For pins boards: which z face is the outside of the box. */
     pinsOuterSign?: 1 | -1;
+    /** Tails boards: half-blind front — tails stop this short of the show face. */
+    frontLipMm?: number;
+    /** Pins boards: blind sockets with a solid lap this thick at the show face. */
+    lipMm?: number;
   };
   /**
    * Renders a raised-panel profile on the front face: a flat tongue at the
@@ -377,9 +381,10 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   const { widthMm: w, depthMm: d, heightMm: h, stockThicknessMm: t } = spec;
   const halfblind = spec.joinery === 'halfblind';
   const through = spec.joinery === 'dovetail' || spec.joinery === 'boxjoint';
-  // Half-blind tails stop 6mm short of the front face (clean show face);
-  // the joint reads from above and inside.
-  const lip = 6;
+  // Half-blind tails stop 1/16" short of the front face (clean show face);
+  // from the side, the joint pattern ends at the lap line. The back corners
+  // stay through-dovetailed, as jigs cut them.
+  const lip = 1.5875;
   const scoop = spec.scoop
     ? { widthMm: Math.min(120, w * 0.35), depthMm: Math.min(32, h * 0.4) }
     : undefined;
@@ -395,7 +400,7 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
       joinery: through
         ? { type: spec.joinery as 'dovetail' | 'boxjoint', role: 'tails', matingThicknessMm: t }
         : halfblind
-          ? { type: 'dovetail', role: 'tails', matingThicknessMm: t - lip }
+          ? { type: 'dovetail', role: 'tails', matingThicknessMm: t, frontLipMm: lip }
           : undefined,
     });
   }
@@ -416,7 +421,16 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
             matingThicknessMm: t,
             pinsOuterSign: sz as 1 | -1,
           }
-        : undefined,
+        : halfblind
+          ? {
+              type: 'dovetail',
+              role: 'pins',
+              matingThicknessMm: t,
+              pinsOuterSign: sz as 1 | -1,
+              // Blind sockets on the front only; the back stays through.
+              lipMm: sz > 0 ? lip : undefined,
+            }
+          : undefined,
       scoop: sz > 0 ? scoop : undefined,
     });
   }

@@ -183,8 +183,22 @@ function partGeometry(part: Part): THREE.BufferGeometry {
     const joint = { type: part.joinery.type, depth: part.joinery.matingThicknessMm * MM_TO_M };
     const jointed =
       part.joinery.role === 'tails'
-        ? tailsBoardGeometry(w, h, d, joint)
-        : pinsBoardGeometry(w, h, d, joint, part.joinery.pinsOuterSign ?? 1, scoop);
+        ? tailsBoardGeometry(
+            w,
+            h,
+            d,
+            joint,
+            part.joinery.frontLipMm ? joint.depth - part.joinery.frontLipMm * MM_TO_M : undefined,
+          )
+        : pinsBoardGeometry(
+            w,
+            h,
+            d,
+            joint,
+            part.joinery.pinsOuterSign ?? 1,
+            scoop,
+            (part.joinery.lipMm ?? 0) * MM_TO_M,
+          );
     if (jointed) return jointed;
   }
   if (scoop && part.shape === 'box') {

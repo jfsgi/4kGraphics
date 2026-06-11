@@ -95,44 +95,48 @@ function layoutJoint(height: number, spec: JointSpec): JointLayout | null {
  * requested world axis by the caller. Returns a centered geometry with
  * length × height × thickness mapped to (z, y, x) — the drawer-side
  * orientation — or null when the board is too small for the joint.
+ * `frontDepth` shortens the +z end's engagement (half-blind front: the
+ * tails stop at the lap, depth = front stock − lip).
  */
 export function tailsBoardGeometry(
   thickness: number,
   height: number,
   length: number,
   spec: JointSpec,
+  frontDepth?: number,
 ): THREE.BufferGeometry | null {
   const joint = layoutJoint(height, spec);
   if (!joint) return null;
   const { flare, tailWide, tailCenters } = joint;
   const zo = length / 2;
-  const zi = zo - spec.depth;
+  const ziFront = zo - (frontDepth ?? spec.depth);
+  const ziBack = zo - spec.depth;
   const yBottom = -height / 2;
 
   const points: Array<[number, number]> = [];
   // Bottom edge between the two baselines.
-  points.push([-zi, yBottom], [zi, yBottom]);
-  // Right toothed end, bottom to top.
+  points.push([-ziBack, yBottom], [ziFront, yBottom]);
+  // Front (+z) toothed end, bottom to top.
   for (const c of tailCenters) {
     const cy = yBottom + c;
     points.push(
-      [zi, cy - tailWide / 2 + flare],
+      [ziFront, cy - tailWide / 2 + flare],
       [zo, cy - tailWide / 2],
       [zo, cy + tailWide / 2],
-      [zi, cy + tailWide / 2 - flare],
+      [ziFront, cy + tailWide / 2 - flare],
     );
   }
-  points.push([zi, height / 2]);
+  points.push([ziFront, height / 2]);
   // Top edge.
-  points.push([-zi, height / 2]);
-  // Left toothed end, top to bottom (mirror of the right end).
+  points.push([-ziBack, height / 2]);
+  // Back toothed end, top to bottom (mirror of the front end).
   for (const c of [...tailCenters].reverse()) {
     const cy = yBottom + c;
     points.push(
-      [-zi, cy + tailWide / 2 - flare],
+      [-ziBack, cy + tailWide / 2 - flare],
       [-zo, cy + tailWide / 2],
       [-zo, cy - tailWide / 2],
-      [-zi, cy - tailWide / 2 + flare],
+      [-ziBack, cy - tailWide / 2 + flare],
     );
   }
 
@@ -147,7 +151,9 @@ export function tailsBoardGeometry(
 /**
  * Pins board: body along local X with complementary pin prisms at each end.
  * Returns a centered geometry with length × height × thickness mapped to
- * (x, y, z) — the drawer front/back orientation.
+ * (x, y, z) — the drawer front/back orientation. With `lip`, the sockets
+ * are blind: they stop `lip` short of the outer face, and a solid lap
+ * plate carries the show face over the joint (half-blind dovetail front).
  */
 export function pinsBoardGeometry(
   length: number,
@@ -157,12 +163,14 @@ export function pinsBoardGeometry(
   /** +1 when the board's outer face is at +Z (a front), −1 for a back. */
   outerSign: 1 | -1,
   scoop?: ScoopSpec,
+  lip = 0,
 ): THREE.BufferGeometry | null {
   const joint = layoutJoint(height, spec);
   if (!joint) return null;
   const { tailWide, flare, tailCenters } = joint;
   const yBottom = -height / 2;
   const zOuter = (thickness / 2) * outerSign;
+  const zTip = zOuter - lip * outerSign;
   const zInner = -zOuter;
 
   // Non-indexed to match the extruded prisms — mergeGeometries refuses to
@@ -191,8 +199,8 @@ export function pinsBoardGeometry(
     // rotateY(π/2) maps shape (sx, sy, extrude) → world (extrude, sy, −sx),
     // so shape X carries the NEGATED z coordinate.
     const shape = new THREE.Shape([
-      new THREE.Vector2(-zOuter, g0),
-      new THREE.Vector2(-zOuter, g1),
+      new THREE.Vector2(-zTip, g0),
+      new THREE.Vector2(-zTip, g1),
       new THREE.Vector2(-zInner, g1 + f1),
       new THREE.Vector2(-zInner, g0 - f0),
     ]);
@@ -205,6 +213,16 @@ export function pinsBoardGeometry(
     const left = prism;
     left.translate(-length / 2, 0, 0);
     pieces.push(left, right);
+  }
+
+  // Half-blind lap: a solid plate between the socket bottoms and the show
+  // face, one per end, so the joint never breaks through the front.
+  if (lip > 0) {
+    for (const sx of [1, -1]) {
+      const plate = new THREE.BoxGeometry(spec.depth, height, lip).toNonIndexed();
+      plate.translate(sx * (length / 2 - spec.depth / 2), 0, (zOuter + zTip) / 2);
+      pieces.push(plate);
+    }
   }
 
   const merged = mergeGeometries(pieces, false);

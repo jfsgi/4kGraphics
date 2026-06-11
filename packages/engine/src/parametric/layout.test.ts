@@ -103,14 +103,18 @@ describe('drawer box layout', () => {
     expect(side.sizeMm[2]).toBe(spec.depthMm);
   });
 
-  it('shortens sides by the lip for half-blind joinery and keeps the front clean', () => {
+  it('builds the half-blind front with a 1/16" lap and a through back', () => {
     const spec = { ...defaultDrawerBoxSpec(), joinery: 'halfblind' as const };
     const layout = buildLayout(spec);
+    const lip = 1.5875;
     const side = layout.parts.find((p) => p.name === 'Drawer side')!;
-    expect(side.sizeMm[2]).toBe(spec.depthMm - 6);
+    expect(side.sizeMm[2]).toBeCloseTo(spec.depthMm - lip);
+    expect(side.joinery?.frontLipMm).toBeCloseTo(lip);
     const front = layout.parts.find((p) => p.name === 'Drawer front (box)')!;
-    expect(front.joinery).toBeUndefined();
+    expect(front.joinery?.lipMm).toBeCloseTo(lip);
     expect(front.sizeMm[0]).toBe(spec.widthMm);
+    const back = layout.parts.find((p) => p.name === 'Drawer back (box)')!;
+    expect(back.joinery?.lipMm).toBeUndefined();
   });
 
   it('marks the front with a scoop when requested', () => {
@@ -131,6 +135,18 @@ describe('drawer box layout', () => {
     expect(pins).not.toBeNull();
     expect(tails!.attributes.position.count).toBeGreaterThan(100);
     expect(pins!.attributes.position.count).toBeGreaterThan(100);
+  });
+
+  it('keeps half-blind sockets behind the lap', () => {
+    const joint = { type: 'dovetail' as const, depth: 0.013 };
+    const lip = 0.0015875;
+    const pins = pinsBoardGeometry(0.5, 0.15, 0.013, joint, 1, undefined, lip)!;
+    pins.computeBoundingBox();
+    // The lap plate must carry the show face to the full +z half-thickness.
+    expect(pins.boundingBox!.max.z).toBeCloseTo(0.0065, 5);
+    const tails = tailsBoardGeometry(0.013, 0.15, 0.45, joint, joint.depth - lip)!;
+    tails.computeBoundingBox();
+    expect(tails.attributes.position.count).toBeGreaterThan(100);
   });
 });
 

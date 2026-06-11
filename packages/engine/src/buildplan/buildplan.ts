@@ -418,7 +418,7 @@ function stepsFor(layout: FurnitureLayout): BuildStep[] {
             j === 'dovetail'
               ? 'Rout through dovetails on all four corners with the jig; test-fit a corner in scrap first and dial in the bit depth until the joint closes hand-tight.'
               : j === 'halfblind'
-                ? 'Rout half-blind dovetails with the jig — tails in the sides, sockets stopped 6mm shy of the front face so the show face stays clean. Test-fit in scrap first.'
+                ? 'Rout half-blind dovetails with the jig — tails in the sides, blind sockets stopped 1/16" shy of the front face so the show face stays clean. The back corners are through-dovetailed. Test-fit in scrap first.'
                 : j === 'boxjoint'
                   ? 'Cut box joints on all four corners at the table saw with the jig. The fit should need light mallet taps — too tight will split when glue swells the fingers.'
                   : 'Cut a dado in each side to receive the front and back, sized for a snug push fit.',
