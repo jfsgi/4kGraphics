@@ -143,6 +143,19 @@ export interface WoodParams {
   contrast: number;
   /** Boards across one tile (tile = 2.4 m, so 12 ≈ 200 mm boards). */
   plankCount: number;
+  /**
+   * 'straight': fine parallel striation (rift/quarter-sawn).
+   * 'cathedral': large sweeping ring arches along the board with
+   * board-scale tonal zones (flat-sawn walnut/cherry).
+   */
+  figure?: 'straight' | 'cathedral';
+  /** Max pin knots per board (cathedral figure only). */
+  maxKnots?: number;
+  /**
+   * Ring profile exponent (cathedral figure): ~2.5 gives broad soft bands
+   * (walnut), ~6 gives thin crisp contour lines (cherry).
+   */
+  ringSharpness?: number;
 }
 
 /**
@@ -153,6 +166,8 @@ export interface WoodParams {
  */
 export function generateWoodMaps(size: number, params: WoodParams): PbrMaps {
   const { seed, ringsPerPlank, turbulence, contrast: c, plankCount } = params;
+  const cathedral = params.figure === 'cathedral';
+  const maxKnots = params.maxKnots ?? 0;
   const height = new Float32Array(size * size);
   const tone = new Float32Array(size * size);
   const rough = new Float32Array(size * size);
@@ -171,36 +186,89 @@ export function generateWoodMaps(size: number, params: WoodParams): PbrMaps {
       const h2 = plankHash(plank, seed + 77);
       const uIn = u - plankIndex * plankW;
 
-      // Gentle ring-density waves, wandering slightly per board.
-      const wander = fbm2D(u * 0.75, v * 0.25, 6, 2, seed + plank * 17, 3) * turbulence;
-      const phase = (uIn / plankW) * ringsPerPlank * (0.8 + h2 * 0.4) + h1 * 13 + wander;
-      const ring = 0.5 + 0.5 * Math.sin(phase * Math.PI * 2);
-      const late = ring * ring * ring;
+      const wander =
+        (fbm2D(u * 0.75, v * 0.25, 6, 2, seed + plank * 17, 3) +
+          fbm2D(u * 3, v * 1, 24, 8, seed + plank * 17 + 53, 2) * 0.35) *
+        turbulence;
 
-      // Dominant feature: fine straight streaks elongated along the grain.
+      let phase: number;
+      let ringVisibility = 1;
+      let knotDark = 0;
+      if (cathedral) {
+        // Flat-sawn figure: ring contours are nested parabolic arches along
+        // the board. Quadratic-in-u + linear-in-v phase gives the arches;
+        // the v coefficient is kept on a 1/2 grid so the texture still tiles.
+        const axis = (0.3 + h1 * 0.4) * plankW;
+        const du = (uIn - axis) / plankW;
+        const archesAlongV = Math.max(1, Math.round(ringsPerPlank * 0.1 + h2 * 2)) * 0.5;
+        phase = du * du * ringsPerPlank * 0.5 + v * archesAlongV + h1 * 13 + wander;
+        // Arches fade in and out along the board: large calm zones between
+        // figured zones, like real flat-sawn stock.
+        ringVisibility =
+          0.35 + 0.65 * (fbm2D(u * 0.5, v * 0.5, 4, 4, seed + plank * 23 + 61, 2) * 0.5 + 0.5);
+
+        // Pin knots: small dark spots that bend the surrounding rings.
+        const knotCount = Math.min(maxKnots, Math.floor(h2 * (maxKnots + 1)));
+        for (let k = 0; k < knotCount; k++) {
+          const ku = (0.15 + plankHash(plank * 7 + k, seed + 101) * 0.7) * plankW;
+          const kv = plankHash(plank * 7 + k, seed + 211) * PERIOD;
+          const ddu = uIn - ku;
+          let ddv = Math.abs(v - kv);
+          ddv = Math.min(ddv, PERIOD - ddv); // wrap so knots tile
+          const r = 0.05 + plankHash(plank * 7 + k, seed + 307) * 0.06;
+          const d2 = ddu * ddu + ddv * ddv * 0.6;
+          const influence = (r * r) / (d2 + r * r);
+          knotDark += influence * influence;
+          phase += influence * 2.5;
+        }
+      } else {
+        phase = (uIn / plankW) * ringsPerPlank * (0.8 + h2 * 0.4) + h1 * 13 + wander;
+      }
+      const ring = 0.5 + 0.5 * Math.sin(phase * Math.PI * 2);
+      const late =
+        (cathedral ? Math.pow(ring, params.ringSharpness ?? 2.5) : ring * ring * ring) *
+        ringVisibility;
+
+      // Fine streaks elongated along the grain.
       const fine = fbm2D(u * 32, v * 2, 256, 16, seed + 7 + plank * 31, 5);
       // Sparse darker hairline filaments.
       const fil = valueNoise2D(u * 96, v * 8, 768, 64, seed + 19 + plank * 13);
       const hair = Math.max(0, fil - 0.45) * 1.6;
       // Pore speckle.
       const pore = valueNoise2D(u * 48, v * 4, 384, 32, seed + 23) * 0.5 + 0.5;
+      // Board-scale light/dark zones (strong in flat-sawn stock).
+      const macro = fbm2D(u * 0.5, v * 0.5, 4, 4, seed + 41, 3);
 
       // Glue-line: a very faint seam at each board boundary.
       const edge = Math.min(uIn, plankW - uIn);
       const seam = edge < 0.006 ? 1 : 0;
 
+      // Cathedral rings are sparse dark contour lines, so their amplitude
+      // must be strong to read; sharper (thinner) lines get more weight.
+      const sharpness = params.ringSharpness ?? 2.5;
+      const ringTerm = cathedral
+        ? late * (0.25 + sharpness * 0.05)
+        : (late - 0.5) * 0.16;
+      const fineWeight = cathedral ? 0.12 : 0.2;
+      const macroWeight = cathedral ? 0.13 : 0.05;
       const t = clamp01(
-        0.42 +
+        (cathedral ? 0.36 : 0.42) +
           c *
-            (fine * 0.2 +
-              hair * 0.22 +
-              (late - 0.5) * 0.16 +
+            (fine * fineWeight +
+              hair * 0.18 +
+              ringTerm +
+              macro * macroWeight +
               (pore - 0.5) * 0.06 +
-              (h1 - 0.5) * 0.1) +
+              (h1 - 0.5) * 0.12 +
+              knotDark * 0.5) +
           seam * 0.08 * c,
       );
       tone[i] = t;
-      height[i] = clamp01(0.55 - c * (hair * 0.22 + fine * 0.08 + late * 0.08) - seam * 0.2);
+      height[i] = clamp01(
+        0.55 -
+          c * (hair * 0.2 + fine * 0.07 + late * (cathedral ? 0.2 : 0.08) + knotDark * 0.25) -
+          seam * 0.2,
+      );
       rough[i] = clamp01(params.baseRoughness + c * (t - 0.45) * 0.22 + (pore - 0.5) * 0.05);
     }
   }
