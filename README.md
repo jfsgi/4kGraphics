@@ -1,87 +1,98 @@
-# Atelier3D — Parametric Furniture Design Studio (working title)
+# 4kGraphics — Furniture Render Engine
 
-A web-based 3D parametric design tool for professional furniture makers and small-to-mid
-woodworking shops. Users build complex furniture assemblies from a curated library of smart
-parametric components, scale designs along X/Y/Z with parts that adapt intelligently, stage
-the finished piece in a virtual photo studio, and produce both high-resolution marketing
-renders and shop-ready manufacturing documents.
-
-## Confirmed product decisions
-
-| Decision | Choice |
-|---|---|
-| Target user | Professional furniture makers & small/mid shops (furniture-domain UI, not CAD UI) |
-| Parametric engine | Component-parametric (smart parts with parameters and adaptation rules; no sketch/constraint solver) |
-| Rendering | Interactive WebGL preview in browser; final 4K–8K renders via server-side path tracing (headless Blender Cycles farm) |
-| Outputs | Cut lists & BOM, CNC/DXF/STEP export, assembly drawings, marketing renders & turntables |
-| Stack | React + TypeScript + Three.js (react-three-fiber); Node API; OpenCascade for exact geometry/export |
-| Library | Curated, versioned core library + private per-user "Workshop" library of saved parts/sub-assemblies |
-| Units | Per-project imperial (fractional inches) or metric; internal model always millimeters |
-| UI direction | Light, warm-neutral professional workspace; single teal accent; Studio workspace always dark for color accuracy |
-
-## Documentation
-
-| Document | Contents |
-|---|---|
-| [docs/01-product-vision.md](docs/01-product-vision.md) | Vision, personas, product pillars, scope, phased roadmap |
-| [docs/02-user-workflow.md](docs/02-user-workflow.md) | The end-to-end user workflow: Start → Build → Detail → Validate → Stage → Document → Share |
-| [docs/03-ui-design-standard.md](docs/03-ui-design-standard.md) | **The UI design standard** all app UI must adhere to: principles, layout, tokens, components, viewport interaction, terminology |
-| [docs/04-architecture.md](docs/04-architecture.md) | Technical architecture: frontend, geometry pipeline, render farm, data model |
-| [docs/05-component-standard.md](docs/05-component-standard.md) | Authoring standard for parametric components: parameters, anchors, joinery, X/Y/Z scaling behavior |
-
-## The three workspaces
-
-1. **Design** — assemble and parameterize furniture from the component library.
-2. **Studio** — stage the piece in lit environments and queue photoreal renders.
-3. **Documents** — cut lists, BOM, assembly drawings, DXF/STEP exports.
-
-Everything in the product hangs off this three-workspace model; see the workflow document.
-
-## Status — Phase 0 build (working app)
-
-The Phase 0 foundation from the roadmap is implemented and tested:
-
-- React 19 + TypeScript + Vite app shell implementing the UI design standard (tokens, layout,
-  terminology) with Design and Documents workspaces (Studio arrives in Phase 2)
-- three.js viewport (react-three-fiber): orbit/pan/zoom per the standard, hover/selection
-  highlighting, drag-to-move with grid snapping, standard views, frame-all/-selection
-- Parametric component runtime with 10 library components (3 tables, bookcase, 3 legs,
-  board, panel, shelf) demonstrating fixed/stretch/repeat scaling rules
-- Inspector with the signature dimension input (`1-1/2"`, `19mm`, `2'6"`, fractional-inch
-  display), scrub-to-adjust labels, material swatches, Advanced expander, Design Check
-- Live cut list & BOM with board-feet totals and CSV export
-- Undo/redo (100 steps), autosave to the browser, project save/open as JSON files
-- 15 unit tests over the dimension parser and component generators (`npm test`)
-
-### Running locally
-
-```bash
-npm install
-npm run dev      # development server
-npm test         # unit tests
-npm run build    # type-check + production build to dist/
-```
-
-### Deploying to Vercel
-
-The repo is Vercel-ready (`vercel.json` pins the Vite framework preset, `npm run build`,
-and the `dist/` output with SPA rewrites). The production branch (`main`) deploys the
-Atelier3D app; every push to any branch gets a preview URL once the Vercel GitHub app is
-installed for the repository.
-
-## Bundled render engine (`packages/`, `apps/demo`)
-
-The repository also contains a self-contained 4K furniture render engine (built in a
-parallel session), kept as the foundation for the Phase 2 Studio render pipeline:
+A 4K rendering engine for designed furniture. It renders pieces with physically-based
+materials at full 3840×2160 resolution, generates the woodworking **build plan** (cut
+list, hardware, tools, step-by-step workflow) for every parametric piece, and ships in
+three forms so other apps can use it:
 
 | Package | What it is |
 | --- | --- |
-| [`packages/engine`](packages/engine) | Three.js library: parametric furniture specs, procedural wood/PBR texture generators, studio lighting rigs, 3840×2160 snapshot renderer, build-plan generator |
-| [`packages/server`](packages/server) | Express render API driving the engine in headless Chromium (works on GPU-less servers) |
-| [`apps/demo`](apps/demo) | Vite demo UI exercising the engine: catalog, dimension sliders, material swatches, 4K PNG download |
+| [`@4kgraphics/engine`](packages/engine) | Embeddable TypeScript library (Three.js/WebGL): scene, materials, loaders, snapshot renderer, build-plan generator |
+| [`@4kgraphics/server`](packages/server) | Headless render API — `POST` a furniture spec, receive a 4K PNG or a build-plan JSON |
+| [`apps/demo`](apps/demo) | Browser demo UI that exercises the whole engine |
 
-The root Atelier3D app does not depend on these packages yet; Phase 2 wires the Studio's
-render queue to them. Each package carries its own `package.json` — to run the engine's
-test suite: `cd packages/engine && npm install && npm test`. Engine API reference:
-[docs/API.md](docs/API.md) · engine roadmap: [docs/PLAN.md](docs/PLAN.md) · original
-engine overview: [docs/00-overview.md](docs/00-overview.md).
+![4K render of an oak dining table](docs/images/sample-4k-oak-table.png)
+*3840×2160 output from the headless service: parametric table, procedural oak, studio lighting, 2× supersampling.*
+
+## Features
+
+- **True 4K output** — 3840×2160 stills with 2× supersampling (7680×4320 internal render),
+  rendered in a dedicated offscreen context so the interactive viewport size never matters.
+- **Procedural 4K PBR materials** — oak, walnut, cherry (edge-glued plank simulation with
+  per-plank grain), paints, brushed steel/brass, and linen, generated at up to 4096²
+  with matching color, roughness, and normal maps. No texture assets to download.
+- **Parametric furniture** — tables, bookshelves, and cabinets defined by real dimensions
+  in millimeters. Geometry, UVs (grain direction per part), and the build plan all derive
+  from one part layout, so the render and the cut list can never disagree.
+- **Build plans** — cut list with grain-oriented dimensions, hardware list, tool list,
+  assembly workflow, board-feet estimate, and shop-hours estimate for every parametric piece.
+- **Model import** — glTF, GLB, OBJ, FBX, and STL with automatic unit guessing
+  (mm/cm/inches/meters) and floor placement.
+- **Studio lighting presets** — studio, showroom, and daylight rigs with soft shadows and
+  image-based environment lighting.
+- **Headless render API** — the same engine driven by headless Chromium (software WebGL
+  works on GPU-less servers), for backend pipelines and non-JS apps.
+
+| Demo UI | Build plan |
+| --- | --- |
+| ![Demo UI](docs/images/demo-ui.png) | ![Build plan](docs/images/build-plan.png) |
+
+## Quickstart
+
+```bash
+npm install
+npm run build        # builds engine → server → demo
+npm test             # engine unit tests
+
+npm run demo         # demo UI on http://localhost:5173
+npm run serve        # render API on http://localhost:8787
+```
+
+### Render a 4K image over HTTP
+
+```bash
+curl -X POST http://localhost:8787/v1/render \
+  -H 'content-type: application/json' \
+  -d '{
+        "spec": { "kind": "table", "widthMm": 1800, "depthMm": 900, "heightMm": 750,
+                  "topThicknessMm": 32, "legStyle": "tapered", "legThicknessMm": 70,
+                  "legInsetMm": 40, "apron": true, "apronHeightMm": 90 },
+        "material": "walnut",
+        "lighting": "studio",
+        "textureSize": 4096
+      }' \
+  -o table-4k.png
+```
+
+### Embed the engine in your app
+
+```ts
+import { FurnitureEngine, defaultTableSpec } from '@4kgraphics/engine';
+
+const engine = new FurnitureEngine({ container: document.querySelector('#viewer')! });
+engine.showFurniture(defaultTableSpec());
+engine.setMaterial('walnut');
+engine.setMaterial('steel', 'Leg');          // per-part materials
+
+const png = await engine.renderSnapshot();    // 3840×2160 Blob
+const plan = engine.getBuildPlan();           // cut list, hardware, steps
+```
+
+Full API reference: [docs/API.md](docs/API.md) ·
+Project roadmap and workflow: [docs/PLAN.md](docs/PLAN.md) ·
+Product vision & design standards (Atelier3D): [docs/00-overview.md](docs/00-overview.md)
+
+## Repository layout
+
+```
+packages/engine/   core library
+  src/parametric/    furniture specs → part layouts → geometry
+  src/materials/     procedural texture generators + material library
+  src/lighting/      light rig presets
+  src/render/        4K snapshot renderer
+  src/loaders/       glTF/OBJ/FBX/STL import
+  src/buildplan/     cut list / workflow generation
+packages/server/   Express API + headless-Chromium render harness
+apps/demo/         Vite demo application
+docs/              roadmap, API reference, sample renders
+```

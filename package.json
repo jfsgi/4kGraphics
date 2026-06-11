@@ -1,29 +1,20 @@
 {
-  "name": "atelier3d",
+  "name": "4kgraphics",
   "private": true,
   "version": "0.1.0",
-  "type": "module",
+  "description": "4K furniture rendering engine: embeddable library, demo UI, and headless render service",
+  "workspaces": [
+    "packages/engine",
+    "packages/server",
+    "apps/demo"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
-    "test": "vitest run"
+    "build": "npm run build -w packages/engine && npm run build -w packages/server && npm run build -w apps/demo",
+    "test": "npm run test -w packages/engine",
+    "demo": "npm run dev -w apps/demo",
+    "serve": "npm run start -w packages/server"
   },
-  "dependencies": {
-    "@react-three/drei": "^10.0.0",
-    "@react-three/fiber": "^9.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "three": "^0.182.0",
-    "zustand": "^5.0.0"
-  },
-  "devDependencies": {
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@types/three": "^0.182.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "^5.7.0",
-    "vite": "^7.0.0",
-    "vitest": "^3.0.0"
+  "engines": {
+    "node": ">=20"
   }
 }
