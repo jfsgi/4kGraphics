@@ -38,7 +38,7 @@ export function buildGroup(layout: FurnitureLayout, material: THREE.Material): T
     // four legs, two doors — don't sample the same patch of grain.
     const offsetU = (partIndex * 0.618033988749) % 1;
     const offsetV = (partIndex * 0.754877666247) % 1;
-    applyBoxUVs(geometry, TEXTURE_TILE_M, part.grainAxis, offsetU, offsetV);
+    applyBoxUVs(geometry, TEXTURE_TILE_M, part.grainAxis, offsetU, offsetV, recessAO(part));
     partIndex += 1;
     const mesh = new THREE.Mesh(geometry, part.role === 'glass' ? GLASS_MATERIAL : material);
     if (part.role === 'glass') {
@@ -59,6 +59,25 @@ export function buildGroup(layout: FurnitureLayout, material: THREE.Material): T
     group.add(mesh);
   }
   return group;
+}
+
+/**
+ * Baked contact shading for panels recessed in frames: darkens smoothly
+ * toward the surrounding frame on all four sides, which is what reads as
+ * depth in a shaker or raised-panel door.
+ */
+function recessAO(part: Part): ((x: number, y: number, z: number) => number) | undefined {
+  if (!part.frameRecess) return undefined;
+  const hx = (part.sizeMm[0] / 2) * MM_TO_M;
+  const hy = (part.sizeMm[1] / 2) * MM_TO_M;
+  const overlap = part.frameRecess.overlapMm * MM_TO_M;
+  const reach = part.frameRecess.reachMm * MM_TO_M;
+  return (x, y) => {
+    const edge = Math.min(hx - Math.abs(x), hy - Math.abs(y)) - overlap;
+    const t = Math.min(1, Math.max(0, edge / reach));
+    const eased = t * (2 - t);
+    return 0.52 + 0.48 * eased;
+  };
 }
 
 /**
@@ -98,6 +117,10 @@ function edgeProfiledGeometry(
     miterEnds: edge.miterEnds
       ? { outerSide: innerSide === 'vMax' ? 'vMin' : 'vMax' }
       : undefined,
+    stickCaps:
+      edge.stickGroove && alongY && !edge.miterEnds
+        ? { grooveWidth: 0.006, grooveDepth: 0.01, capDepth: 0.014, innerSide }
+        : undefined,
     inner: edge.inner
       ? {
           profile: edge.inner,

@@ -83,7 +83,8 @@ the visible viewport size is irrelevant.
 { kind, widthMm, heightMm, depthMm, drawerCount, stockThicknessMm,
   boxStockThicknessMm, frontStyle: 'slab' | 'shaker' | 'raised',
   raiseProfile?, edgeProfile?, outerEdgeProfile?,
-  slideType?: 'sidemount' | 'undermount', frameJoint? }
+  slideType?: 'sidemount' | 'undermount', frameJoint?,
+  frontMount?: 'overlay' | 'inset' }            // inset adds divider rails + 2mm reveals
 ```
 
 Cut-list items and overall dimensions also carry fractional-inch strings

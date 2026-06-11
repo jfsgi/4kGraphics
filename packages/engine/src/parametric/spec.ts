@@ -73,6 +73,8 @@ export type DrawerJoinery = 'dovetail' | 'halfblind' | 'boxjoint' | 'dado';
 /** Frame corner construction: coped pattern joints, or full 45° miters. */
 export type FrameJoint = 'cope' | 'miter';
 export type SlideType = 'sidemount' | 'undermount';
+/** How drawer fronts mount: overlaying the carcass, or inset flush within it. */
+export type FrontMount = 'overlay' | 'inset';
 
 /** A drawer box (the box itself, no front). Outer dimensions. */
 export interface DrawerBoxSpec {
@@ -153,6 +155,8 @@ export interface DrawerUnitSpec {
   outerEdgeProfile?: EdgeProfile;
   /** Side-mount (default) or undermount slides — changes box clearances. */
   slideType?: SlideType;
+  /** Overlay fronts (default) or inset fronts flush in the openings. */
+  frontMount?: FrontMount;
   frameJoint?: FrameJoint;
 }
 

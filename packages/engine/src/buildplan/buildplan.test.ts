@@ -83,12 +83,11 @@ describe('build plan generation', () => {
     expect(noBore.hardware.some((h) => h.item.includes('hinges'))).toBe(false);
   });
 
-  it('scales drawer-unit slides and pulls with drawer count', () => {
+  it('scales drawer-unit slides with drawer count and ships no pulls', () => {
     const plan = generateBuildPlan({ ...defaultDrawerUnitSpec(), drawerCount: 4 });
     const slides = plan.hardware.find((h) => h.item.includes('slides'))!;
     expect(slides.quantity).toBe(4);
-    const pulls = plan.hardware.find((h) => h.item.includes('pulls'))!;
-    expect(pulls.quantity).toBe(4);
+    expect(plan.hardware.some((h) => h.item.includes('pulls'))).toBe(false);
   });
 
   it('aggregates identical drawer parts across a unit in the cut list', () => {

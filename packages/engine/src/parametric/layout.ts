@@ -71,6 +71,12 @@ export interface Part {
   /** Finger-scoop cutout on a board's top edge (drawer-box fronts). */
   scoop?: { widthMm: number; depthMm: number };
   /**
+   * Panel sitting recessed inside a frame: bakes contact shading (ambient
+   * occlusion) that darkens toward the frame on all four sides.
+   * `overlapMm` is hidden in the grooves; shading fades over `reachMm`.
+   */
+  frameRecess?: { overlapMm: number; reachMm: number };
+  /**
    * Edge details on a member's front face. `inner` is the cope & pattern
    * profile toward the panel opening; `outer` is the door-edge detail on
    * the outside of the door. axis 'slab' profiles the outer edge around
@@ -86,6 +92,8 @@ export interface Part {
     innerInsetMm?: number;
     /** 45°-mitered member ends (mitered frame construction). */
     miterEnds?: boolean;
+    /** Cope & stick: end faces show the groove + profile cross-section. */
+    stickGroove?: boolean;
   };
 }
 
@@ -476,17 +484,15 @@ function pushFrontParts(
       positionMm: [cx + sx * (w / 2 - rsw / 2), y0 + h / 2, cz],
       role: 'structure',
       grainAxis: 'y',
-      edgeProfile:
-        pattern || outer || miter
-          ? {
-              inner: pattern,
-              outer,
-              innerSide: sx > 0 ? 'x-' : 'x+',
-              axis: 'y',
-              innerInsetMm: miter ? 0 : rsw,
-              miterEnds: miter,
-            }
-          : undefined,
+      edgeProfile: {
+        inner: pattern,
+        outer,
+        innerSide: sx > 0 ? 'x-' : 'x+',
+        axis: 'y',
+        innerInsetMm: miter ? 0 : rsw,
+        miterEnds: miter,
+        stickGroove: !miter,
+      },
     });
   }
   for (const top of [0, 1]) {
@@ -521,6 +527,7 @@ function pushFrontParts(
       positionMm: [cx, y0 + h / 2, cz + t / 2 - 10],
       role: 'glass',
       grainAxis: options.slabGrain,
+      frameRecess: { overlapMm: 12, reachMm: 16 },
     });
     return;
   }
@@ -535,6 +542,7 @@ function pushFrontParts(
     positionMm: [cx, y0 + h / 2, raised ? cz + (t - pt) / 2 : cz + t / 2 - 6 - pt / 2],
     role: 'panel',
     grainAxis: options.slabGrain,
+    frameRecess: { overlapMm: 10, reachMm: raised ? 14 : 20 },
     raisedPanel: raised
       ? {
           profile: options.raiseProfile ?? 'cove',
@@ -575,23 +583,28 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
   const { widthMm: w, heightMm: h, depthMm: d, stockThicknessMm: t } = spec;
   const backT = 6;
   const frontT = 19;
-  const gap = 3;
+  const inset = spec.frontMount === 'inset';
+  const reveal = inset ? 2 : 3;
   const slideClearance = 13; // per side, for standard side-mount slides
-  const caseDepth = d - frontT;
+  // Overlay fronts hang in front of the carcass; inset fronts live inside
+  // it, flush with the carcass front edge.
+  const caseDepth = inset ? d : d - frontT;
+  const caseFrontZ = d / 2; // carcass front face (after any overlay offset)
+  const caseOffsetZ = inset ? 0 : -frontT / 2;
   const innerDepth = caseDepth - backT;
-  const caseZ = (backT - frontT) / 2;
 
   for (const sx of [1, -1]) {
     parts.push({
       name: 'Side panel',
       shape: 'box',
       sizeMm: [t, h, caseDepth],
-      positionMm: [sx * (w / 2 - t / 2), h / 2, -frontT / 2],
+      positionMm: [sx * (w / 2 - t / 2), h / 2, caseOffsetZ],
       role: 'structure',
       grainAxis: 'y',
     });
   }
   const innerW = w - 2 * t;
+  const caseZ = caseOffsetZ + backT / 2;
   for (const top of [0, 1]) {
     parts.push({
       name: top ? 'Top panel' : 'Bottom panel',
@@ -613,19 +626,35 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
 
   const n = spec.drawerCount;
   const undermount = spec.slideType === 'undermount';
-  const frontW = w - 4;
-  const frontH = (h - 4 - gap * (n - 1)) / n;
   const boxT = spec.boxStockThicknessMm;
-  // Side-mount slides need 13mm per side; undermounts hide below the box
-  // (5mm per side, ~14mm underneath).
   const boxW = w - 2 * t - 2 * (undermount ? 5 : slideClearance);
-  const boxH = Math.max(60, frontH - (undermount ? 38 : 30));
   const boxD = Math.min(innerDepth - 25, Math.floor((innerDepth - 25) / 50) * 50);
   const boxLift = undermount ? 16 : 10;
-  const frontZ = d / 2 - frontT / 2;
+
+  // Inset banks show divider rails between the openings; overlay fronts
+  // cover the carcass so none are needed.
+  const railH = 20;
+  const interiorH = h - 2 * t;
+  const openingH = inset ? (interiorH - (n - 1) * railH) / n : (h - 4 - 3 * (n - 1)) / n;
+  const frontW = inset ? innerW - 2 * reveal : w - 4;
+  const frontH = inset ? openingH - 2 * reveal : openingH;
+  const frontZ = inset ? d / 2 - frontT / 2 : d / 2 - frontT / 2;
 
   for (let i = 0; i < n; i++) {
-    const y0 = 2 + i * (frontH + gap);
+    const openingBottom = inset ? t + i * (openingH + railH) : 2 + i * (openingH + 3);
+    const y0 = openingBottom + (inset ? reveal : 0);
+
+    if (inset && i > 0) {
+      parts.push({
+        name: 'Divider rail',
+        shape: 'box',
+        sizeMm: [innerW, railH, frontT],
+        positionMm: [0, openingBottom - railH / 2, caseFrontZ - frontT / 2],
+        role: 'structure',
+        grainAxis: 'x',
+      });
+    }
+
     pushFrontParts(parts, {
       style: spec.frontStyle,
       widthMm: frontW,
@@ -645,7 +674,8 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
       slabGrain: 'x',
     });
 
-    const boxY0 = y0 + boxLift;
+    const boxY0 = openingBottom + boxLift;
+    const boxH = Math.max(60, openingH - (undermount ? 38 : 30));
     const boxZ = d / 2 - frontT - boxD / 2 - 5;
     for (const sx of [1, -1]) {
       parts.push({
@@ -674,16 +704,6 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
       positionMm: [0, boxY0 + 12 + 3, boxZ],
       role: 'panel',
       grainAxis: 'x',
-    });
-
-    parts.push({
-      name: 'Handle',
-      shape: 'cylinder',
-      sizeMm: [12, Math.min(160, frontW * 0.4), 12],
-      positionMm: [0, y0 + frontH / 2, d / 2 + 18],
-      rotationRad: [0, 0, Math.PI / 2],
-      role: 'hardware',
-      grainAxis: 'y',
     });
   }
 

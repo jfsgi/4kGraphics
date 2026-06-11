@@ -17,6 +17,8 @@ export function applyBoxUVs(
   grainAxis: 'x' | 'y' | 'z' = 'y',
   offsetU = 0,
   offsetV = 0,
+  /** Optional baked ambient-occlusion factor per local position, 0..1. */
+  ao?: (x: number, y: number, z: number) => number,
 ): void {
   const position = geometry.attributes.position;
   const normal = geometry.attributes.normal;
@@ -44,9 +46,10 @@ export function applyBoxUVs(
 
     // End grain: face normal parallel to the grain — darker and warmer.
     const endGrain = dominant === grainAxis;
-    colors[i * 3] = endGrain ? 0.72 : 1;
-    colors[i * 3 + 1] = endGrain ? 0.64 : 1;
-    colors[i * 3 + 2] = endGrain ? 0.56 : 1;
+    const occlusion = ao ? ao(coord.x, coord.y, coord.z) : 1;
+    colors[i * 3] = (endGrain ? 0.72 : 1) * occlusion;
+    colors[i * 3 + 1] = (endGrain ? 0.64 : 1) * occlusion;
+    colors[i * 3 + 2] = (endGrain ? 0.56 : 1) * occlusion;
   }
 
   geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));

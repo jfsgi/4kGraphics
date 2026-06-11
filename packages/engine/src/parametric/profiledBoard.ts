@@ -97,6 +97,12 @@ export interface ProfiledBoardOptions {
    * carries them on across the seam.
    */
   miterEnds?: { outerSide: 'vMin' | 'vMax' };
+  /**
+   * Cope-&-stick witness on the board ends (stiles): the end faces show the
+   * panel groove channel and the pattern profile cross-section — the stick
+   * cut runs through. Carved as blind recesses of `capDepth`.
+   */
+  stickCaps?: { grooveWidth: number; grooveDepth: number; capDepth: number; innerSide: 'vMin' | 'vMax' };
 }
 
 export function profiledBoardGeometry(
@@ -202,9 +208,67 @@ export function profiledBoardGeometry(
   const walls: THREE.BufferGeometry[] = [
     perimeterWall(us.map((u) => M(u, -W / 2)), frontZ, bz),
     perimeterWall([...us].reverse().map((u) => M(u, W / 2)), frontZ, bz),
-    perimeterWall([...vs].reverse().map((v) => M(-L / 2, v)), frontZ, bz),
-    perimeterWall(vs.map((v) => M(L / 2, v)), frontZ, bz),
   ];
+  if (!opts.stickCaps) {
+    walls.push(perimeterWall([...vs].reverse().map((v) => M(-L / 2, v)), frontZ, bz));
+    walls.push(perimeterWall(vs.map((v) => M(L / 2, v)), frontZ, bz));
+  } else {
+    // End caps with the stick cut carved in: a displaced grid in the (v, z)
+    // plane whose "height" is the x position — recessed inside the groove
+    // channel and under the pattern profile curve. Grid walls give the
+    // channel interiors for free, with crease-sharp normals.
+    const { grooveWidth, grooveDepth, capDepth } = opts.stickCaps;
+    const innerSign = opts.stickCaps.innerSide === 'vMin' ? -1 : 1;
+    const vIn = innerSign * (W / 2);
+    const innerBand = opts.inner;
+    const recess = (v: number, z: number): number => {
+      const distIn = innerSign > 0 ? W / 2 - v : v + W / 2;
+      if (distIn < grooveDepth && Math.abs(z) < grooveWidth / 2) return capDepth;
+      if (innerBand && distIn < innerBand.width) {
+        const dropHere =
+          pd * (DEPTH_SCALE[innerBand.profile] ?? 1) * shape(innerBand.profile, 1 - distIn / innerBand.width);
+        if (z > T / 2 - dropHere) return capDepth;
+      }
+      return 0;
+    };
+    const vsCap = nonuniformSamples(
+      W,
+      [innerSign > 0 ? [vIn - grooveDepth - 0.004, vIn] : [vIn, vIn + grooveDepth + 0.004]],
+      0.0008,
+      0.004,
+    );
+    const zsCap = nonuniformSamples(
+      T,
+      [
+        [-grooveWidth / 2 - 0.002, grooveWidth / 2 + 0.002],
+        [T / 2 - pd - 0.002, T / 2],
+      ],
+      0.0008,
+      0.003,
+    );
+    const buildCap = (sign: 1 | -1): THREE.BufferGeometry => {
+      const endU = L / 2;
+      // Build for the +u end; the −u cap is the same rotated 180° about z
+      // with the inner side pre-flipped by the caller convention below.
+      const grid = displacedFrontFace(vsCap, zsCap, (v, z) => endU - recess(sign > 0 ? v : -v, z));
+      // Permute (v, z, x) → (x, v, z): cyclic, so winding stays correct.
+      const pos = grid.attributes.position;
+      const nor = grid.attributes.normal;
+      for (let i = 0; i < pos.count; i++) {
+        const a = pos.getX(i);
+        const b = pos.getY(i);
+        const c = pos.getZ(i);
+        pos.setXYZ(i, c, a, b);
+        const na = nor.getX(i);
+        const nb = nor.getY(i);
+        const nc = nor.getZ(i);
+        nor.setXYZ(i, nc, na, nb);
+      }
+      if (sign < 0) grid.rotateZ(Math.PI);
+      return grid;
+    };
+    walls.push(buildCap(1), buildCap(-1));
+  }
 
   const merged = mergeGeometries([front, back, ...walls], false);
   front.dispose();

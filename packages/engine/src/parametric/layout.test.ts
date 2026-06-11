@@ -166,7 +166,7 @@ describe('drawer unit layout', () => {
     const layout = buildLayout(spec);
     expect(layout.parts.filter((p) => p.name === 'Drawer side')).toHaveLength(6);
     expect(layout.parts.filter((p) => p.name === 'Drawer bottom')).toHaveLength(3);
-    expect(layout.parts.filter((p) => p.name === 'Handle')).toHaveLength(3);
+    expect(layout.parts.some((p) => p.name === 'Handle')).toBe(false);
     expect(layout.parts.filter((p) => p.name === 'Drawer front stile')).toHaveLength(6);
   });
 
@@ -186,6 +186,18 @@ describe('drawer unit layout', () => {
       return Math.max(...sides.map((p) => Math.abs(p.positionMm[0]) + p.sizeMm[0] / 2));
     };
     expect(side('undermount')).toBeGreaterThan(side('sidemount'));
+  });
+
+  it('adds divider rails and narrower fronts for inset mounting', () => {
+    const spec = { ...defaultDrawerUnitSpec(), frontMount: 'inset' as const, drawerCount: 3 };
+    const layout = buildLayout(spec);
+    expect(layout.parts.filter((p) => p.name === 'Divider rail')).toHaveLength(2);
+    const stiles = layout.parts.filter((p) => p.name === 'Drawer front stile');
+    // Inset fronts sit between the carcass sides with reveals.
+    const innerW = spec.widthMm - 2 * spec.stockThicknessMm;
+    for (const s of stiles) {
+      expect(Math.abs(s.positionMm[0]) + s.sizeMm[0] / 2).toBeLessThan(innerW / 2);
+    }
   });
 
   it('uses slab fronts when requested', () => {

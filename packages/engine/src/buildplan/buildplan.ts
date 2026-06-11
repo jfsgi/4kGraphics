@@ -218,7 +218,6 @@ function hardwareFor(layout: FurnitureLayout): HardwareItem[] {
             : 'Full-extension side-mount slides (pair per drawer)',
         quantity: spec.drawerCount,
       });
-      items.push({ item: 'Drawer pulls', quantity: spec.drawerCount });
       items.push({ item: '8mm × 40mm dowels or confirmat screws (carcass)', quantity: 16 });
       items.push({ item: '16mm panel nails or staples (back panel)', quantity: 24 });
       items.push({ item: '4 × 30mm screws (front adjustment, 4 per drawer)', quantity: spec.drawerCount * 4 });
@@ -528,7 +527,9 @@ function stepsFor(layout: FurnitureLayout): BuildStep[] {
         {
           title: 'Fit the fronts',
           detail:
-            'With the boxes installed, attach each front using double-sided tape to position it, then fix from inside with the adjustment screws. Work bottom-up keeping an even 3mm reveal.',
+            spec.frontMount === 'inset'
+              ? 'Fit each inset front to its opening with an even 2mm reveal all around — plane to fit, shimming off the divider rails, then fix from inside with the adjustment screws.'
+              : 'With the boxes installed, attach each front using double-sided tape to position it, then fix from inside with the adjustment screws. Work bottom-up keeping an even 3mm reveal.',
         },
       );
       break;

@@ -341,6 +341,10 @@ function buildControls() {
         scheduleRebuild();
       });
     }
+    addSelect(host, 'Front mount', spec.frontMount ?? 'overlay', ['overlay', 'inset'], (value) => {
+      if (spec.kind === 'drawerunit') spec.frontMount = value as typeof spec.frontMount;
+      scheduleRebuild();
+    });
     addSelect(host, 'Slides', spec.slideType ?? 'sidemount', ['sidemount', 'undermount'], (value) => {
       if (spec.kind === 'drawerunit') spec.slideType = value as typeof spec.slideType;
       scheduleRebuild();

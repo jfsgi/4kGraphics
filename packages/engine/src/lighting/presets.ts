@@ -33,8 +33,11 @@ export function createLightRig(preset: LightingPresetId): THREE.Group {
     key.shadow.camera.bottom = -2.5;
     key.shadow.camera.near = 0.5;
     key.shadow.camera.far = 12;
-    key.shadow.bias = -0.0004;
-    key.shadow.radius = 4;
+    key.shadow.bias = -0.0002;
+    // Offset sampling along the surface normal: kills the stair-stepped
+    // shadow edges where rails shadow shallow recesses.
+    key.shadow.normalBias = 0.01;
+    key.shadow.radius = 6;
     group.add(key);
     return key;
   };
