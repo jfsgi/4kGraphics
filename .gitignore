@@ -1,5 +1,6 @@
 node_modules/
 dist/
+*.local
 harness-dist/
 *.tsbuildinfo
 .DS_Store
