@@ -158,6 +158,7 @@ export class FurnitureEngine {
     });
     this.lightRig = createLightRig(preset);
     this.scene.add(this.lightRig);
+    this.fitShadows();
   }
 
   setBackground(value: string | 'transparent'): void {
@@ -280,7 +281,32 @@ export class FurnitureEngine {
     if (next) {
       this.scene.add(next);
       if (frame) this.frameObject();
+      this.fitShadows();
     }
+  }
+
+  /**
+   * Tightens shadow frustums around the current object — a fixed furniture-
+   * room frustum wastes shadow-map resolution and serrates shadow edges on
+   * shallow profile slopes.
+   */
+  private fitShadows(): void {
+    if (!this.currentObject) return;
+    const box = new THREE.Box3().setFromObject(this.currentObject);
+    if (box.isEmpty()) return;
+    const sphere = box.getBoundingSphere(new THREE.Sphere());
+    const r = Math.max(0.4, sphere.radius * 1.4);
+    this.lightRig.traverse((child) => {
+      if (child instanceof THREE.DirectionalLight && child.castShadow) {
+        const cam = child.shadow.camera;
+        cam.left = -r;
+        cam.right = r;
+        cam.top = r;
+        cam.bottom = -r;
+        cam.updateProjectionMatrix();
+        child.shadow.needsUpdate = true;
+      }
+    });
   }
 
   private handleResize(): void {

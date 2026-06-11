@@ -26,7 +26,7 @@ export function createLightRig(preset: LightingPresetId): THREE.Group {
     const key = new THREE.DirectionalLight(color, intensity);
     key.position.copy(position);
     key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.mapSize.set(4096, 4096);
     key.shadow.camera.left = -2.5;
     key.shadow.camera.right = 2.5;
     key.shadow.camera.top = 2.5;

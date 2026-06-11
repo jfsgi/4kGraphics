@@ -60,16 +60,17 @@ the visible viewport size is irrelevant.
 
 // kind: 'drawerbox' — the box itself, outer dimensions
 { kind, widthMm, depthMm, heightMm, stockThicknessMm, bottomThicknessMm,
-  joinery: 'dovetail' | 'boxjoint' | 'dado' }
+  joinery: 'dovetail' | 'halfblind' | 'boxjoint' | 'dado',
+  scoop?: boolean }                              // finger-scoop front
 
 // kind: 'door' — slab, five-piece shaker, raised panel, or glass panel
 { kind, widthMm, heightMm, thicknessMm,
   style: 'slab' | 'shaker' | 'raised',
   railStileWidthMm, panelThicknessMm,           // ~6 shaker, 16–19 raised
-  raiseProfile?: 'cove' | 'ogee' | 'bevel',     // raised style
+  raiseProfile?: 'cove' | 'ogee' | 'bevel' | 'roundover' | 'stepcove',
   raiseWidthMm?: number,                        // raised style, default 38
-  edgeProfile?:      'square' | 'chamfer' | 'roundover' | 'ogee' | 'bead', // inner (cope & pattern)
-  outerEdgeProfile?: 'square' | 'chamfer' | 'roundover' | 'ogee' | 'bead', // door-edge detail
+  edgeProfile?:      EdgeProfile, // inner pattern: square|chamfer|roundover|ogee|bead|cove|ovolo|step|thumbnail
+  outerEdgeProfile?: EdgeProfile, // outer door-edge detail (same options)
   glassPanel?: boolean,                         // glass pane + retainer hardware
   hingeBoring: boolean }
 
@@ -80,7 +81,8 @@ the visible viewport size is irrelevant.
 // kind: 'drawerunit' — carcass + N drawer boxes on slides + overlay fronts
 { kind, widthMm, heightMm, depthMm, drawerCount, stockThicknessMm,
   boxStockThicknessMm, frontStyle: 'slab' | 'shaker' | 'raised',
-  raiseProfile?, edgeProfile?, outerEdgeProfile? }
+  raiseProfile?, edgeProfile?, outerEdgeProfile?,
+  slideType?: 'sidemount' | 'undermount' }
 ```
 
 Cut-list items and overall dimensions also carry fractional-inch strings

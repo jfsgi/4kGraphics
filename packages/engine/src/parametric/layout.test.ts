@@ -101,6 +101,24 @@ describe('drawer box layout', () => {
     expect(side.grainAxis).toBe('z');
     expect(side.sizeMm[2]).toBe(spec.depthMm);
   });
+
+  it('shortens sides by the lip for half-blind joinery and keeps the front clean', () => {
+    const spec = { ...defaultDrawerBoxSpec(), joinery: 'halfblind' as const };
+    const layout = buildLayout(spec);
+    const side = layout.parts.find((p) => p.name === 'Drawer side')!;
+    expect(side.sizeMm[2]).toBe(spec.depthMm - 6);
+    const front = layout.parts.find((p) => p.name === 'Drawer front (box)')!;
+    expect(front.joinery).toBeUndefined();
+    expect(front.sizeMm[0]).toBe(spec.widthMm);
+  });
+
+  it('marks the front with a scoop when requested', () => {
+    const layout = buildLayout({ ...defaultDrawerBoxSpec(), scoop: true });
+    const front = layout.parts.find((p) => p.name === 'Drawer front (box)')!;
+    expect(front.scoop).toBeDefined();
+    const back = layout.parts.find((p) => p.name === 'Drawer back (box)')!;
+    expect(back.scoop).toBeUndefined();
+  });
 });
 
 describe('door and drawer front layouts', () => {
@@ -147,6 +165,15 @@ describe('drawer unit layout', () => {
     for (const side of layout.parts.filter((p) => p.name === 'Drawer side')) {
       expect(Math.abs(side.positionMm[0]) + side.sizeMm[0] / 2).toBeLessThan(innerW / 2);
     }
+  });
+
+  it('widens boxes for undermount slides', () => {
+    const side = (slideType?: 'sidemount' | 'undermount') => {
+      const layout = buildLayout({ ...defaultDrawerUnitSpec(), slideType });
+      const sides = layout.parts.filter((p) => p.name === 'Drawer side');
+      return Math.max(...sides.map((p) => Math.abs(p.positionMm[0]) + p.sizeMm[0] / 2));
+    };
+    expect(side('undermount')).toBeGreaterThan(side('sidemount'));
   });
 
   it('uses slab fronts when requested', () => {

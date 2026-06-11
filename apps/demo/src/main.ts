@@ -12,7 +12,7 @@ declare const __BUILD_ID__: string;
 
 const viewport = document.getElementById('viewport')!;
 const statusLine = document.getElementById('status-line')!;
-const engine = new FurnitureEngine({ container: viewport });
+const engine = new FurnitureEngine({ container: viewport, textureSize: 4096 });
 
 document.getElementById('build-tag')!.textContent =
   `build ${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}`;
@@ -212,10 +212,22 @@ function buildControls() {
   }
 
   if (spec.kind === 'drawerbox') {
-    addSelect(host, 'Joinery', spec.joinery, ['dovetail', 'boxjoint', 'dado'], (value) => {
+    addSelect(host, 'Joinery', spec.joinery, ['dovetail', 'halfblind', 'boxjoint', 'dado'], (value) => {
       if (spec.kind === 'drawerbox') spec.joinery = value as typeof spec.joinery;
       scheduleRebuild();
     });
+    const row = document.createElement('label');
+    row.className = 'field-row';
+    row.innerHTML = '<span>Finger scoop</span>';
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.checked = spec.scoop ?? false;
+    check.onchange = () => {
+      if (spec.kind === 'drawerbox') spec.scoop = check.checked;
+      scheduleRebuild();
+    };
+    row.appendChild(check);
+    host.appendChild(row);
   }
 
   if (spec.kind === 'door' || spec.kind === 'drawerfront') {
@@ -230,7 +242,7 @@ function buildControls() {
       scheduleRebuild();
     });
     if (spec.style === 'raised') {
-      addSelect(host, 'Raise profile', spec.raiseProfile ?? 'cove', ['cove', 'ogee', 'bevel'], (value) => {
+      addSelect(host, 'Raise profile', spec.raiseProfile ?? 'cove', ['cove', 'ogee', 'bevel', 'roundover', 'stepcove'], (value) => {
         if (spec.kind === 'door' || spec.kind === 'drawerfront') {
           spec.raiseProfile = value as typeof spec.raiseProfile;
         }
@@ -242,7 +254,7 @@ function buildControls() {
         host,
         'Edge pattern (inner)',
         spec.edgeProfile ?? 'square',
-        ['square', 'chamfer', 'roundover', 'ogee', 'bead'],
+        ['square', 'chamfer', 'roundover', 'ogee', 'bead', 'cove', 'ovolo', 'step', 'thumbnail'],
         (value) => {
           if (spec.kind === 'door' || spec.kind === 'drawerfront') {
             spec.edgeProfile = value as typeof spec.edgeProfile;
@@ -255,7 +267,7 @@ function buildControls() {
       host,
       'Door edge (outer)',
       spec.outerEdgeProfile ?? 'square',
-      ['square', 'chamfer', 'roundover', 'ogee', 'bead'],
+      ['square', 'chamfer', 'roundover', 'ogee', 'bead', 'cove', 'ovolo', 'step', 'thumbnail'],
       (value) => {
         if (spec.kind === 'door' || spec.kind === 'drawerfront') {
           spec.outerEdgeProfile = value as typeof spec.outerEdgeProfile;
@@ -300,7 +312,7 @@ function buildControls() {
       scheduleRebuild();
     });
     if (spec.frontStyle === 'raised') {
-      addSelect(host, 'Raise profile', spec.raiseProfile ?? 'cove', ['cove', 'ogee', 'bevel'], (value) => {
+      addSelect(host, 'Raise profile', spec.raiseProfile ?? 'cove', ['cove', 'ogee', 'bevel', 'roundover', 'stepcove'], (value) => {
         if (spec.kind === 'drawerunit') spec.raiseProfile = value as typeof spec.raiseProfile;
         scheduleRebuild();
       });
@@ -309,12 +321,16 @@ function buildControls() {
       host,
       'Front edge (outer)',
       spec.outerEdgeProfile ?? 'square',
-      ['square', 'chamfer', 'roundover', 'ogee', 'bead'],
+      ['square', 'chamfer', 'roundover', 'ogee', 'bead', 'cove', 'ovolo', 'step', 'thumbnail'],
       (value) => {
         if (spec.kind === 'drawerunit') spec.outerEdgeProfile = value as typeof spec.outerEdgeProfile;
         scheduleRebuild();
       },
     );
+    addSelect(host, 'Slides', spec.slideType ?? 'sidemount', ['sidemount', 'undermount'], (value) => {
+      if (spec.kind === 'drawerunit') spec.slideType = value as typeof spec.slideType;
+      scheduleRebuild();
+    });
   }
 }
 

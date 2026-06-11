@@ -14,13 +14,25 @@ import type {
   DrawerBoxSpec,
   DrawerFrontSpec,
   DrawerUnitSpec,
+  EdgeProfile,
   FrontStyle,
   FurnitureSpec,
+  RaiseProfile,
   TableSpec,
 } from './spec.js';
 import { validateSpec } from './spec.js';
 
 export type PartShape = 'box' | 'cylinder' | 'taperedLeg';
+
+type EdgeProfileName =
+  | 'chamfer'
+  | 'roundover'
+  | 'ogee'
+  | 'bead'
+  | 'cove'
+  | 'ovolo'
+  | 'step'
+  | 'thumbnail';
 
 export type PartRole = 'structure' | 'surface' | 'panel' | 'hardware' | 'glass';
 
@@ -59,11 +71,13 @@ export interface Part {
    * field. The cut list keeps the part's nominal dimensions.
    */
   raisedPanel?: {
-    profile: 'cove' | 'ogee' | 'bevel';
+    profile: 'cove' | 'ogee' | 'bevel' | 'roundover' | 'stepcove';
     raiseWidthMm: number;
     /** Tongue thickness at the panel edge (fits the frame groove). */
     tongueThicknessMm: number;
   };
+  /** Finger-scoop cutout on a board's top edge (drawer-box fronts). */
+  scoop?: { widthMm: number; depthMm: number };
   /**
    * Edge details on a member's front face. `inner` is the cope & pattern
    * profile toward the panel opening; `outer` is the door-edge detail on
@@ -71,11 +85,13 @@ export interface Part {
    * all four sides of a slab front.
    */
   edgeProfile?: {
-    inner?: 'chamfer' | 'roundover' | 'ogee' | 'bead';
-    outer?: 'chamfer' | 'roundover' | 'ogee' | 'bead';
+    inner?: EdgeProfileName;
+    outer?: EdgeProfileName;
     /** Which local side faces the opening: 'x+' | 'x-' | 'y+' | 'y-'. */
     innerSide?: 'x+' | 'x-' | 'y+' | 'y-';
     axis: 'x' | 'y' | 'slab';
+    /** The inner pattern stops this far from each end (the cope line). */
+    innerInsetMm?: number;
   };
 }
 
@@ -350,34 +366,49 @@ function cabinetLayout(spec: CabinetSpec): FurnitureLayout {
 function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   const parts: Part[] = [];
   const { widthMm: w, depthMm: d, heightMm: h, stockThicknessMm: t } = spec;
-  const interlocking = spec.joinery !== 'dado';
-  const joint = (role: 'tails' | 'pins', pinsOuterSign?: 1 | -1) =>
-    interlocking
-      ? { type: spec.joinery as 'dovetail' | 'boxjoint', role, matingThicknessMm: t, pinsOuterSign }
-      : undefined;
+  const halfblind = spec.joinery === 'halfblind';
+  const through = spec.joinery === 'dovetail' || spec.joinery === 'boxjoint';
+  // Half-blind tails stop 6mm short of the front face (clean show face);
+  // the joint reads from above and inside.
+  const lip = 6;
+  const scoop = spec.scoop
+    ? { widthMm: Math.min(120, w * 0.35), depthMm: Math.min(32, h * 0.4) }
+    : undefined;
 
   for (const sx of [1, -1]) {
     parts.push({
       name: 'Drawer side',
       shape: 'box',
-      sizeMm: [t, h, d],
-      positionMm: [sx * (w / 2 - t / 2), h / 2, 0],
+      sizeMm: [t, h, halfblind ? d - lip : d],
+      positionMm: [sx * (w / 2 - t / 2), h / 2, halfblind ? -lip / 2 : 0],
       role: 'structure',
       grainAxis: 'z',
-      joinery: joint('tails'),
+      joinery: through
+        ? { type: spec.joinery as 'dovetail' | 'boxjoint', role: 'tails', matingThicknessMm: t }
+        : halfblind
+          ? { type: 'dovetail', role: 'tails', matingThicknessMm: t - lip }
+          : undefined,
     });
   }
   for (const sz of [1, -1]) {
     parts.push({
       name: sz > 0 ? 'Drawer front (box)' : 'Drawer back (box)',
       shape: 'box',
-      // Through-jointed fronts/backs run the full width; dadoed ones sit
-      // between the sides.
-      sizeMm: [interlocking ? w : w - 2 * t, h, t],
+      // Through-jointed and half-blind fronts/backs run the full width;
+      // dadoed ones sit between the sides.
+      sizeMm: [spec.joinery === 'dado' ? w - 2 * t : w, h, t],
       positionMm: [0, h / 2, sz * (d / 2 - t / 2)],
       role: 'structure',
       grainAxis: 'x',
-      joinery: joint('pins', sz as 1 | -1),
+      joinery: through
+        ? {
+            type: spec.joinery as 'dovetail' | 'boxjoint',
+            role: 'pins',
+            matingThicknessMm: t,
+            pinsOuterSign: sz as 1 | -1,
+          }
+        : undefined,
+      scoop: sz > 0 ? scoop : undefined,
     });
   }
   // Bottom rides in a groove ~12mm above the lower edge.
@@ -407,10 +438,10 @@ function pushFrontParts(
     thicknessMm: number;
     railStileWidthMm: number;
     panelThicknessMm: number;
-    raiseProfile?: 'cove' | 'ogee' | 'bevel';
+    raiseProfile?: RaiseProfile;
     raiseWidthMm?: number;
-    edgeProfile?: 'square' | 'chamfer' | 'roundover' | 'ogee' | 'bead';
-    outerEdgeProfile?: 'square' | 'chamfer' | 'roundover' | 'ogee' | 'bead';
+    edgeProfile?: EdgeProfile;
+    outerEdgeProfile?: EdgeProfile;
     glassPanel?: boolean;
     centerXMm: number;
     bottomYMm: number;
@@ -421,12 +452,14 @@ function pushFrontParts(
 ): void {
   const { style, widthMm: w, heightMm: h, thicknessMm: t, railStileWidthMm: rsw } = options;
   const { centerXMm: cx, bottomYMm: y0, centerZMm: cz, namePrefix } = options;
-  const pattern =
-    options.edgeProfile && options.edgeProfile !== 'square' ? options.edgeProfile : undefined;
-  const outer =
+  const pattern = (
+    options.edgeProfile && options.edgeProfile !== 'square' ? options.edgeProfile : undefined
+  ) as EdgeProfileName | undefined;
+  const outer = (
     options.outerEdgeProfile && options.outerEdgeProfile !== 'square'
       ? options.outerEdgeProfile
-      : undefined;
+      : undefined
+  ) as EdgeProfileName | undefined;
   if (style === 'slab') {
     parts.push({
       name: `${namePrefix}`,
@@ -449,7 +482,7 @@ function pushFrontParts(
       grainAxis: 'y',
       edgeProfile:
         pattern || outer
-          ? { inner: pattern, outer, innerSide: sx > 0 ? 'x-' : 'x+', axis: 'y' }
+          ? { inner: pattern, outer, innerSide: sx > 0 ? 'x-' : 'x+', axis: 'y', innerInsetMm: rsw }
           : undefined,
     });
   }
@@ -463,7 +496,7 @@ function pushFrontParts(
       grainAxis: 'x',
       edgeProfile:
         pattern || outer
-          ? { inner: pattern, outer, innerSide: top ? 'y-' : 'y+', axis: 'x' }
+          ? { inner: pattern, outer, innerSide: top ? 'y-' : 'y+', axis: 'x', innerInsetMm: 0 }
           : undefined,
     });
   }
@@ -567,12 +600,16 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
   });
 
   const n = spec.drawerCount;
+  const undermount = spec.slideType === 'undermount';
   const frontW = w - 4;
   const frontH = (h - 4 - gap * (n - 1)) / n;
   const boxT = spec.boxStockThicknessMm;
-  const boxW = w - 2 * t - 2 * slideClearance;
-  const boxH = Math.max(60, frontH - 30);
+  // Side-mount slides need 13mm per side; undermounts hide below the box
+  // (5mm per side, ~14mm underneath).
+  const boxW = w - 2 * t - 2 * (undermount ? 5 : slideClearance);
+  const boxH = Math.max(60, frontH - (undermount ? 38 : 30));
   const boxD = Math.min(innerDepth - 25, Math.floor((innerDepth - 25) / 50) * 50);
+  const boxLift = undermount ? 16 : 10;
   const frontZ = d / 2 - frontT / 2;
 
   for (let i = 0; i < n; i++) {
@@ -595,7 +632,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
       slabGrain: 'x',
     });
 
-    const boxY0 = y0 + 10;
+    const boxY0 = y0 + boxLift;
     const boxZ = d / 2 - frontT - boxD / 2 - 5;
     for (const sx of [1, -1]) {
       parts.push({

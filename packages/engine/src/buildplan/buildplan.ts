@@ -91,7 +91,9 @@ function buildCutList(layout: FurnitureLayout): CutListItem[] {
         thicknessIn: formatInches(dims[2]),
         notes: part.role === 'glass'
           ? 'Glass — order tempered from supplier'
-          : part.raisedPanel
+          : part.scoop
+            ? `Finger scoop ${Math.round(part.scoop.widthMm)} × ${Math.round(part.scoop.depthMm)}mm in top edge`
+            : part.raisedPanel
             ? `Raised panel — ${part.raisedPanel.profile} profile, ${part.raisedPanel.raiseWidthMm}mm raise`
             : part.edgeProfile
               ? [
@@ -205,7 +207,10 @@ function hardwareFor(layout: FurnitureLayout): HardwareItem[] {
     }
     case 'drawerunit': {
       items.push({
-        item: 'Full-extension side-mount slides (pair per drawer)',
+        item:
+          spec.slideType === 'undermount'
+            ? 'Undermount soft-close slides (pair per drawer)'
+            : 'Full-extension side-mount slides (pair per drawer)',
         quantity: spec.drawerCount,
       });
       items.push({ item: 'Drawer pulls', quantity: spec.drawerCount });
@@ -244,9 +249,11 @@ function toolsFor(layout: FurnitureLayout): string[] {
     tools.push('35mm Forstner bit (hinge cups)');
   }
   if (spec.kind === 'drawerbox') {
-    if (spec.joinery === 'dovetail') tools.push('Dovetail jig with router');
+    if (spec.joinery === 'dovetail') tools.push('Dovetail jig with router (through template)');
+    if (spec.joinery === 'halfblind') tools.push('Dovetail jig with router (half-blind template)');
     if (spec.joinery === 'boxjoint') tools.push('Box-joint jig for the table saw');
     if (spec.joinery === 'dado') tools.push('Dado stack or straight router bit');
+    if (spec.scoop) tools.push('Scoop template with flush-trim bit (or spindle sander)');
     tools.push('6mm slot cutter or dado (bottom groove)');
   }
   if (spec.kind === 'door' || spec.kind === 'drawerfront') {
@@ -291,8 +298,18 @@ function overviewFor(layout: FurnitureLayout): string {
       return `A ${size} bookshelf with ${layout.spec.shelfCount} adjustable shelves${layout.spec.backPanel ? ' and a back panel that squares the carcass' : ''}. Build order: drill shelf-pin holes flat, assemble the carcass, then fit the back.`;
     case 'cabinet':
       return `A ${size} ${layout.spec.doorCount}-door cabinet on ${layout.spec.legHeightMm > 0 ? 'tapered legs' : 'a plinth'}. Build order: carcass, back, top, then hang and align the doors last.`;
-    case 'drawerbox':
-      return `A ${size} drawer box in ${layout.spec.stockThicknessMm}mm stock with ${layout.spec.joinery === 'dovetail' ? 'dovetailed' : layout.spec.joinery === 'boxjoint' ? 'box-jointed' : 'dadoed'} corners and a ${layout.spec.bottomThicknessMm}mm bottom captured in a groove. Cut the joinery before grooving so the groove hides inside a tail.`;
+    case 'drawerbox': {
+      const j = layout.spec.joinery;
+      const corners =
+        j === 'dovetail'
+          ? 'through-dovetailed'
+          : j === 'halfblind'
+            ? 'half-blind dovetailed (clean show face)'
+            : j === 'boxjoint'
+              ? 'box-jointed'
+              : 'dadoed';
+      return `A ${size} drawer box in ${layout.spec.stockThicknessMm}mm stock with ${corners} corners${layout.spec.scoop ? ', a finger scoop in the front' : ''} and a ${layout.spec.bottomThicknessMm}mm bottom captured in a groove. Cut the joinery before grooving so the groove hides inside a tail.`;
+    }
     case 'door':
       return layout.spec.style === 'shaker'
         ? `A ${size} five-piece shaker door: two stiles, two rails, and a floating center panel. Glue the frame only — the panel must float to allow seasonal movement.`
@@ -386,10 +403,12 @@ function stepsFor(layout: FurnitureLayout): BuildStep[] {
           title: 'Cut the corner joinery',
           detail:
             j === 'dovetail'
-              ? 'Rout half-blind dovetails on all four corners with the jig; test-fit a corner in scrap first and dial in the bit depth until the joint closes hand-tight.'
-              : j === 'boxjoint'
-                ? 'Cut box joints on all four corners at the table saw with the jig. The fit should need light mallet taps — too tight will split when glue swells the fingers.'
-                : 'Cut a dado in each side to receive the front and back, sized for a snug push fit.',
+              ? 'Rout through dovetails on all four corners with the jig; test-fit a corner in scrap first and dial in the bit depth until the joint closes hand-tight.'
+              : j === 'halfblind'
+                ? 'Rout half-blind dovetails with the jig — tails in the sides, sockets stopped 6mm shy of the front face so the show face stays clean. Test-fit in scrap first.'
+                : j === 'boxjoint'
+                  ? 'Cut box joints on all four corners at the table saw with the jig. The fit should need light mallet taps — too tight will split when glue swells the fingers.'
+                  : 'Cut a dado in each side to receive the front and back, sized for a snug push fit.',
         },
         {
           title: 'Groove for the bottom',
@@ -401,6 +420,13 @@ function stepsFor(layout: FurnitureLayout): BuildStep[] {
             'Glue the corners, slide the bottom in dry (never glued — it floats), clamp, and compare diagonals before the glue sets. Wipe squeeze-out inside the box immediately.',
         },
       );
+      if (spec.scoop) {
+        steps.push({
+          title: 'Cut the finger scoop',
+          detail:
+            'Before assembly, cut the scoop in the front’s top edge with a template and flush-trim bit (or jigsaw + spindle sander), then ease the scoop edges thoroughly — fingers ride this edge every day.',
+        });
+      }
       break;
     }
     case 'door':

@@ -10,17 +10,19 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
-export type RaiseProfileId = 'cove' | 'ogee' | 'bevel';
+export type RaiseProfileId = 'cove' | 'ogee' | 'bevel' | 'roundover' | 'stepcove';
 
 /** Normalized raise curves: s ∈ [0,1] across the raise width → height 0..1. */
 const PROFILES: Record<RaiseProfileId, (s: number) => number> = {
   bevel: (s) => s,
   cove: (s) => 1 - Math.cos((s * Math.PI) / 2),
   ogee: (s) => s * s * (3 - 2 * s),
+  roundover: (s) => Math.sin((s * Math.PI) / 2),
+  stepcove: (s) =>
+    s < 0.12 ? (s / 0.12) * 0.35 : 0.35 + 0.65 * (1 - Math.cos((((s - 0.12) / 0.88) * Math.PI) / 2)),
 };
 
 const TONGUE_LENGTH = 0.012; // flat tongue at the panel edge (in the groove)
-const SHOULDER = 0.0008; // small step where the raise meets the field
 
 export function raisedPanelGeometry(
   width: number,
@@ -40,11 +42,11 @@ export function raisedPanelGeometry(
     if (edge <= TONGUE_LENGTH) return tongueZ;
     const s = (edge - TONGUE_LENGTH) / raiseWidth;
     if (s >= 1) return fieldZ;
-    return tongueZ + (fieldZ - tongueZ - SHOULDER) * profile(s);
+    return tongueZ + (fieldZ - tongueZ) * profile(s);
   };
 
   // Front face: displaced grid, dense enough for a smooth raise curve.
-  const step = 0.003;
+  const step = 0.002;
   const segX = Math.min(220, Math.max(24, Math.round(width / step)));
   const segY = Math.min(220, Math.max(24, Math.round(height / step)));
   const front = new THREE.PlaneGeometry(width, height, segX, segY);

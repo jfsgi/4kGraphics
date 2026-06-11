@@ -46,10 +46,20 @@ export interface CabinetSpec {
 }
 
 export type FrontStyle = 'slab' | 'shaker' | 'raised';
-export type RaiseProfile = 'cove' | 'ogee' | 'bevel';
+export type RaiseProfile = 'cove' | 'ogee' | 'bevel' | 'roundover' | 'stepcove';
 /** Pattern cut on the inner front edge of stiles and rails (cope & pattern sets). */
-export type EdgeProfile = 'square' | 'chamfer' | 'roundover' | 'ogee' | 'bead';
-export type DrawerJoinery = 'dovetail' | 'boxjoint' | 'dado';
+export type EdgeProfile =
+  | 'square'
+  | 'chamfer'
+  | 'roundover'
+  | 'ogee'
+  | 'bead'
+  | 'cove'
+  | 'ovolo'
+  | 'step'
+  | 'thumbnail';
+export type DrawerJoinery = 'dovetail' | 'halfblind' | 'boxjoint' | 'dado';
+export type SlideType = 'sidemount' | 'undermount';
 
 /** A drawer box (the box itself, no front). Outer dimensions. */
 export interface DrawerBoxSpec {
@@ -63,6 +73,8 @@ export interface DrawerBoxSpec {
   stockThicknessMm: number;
   bottomThicknessMm: number;
   joinery: DrawerJoinery;
+  /** Finger-scoop cutout on the front's top edge. */
+  scoop?: boolean;
 }
 
 /** A cabinet door: slab, or five-piece shaker with a floating panel. */
@@ -123,6 +135,8 @@ export interface DrawerUnitSpec {
   raiseProfile?: RaiseProfile;
   edgeProfile?: EdgeProfile;
   outerEdgeProfile?: EdgeProfile;
+  /** Side-mount (default) or undermount slides — changes box clearances. */
+  slideType?: SlideType;
 }
 
 export type FurnitureSpec =

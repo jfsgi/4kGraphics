@@ -24,6 +24,42 @@ export interface JointSpec {
   depth: number;
 }
 
+export interface ScoopSpec {
+  /** Full width of the finger scoop (m). */
+  width: number;
+  /** Depth of the scoop below the top edge (m). */
+  depth: number;
+}
+
+/**
+ * Board outline in the (x, y) plane with an optional elliptical finger
+ * scoop in the top edge, as a centered extrusion along z.
+ */
+export function scoopedBoardGeometry(
+  length: number,
+  height: number,
+  thickness: number,
+  scoop: ScoopSpec,
+): THREE.BufferGeometry {
+  const a = Math.min(scoop.width / 2, length * 0.45);
+  const b = Math.min(scoop.depth, height * 0.6);
+  const pts: THREE.Vector2[] = [
+    new THREE.Vector2(-length / 2, -height / 2),
+    new THREE.Vector2(length / 2, -height / 2),
+    new THREE.Vector2(length / 2, height / 2),
+  ];
+  const segments = 18;
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI;
+    pts.push(new THREE.Vector2(a * Math.cos(theta), height / 2 - b * Math.sin(theta)));
+  }
+  pts.push(new THREE.Vector2(-length / 2, height / 2));
+  const shape = new THREE.Shape(pts);
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
+  geometry.translate(0, 0, -thickness / 2);
+  return geometry;
+}
+
 interface JointLayout {
   /** Pin width at the outer face (m). */
   pinTip: number;
@@ -120,6 +156,7 @@ export function pinsBoardGeometry(
   spec: JointSpec,
   /** +1 when the board's outer face is at +Z (a front), −1 for a back. */
   outerSign: 1 | -1,
+  scoop?: ScoopSpec,
 ): THREE.BufferGeometry | null {
   const joint = layoutJoint(height, spec);
   if (!joint) return null;
@@ -128,7 +165,9 @@ export function pinsBoardGeometry(
   const zOuter = (thickness / 2) * outerSign;
   const zInner = -zOuter;
 
-  const body = new THREE.BoxGeometry(length - 2 * spec.depth, height, thickness);
+  const body = scoop
+    ? scoopedBoardGeometry(length - 2 * spec.depth, height, thickness, scoop)
+    : new THREE.BoxGeometry(length - 2 * spec.depth, height, thickness);
   const pieces: THREE.BufferGeometry[] = [body];
 
   // Pin regions are the y-gaps between/outside the tails: trapezoids in the
