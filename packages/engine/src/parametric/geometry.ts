@@ -106,8 +106,14 @@ function edgeProfiledGeometry(
   }
 
   const alongY = edge.axis === 'y';
-  const L = alongY ? sy : sx;
+  let L = alongY ? sy : sx;
   const W = alongY ? sx : sy;
+  // Coped rails are cut long (stub tenons buried in the stile grooves);
+  // the visible body extends only to the stick band's field edge.
+  if (!alongY && edge.copeTenonMm && !edge.miterEnds) {
+    const visible = edge.inner ? innerWidth : 0;
+    L = Math.max(0.05, L - 2 * (edge.copeTenonMm * MM_TO_M - visible));
+  }
   // Stiles rotate board space by +90° about z, mapping board-v to world −x,
   // so the inner side flips; rails map directly.
   const innerOnVMax = alongY ? edge.innerSide === 'x-' : edge.innerSide === 'y+';

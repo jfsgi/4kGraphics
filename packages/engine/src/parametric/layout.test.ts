@@ -147,9 +147,11 @@ describe('door and drawer front layouts', () => {
     expect(rail.edgeProfile?.miterEnds).toBe(true);
     const cope = buildLayout(defaultCabinetDoorSpec());
     const copeRail = cope.parts.find((p) => p.name === 'Door rail')!;
+    // Coped rails are cut long: opening width plus a 10mm stub tenon per end.
     expect(copeRail.sizeMm[0]).toBe(
-      defaultCabinetDoorSpec().widthMm - 2 * defaultCabinetDoorSpec().railStileWidthMm,
+      defaultCabinetDoorSpec().widthMm - 2 * defaultCabinetDoorSpec().railStileWidthMm + 20,
     );
+    expect(copeRail.edgeProfile?.copeTenonMm).toBe(10);
   });
 
   it('oversizes the floating panel for its grooves', () => {

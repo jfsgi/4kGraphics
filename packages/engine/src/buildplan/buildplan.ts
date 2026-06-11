@@ -100,6 +100,8 @@ function buildCutList(layout: FurnitureLayout): CutListItem[] {
                   part.edgeProfile.miterEnds && '45° mitered ends (long-point length)',
                   part.edgeProfile.inner &&
                     `${part.edgeProfile.inner} pattern, inner edge${part.edgeProfile.miterEnds ? '' : ' (cope & pattern T&G)'}`,
+                  part.edgeProfile.copeTenonMm &&
+                    `coped ends — length includes ${part.edgeProfile.copeTenonMm}mm stub tenons`,
                   part.edgeProfile.outer && `${part.edgeProfile.outer} door-edge detail, outer edge`,
                 ]
                   .filter(Boolean)

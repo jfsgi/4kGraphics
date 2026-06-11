@@ -136,16 +136,22 @@ export function profiledBoardGeometry(
     }
     if (opts.inner) {
       const dEdge = opts.inner.side === 'vMax' ? W / 2 - v : v + W / 2;
-      // Beyond the cope line the profile turns the opening corner as a
-      // miter-join offset: contours run straight and meet in a sharp 45°
-      // diagonal, the way coped pattern joints read from the front.
       const over = Math.abs(u) - (L / 2 - endInset);
       const dist = over > 0 ? Math.max(over, dEdge) : dEdge;
-      d = Math.max(d, band(dist, opts.inner.profile, opts.inner.width));
+      let innerDrop = band(dist, opts.inner.profile, opts.inner.width);
       if (opts.inner.copeEnds && !miter) {
-        // The coped end: profile carried across the end of the rail.
-        d = Math.max(d, band(L / 2 - Math.abs(u), opts.inner.profile, opts.inner.width));
+        // Coped rail end riding over the stile's stick: in the overlap the
+        // visible surface is the frontmost of the rail's own band and the
+        // mating stick (rising to the field at the very tip), which is how
+        // a male/female coped joint presents from the front.
+        const e = L / 2 - Math.abs(u);
+        if (e < opts.inner.width) {
+          const scale = DEPTH_SCALE[opts.inner.profile] ?? 1;
+          const stick = pd * scale * shape(opts.inner.profile, Math.max(0, e) / opts.inner.width);
+          innerDrop = Math.min(innerDrop, stick);
+        }
       }
+      d = Math.max(d, innerDrop);
     }
     return d;
   };

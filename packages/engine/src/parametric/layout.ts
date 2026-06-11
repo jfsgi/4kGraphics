@@ -94,6 +94,8 @@ export interface Part {
     miterEnds?: boolean;
     /** Cope & stick: end faces show the groove + profile cross-section. */
     stickGroove?: boolean;
+    /** Coped rail ends: stub tenons of this length are included in sizeMm. */
+    copeTenonMm?: number;
   };
 }
 
@@ -500,22 +502,22 @@ function pushFrontParts(
     parts.push({
       name: `${namePrefix} rail`,
       shape: 'box',
-      // Mitered rails run the full door width (long-point length).
-      sizeMm: [miter ? w : w - 2 * rsw, rsw, t],
+      // Mitered rails run the full door width (long-point length); coped
+      // rails are cut long by a 10mm stub tenon each end.
+      sizeMm: [miter ? w : w - 2 * rsw + 20, rsw, t],
       positionMm: [cx, y0 + (top ? h - rsw / 2 : rsw / 2), cz],
       role: 'structure',
       grainAxis: 'x',
-      edgeProfile:
-        pattern || outer || miter
-          ? {
-              inner: pattern,
-              outer,
-              innerSide: top ? 'y-' : 'y+',
-              axis: 'x',
-              innerInsetMm: 0,
-              miterEnds: miter,
-            }
-          : undefined,
+      edgeProfile: {
+        inner: pattern,
+        outer,
+        innerSide: top ? 'y-' : 'y+',
+        axis: 'x',
+        innerInsetMm: 0,
+        miterEnds: miter,
+        // Coped rails are cut long; the visible body stops at the stick.
+        copeTenonMm: miter ? undefined : 10,
+      },
     });
   }
   if (options.glassPanel) {
