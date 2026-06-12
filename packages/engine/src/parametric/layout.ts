@@ -67,7 +67,16 @@ export interface Part {
      * along x (a top/bottom panel with pins at its ends), pattern along z.
      */
     orient?: 'case';
+    /** Case panels: stopped 45° opening bevel on the inner front arris. */
+    frontBevelMm?: number;
+    /** Case tails sides: world-x sign of the panel's inner face. */
+    bevelInnerSign?: 1 | -1;
   };
+  /**
+   * 45° chamfer between the front (+z) face and the listed side faces —
+   * the beveled opening edges on plain frame members.
+   */
+  frontBevel?: { bevelMm: number; sides: Array<'x+' | 'x-' | 'y+' | 'y-'> };
   /**
    * Renders a raised-panel profile on the front face: a flat tongue at the
    * edges (hidden in the frame grooves), a profiled raise, and a proud flat
@@ -101,6 +110,8 @@ export interface Part {
   edgeProfile?: {
     inner?: EdgeProfileName;
     outer?: EdgeProfileName;
+    /** Slab fronts: exact 45° bevel — band width and depth both this size. */
+    bevelMm?: number;
     /** Which local side faces the opening: 'x+' | 'x-' | 'y+' | 'y-'. */
     innerSide?: 'x+' | 'x-' | 'y+' | 'y-';
     axis: 'x' | 'y' | 'slab';
@@ -475,6 +486,8 @@ function pushFrontParts(
     frameJoint?: 'cope' | 'miter';
     glassPanel?: boolean;
     fingerPull?: boolean;
+    /** Slab fronts: 45° face-edge bevel of this size. */
+    bevelEdgeMm?: number;
     centerXMm: number;
     bottomYMm: number;
     centerZMm: number;
@@ -494,6 +507,7 @@ function pushFrontParts(
   ) as EdgeProfileName | undefined;
   const miter = options.frameJoint === 'miter';
   if (style === 'slab') {
+    const bevelEdge = options.bevelEdgeMm;
     parts.push({
       name: `${namePrefix}`,
       shape: 'box',
@@ -502,7 +516,11 @@ function pushFrontParts(
       role: 'panel',
       grainAxis: options.slabGrain,
       fingerPullTop: options.fingerPull || undefined,
-      edgeProfile: outer ? { outer, axis: 'slab' } : undefined,
+      edgeProfile: bevelEdge
+        ? { outer: 'chamfer', axis: 'slab', bevelMm: bevelEdge }
+        : outer
+          ? { outer, axis: 'slab' }
+          : undefined,
     });
     return;
   }
@@ -630,6 +648,9 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
   // top and bottom faces; the side pattern stops 1/16" short of them.
   const caseHb = spec.caseJoinery === 'halfblind';
   const caseLip = 1.5875;
+  // Optional 45° opening bevel, stopped at the joints; inset fronts set
+  // back by the same amount so the bevel frames each front.
+  const bevel = inset ? (spec.insideBevelMm ?? 0) : 0;
   for (const sx of [1, -1]) {
     parts.push({
       name: 'Side panel',
@@ -643,6 +664,8 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
         role: 'tails',
         matingThicknessMm: t,
         frontLipMm: caseHb ? caseLip : undefined,
+        frontBevelMm: bevel || undefined,
+        bevelInnerSign: (-sx) as 1 | -1,
         orient: 'case',
       },
     });
@@ -662,6 +685,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
         matingThicknessMm: t,
         pinsOuterSign: top ? 1 : -1,
         lipMm: caseHb ? caseLip : undefined,
+        frontBevelMm: bevel || undefined,
         orient: 'case',
       },
     });
@@ -698,6 +722,8 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
       positionMm: [px, h / 2, caseOffsetZ - (inset && setback ? frontT / 2 : 0)],
       role: 'structure',
       grainAxis: 'y',
+      frontBevel:
+        bevel && !setback ? { bevelMm: bevel, sides: ['x+', 'x-'] } : undefined,
     });
   }
 
@@ -710,7 +736,8 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
   const openingH = inset ? (interiorH - (n - 1) * railH) / n : (h - 4 - 3 * (n - 1)) / n;
   const overlayW = (w - 4 - 3 * (cols - 1)) / cols;
   const frontH = inset ? openingH - 2 * reveal : openingH;
-  const frontZ = d / 2 - frontT / 2;
+  // Beveled openings set the fronts back by the bevel depth.
+  const frontZ = d / 2 - frontT / 2 - bevel;
 
   for (let c = 0; c < cols; c++) {
     const colLeft = -w / 2 + t + c * (colW + t);
@@ -735,6 +762,11 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
     for (let i = 0; i < n; i++) {
       const openingBottom = inset ? t + i * (openingH + railH) : 2 + i * (openingH + 3);
       const y0 = openingBottom + (inset ? reveal : 0);
+      // Pulled-open drawer: the front and its box slide forward together.
+      const isOpen = spec.openDrawer === i + 1 && (spec.openColumn ?? 1) === c + 1;
+      const pull = isOpen
+        ? Math.min(spec.openAmountMm ?? boxD * 0.6, boxD - 60)
+        : 0;
 
       if (inset && i > 0 && c === 0) {
         parts.push({
@@ -744,6 +776,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
           positionMm: [0, openingBottom - railH / 2, caseFrontZ - frontT / 2],
           role: 'structure',
           grainAxis: 'x',
+          frontBevel: bevel ? { bevelMm: bevel, sides: ['y+', 'y-'] } : undefined,
         });
       }
 
@@ -762,16 +795,18 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
         outerEdgeProfile: spec.outerEdgeProfile,
         frameJoint: spec.frameJoint,
         fingerPull: spec.fingerPull,
+        bevelEdgeMm: bevel || undefined,
         centerXMm: frontCX,
         bottomYMm: y0,
-        centerZMm: frontZ,
+        centerZMm: frontZ + pull,
         namePrefix: 'Drawer front',
         slabGrain: 'x',
       });
 
       const boxY0 = openingBottom + boxLift;
       const boxH = Math.max(60, openingH - (undermount ? 38 : 30));
-      const boxZ = d / 2 - frontT - boxD / 2 - 5;
+      const boxZ = d / 2 - bevel - frontT - boxD / 2 - 5 + pull;
+      // Boxes are through-dovetailed like the standalone drawer boxes.
       for (const sx of [1, -1]) {
         parts.push({
           name: 'Drawer side',
@@ -780,16 +815,23 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
           positionMm: [colCenter + sx * (boxW / 2 - boxT / 2), boxY0 + boxH / 2, boxZ],
           role: 'structure',
           grainAxis: 'z',
+          joinery: { type: 'dovetail', role: 'tails', matingThicknessMm: boxT },
         });
       }
       for (const sz of [1, -1]) {
         parts.push({
           name: sz > 0 ? 'Drawer box front' : 'Drawer box back',
           shape: 'box',
-          sizeMm: [boxW - 2 * boxT, boxH, boxT],
+          sizeMm: [boxW, boxH, boxT],
           positionMm: [colCenter, boxY0 + boxH / 2, boxZ + sz * (boxD / 2 - boxT / 2)],
           role: 'structure',
           grainAxis: 'x',
+          joinery: {
+            type: 'dovetail',
+            role: 'pins',
+            matingThicknessMm: boxT,
+            pinsOuterSign: sz as 1 | -1,
+          },
         });
       }
       parts.push({

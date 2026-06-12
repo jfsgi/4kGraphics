@@ -151,6 +151,78 @@ export function tailsBoardGeometry(
 }
 
 /**
+ * Case side panel with a stopped opening bevel: the toothed joint sections
+ * at each end stay square; between them, the board's cross-section loses
+ * its inner-front corner to a 45° chamfer (the routed opening edge, stopped
+ * at the joints). Built in the tails-board frame — same orientation as
+ * tailsBoardGeometry — so callers rotate it identically.
+ * `innerEzSign` is the extrusion-axis sign of the board's inner face.
+ */
+export function caseSideTailsGeometry(
+  thickness: number,
+  height: number,
+  length: number,
+  spec: JointSpec,
+  frontBevel: number,
+  innerEzSign: 1 | -1,
+): THREE.BufferGeometry | null {
+  const joint = layoutJoint(height, spec);
+  if (!joint) return null;
+  const { flare, tailWide, tailCenters } = joint;
+  const zo = length / 2;
+  const zi = zo - spec.depth;
+  const yBottom = -height / 2;
+
+  const pieces: THREE.BufferGeometry[] = [];
+  // Toothed end blocks (square, full cross-section).
+  for (const sign of [1, -1] as const) {
+    // Bottom baseline corner, tails ascending, top baseline corner; the
+    // shape closes back down the baseline edge.
+    const points: Array<[number, number]> = [[sign * zi, yBottom]];
+    for (const c of tailCenters) {
+      const cy = yBottom + c;
+      points.push(
+        [sign * zi, cy - tailWide / 2 + flare],
+        [sign * zo, cy - tailWide / 2],
+        [sign * zo, cy + tailWide / 2],
+        [sign * zi, cy + tailWide / 2 - flare],
+      );
+    }
+    points.push([sign * zi, height / 2]);
+    const shape = new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y)));
+    const block = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
+    block.translate(0, 0, -thickness / 2);
+    pieces.push(block);
+  }
+  // Middle prism with the chamfered inner-front corner, spanning between
+  // the joint baselines. Shape X carries the extrusion (thickness) axis
+  // negated, shape Y the pattern; extruded along the board length.
+  const px = -innerEzSign * (thickness / 2);
+  const qx = innerEzSign * (thickness / 2);
+  const dirX = Math.sign(qx - px);
+  const shape = new THREE.Shape([
+    new THREE.Vector2(qx, yBottom),
+    new THREE.Vector2(qx, height / 2),
+    new THREE.Vector2(px, height / 2),
+    new THREE.Vector2(px, yBottom + frontBevel),
+    new THREE.Vector2(px + dirX * frontBevel, yBottom),
+  ]);
+  const middle = new THREE.ExtrudeGeometry(shape, { depth: 2 * zi, bevelEnabled: false });
+  middle.rotateY(Math.PI / 2);
+  middle.translate(-zi, 0, 0);
+  // The end blocks live in the silhouette frame (shape X = board length);
+  // the middle was built pointing length along world X already — bring the
+  // blocks to match: their shape X is the length axis too, so both agree.
+  const merged = mergeGeometries(pieces.concat(middle), false);
+  for (const piece of pieces) piece.dispose();
+  middle.dispose();
+  if (!merged) return null;
+  // Match tailsBoardGeometry's frame: (shape X, shape Y, extrude) → (z, y, x).
+  merged.rotateY(-Math.PI / 2);
+  return merged;
+}
+
+/**
  * Pins board: body along local X with complementary pin prisms at each end.
  * Returns a centered geometry with length × height × thickness mapped to
  * (x, y, z) — the drawer front/back orientation. With `lip`, the sockets
@@ -166,6 +238,11 @@ export function pinsBoardGeometry(
   outerSign: 1 | -1,
   scoop?: ScoopSpec,
   lip = 0,
+  /**
+   * Stopped 45° chamfer on the body's inner/−y arris (case panels: the
+   * opening's inside front edge), ending at the joint baselines.
+   */
+  frontBevel = 0,
 ): THREE.BufferGeometry | null {
   const joint = layoutJoint(height, spec);
   if (!joint) return null;
@@ -174,13 +251,32 @@ export function pinsBoardGeometry(
   const zOuter = (thickness / 2) * outerSign;
   const zTip = zOuter - lip * outerSign;
   const zInner = -zOuter;
+  const bodyLength = length - 2 * spec.depth;
 
   // Non-indexed to match the extruded prisms — mergeGeometries refuses to
   // mix indexed and non-indexed buffers (and returns null, silently
   // degrading the joint to a plain box).
-  const body = scoop
-    ? scoopedBoardGeometry(length - 2 * spec.depth, height, thickness, scoop)
-    : new THREE.BoxGeometry(length - 2 * spec.depth, height, thickness).toNonIndexed();
+  let body: THREE.BufferGeometry;
+  if (scoop) {
+    body = scoopedBoardGeometry(bodyLength, height, thickness, scoop);
+  } else if (frontBevel > 0) {
+    // Pentagon cross-section: the inner-front corner cut at 45°.
+    const px = -zInner;
+    const qx = -zOuter;
+    const dirX = Math.sign(qx - px);
+    const shape = new THREE.Shape([
+      new THREE.Vector2(qx, yBottom),
+      new THREE.Vector2(qx, height / 2),
+      new THREE.Vector2(px, height / 2),
+      new THREE.Vector2(px, yBottom + frontBevel),
+      new THREE.Vector2(px + dirX * frontBevel, yBottom),
+    ]);
+    body = new THREE.ExtrudeGeometry(shape, { depth: bodyLength, bevelEnabled: false });
+    body.rotateY(Math.PI / 2);
+    body.translate(-bodyLength / 2, 0, 0);
+  } else {
+    body = new THREE.BoxGeometry(bodyLength, height, thickness).toNonIndexed();
+  }
   const pieces: THREE.BufferGeometry[] = [body];
 
   // Pin regions are the y-gaps between/outside the tails: trapezoids in the

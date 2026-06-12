@@ -178,6 +178,18 @@ export interface DrawerUnitSpec {
    * the top and bottom faces, the side pattern stopping 1/16" short.
    */
   caseJoinery?: 'dovetail' | 'halfblind';
+  /**
+   * 45° bevel on the inside front edges of the case opening and around
+   * each front's face (inset slab fronts). The fronts set back by the
+   * bevel depth. 0 or undefined = square edges.
+   */
+  insideBevelMm?: number;
+  /** Pull a drawer open: row from the bottom (1-based), 0/undefined = closed. */
+  openDrawer?: number;
+  /** Column of the open drawer (1-based, default 1). */
+  openColumn?: number;
+  /** How far the open drawer extends (default 60% of the box depth). */
+  openAmountMm?: number;
 }
 
 export type FurnitureSpec =
@@ -281,6 +293,10 @@ export function defaultDrawerUnitSpec(): DrawerUnitSpec {
     depthMm: 500,
     drawerCount: 3,
     columnCount: 1,
+    insideBevelMm: 0,
+    openDrawer: 0,
+    openColumn: 1,
+    openAmountMm: 300,
     stockThicknessMm: 18,
     boxStockThicknessMm: 13,
     frontStyle: 'shaker',
@@ -427,6 +443,26 @@ export function validateSpec(spec: FurnitureSpec): void {
       const colWidth = (spec.widthMm - 2 * spec.stockThicknessMm - (cols - 1) * spec.stockThicknessMm) / cols;
       if (colWidth <= 2 * 13 + 50) {
         throw new Error('drawerunit: too many columns for the width — drawer boxes need room for slides');
+      }
+      if (spec.insideBevelMm) {
+        if (spec.insideBevelMm < 0 || spec.insideBevelMm > 8) {
+          throw new Error('drawerunit: insideBevelMm must be between 0 and 8');
+        }
+        if (spec.frontMount !== 'inset') {
+          throw new Error('drawerunit: insideBevelMm is an inset-front detail — set frontMount to "inset"');
+        }
+        if (spec.frontStyle !== 'slab') {
+          throw new Error('drawerunit: insideBevelMm bevels slab fronts — set frontStyle to "slab"');
+        }
+      }
+      if (spec.openDrawer) {
+        if (!Number.isInteger(spec.openDrawer) || spec.openDrawer < 0 || spec.openDrawer > spec.drawerCount) {
+          throw new Error('drawerunit: openDrawer must be a row number between 0 (closed) and drawerCount');
+        }
+        const openCol = spec.openColumn ?? 1;
+        if (!Number.isInteger(openCol) || openCol < 1 || openCol > cols) {
+          throw new Error('drawerunit: openColumn must be between 1 and columnCount');
+        }
       }
       break;
     }

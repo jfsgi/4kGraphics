@@ -177,13 +177,22 @@ export function fingerPullFrontGeometry(
   height: number,
   thickness: number,
   outer?: EdgeProfileId,
+  /** Exact 45° bevel size for the side/bottom face edges (beveled openings). */
+  bevel?: number,
 ): THREE.BufferGeometry {
   const bh = Math.min(FINGER_PULL_BAND, height * 0.35);
   const lowerH = height - bh;
   const lower = outer
     ? profiledBoardGeometry(width, lowerH, thickness, {
-        depth: Math.min(0.005, thickness * 0.35),
-        outer: { profile: outer, width: 0.011, uMin: true, uMax: true, vMin: true, vMax: false },
+        depth: bevel ?? Math.min(0.005, thickness * 0.35),
+        outer: {
+          profile: outer,
+          width: bevel ?? 0.011,
+          uMin: true,
+          uMax: true,
+          vMin: true,
+          vMax: false,
+        },
       })
     : new THREE.BoxGeometry(width, lowerH, thickness);
   lower.translate(0, -bh / 2, 0);

@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 import { applyBoxUVs } from '../materials/uv.js';
 import type { FurnitureLayout, Part } from './layout.js';
-import { pinsBoardGeometry, scoopedBoardGeometry, tailsBoardGeometry } from './joinery.js';
+import {
+  caseSideTailsGeometry,
+  pinsBoardGeometry,
+  scoopedBoardGeometry,
+  tailsBoardGeometry,
+} from './joinery.js';
 import { profiledBoardGeometry } from './profiledBoard.js';
 import { raisedPanelGeometry } from './raisedPanel.js';
 import { fingerPullFrontGeometry } from './fingerPull.js';
@@ -103,9 +108,12 @@ function edgeProfiledGeometry(
 
   if (edge.axis === 'slab') {
     if (!edge.outer) return null;
+    // An exact 45° bevel uses its own band width and depth.
+    const bw = edge.bevelMm ? edge.bevelMm * MM_TO_M : outerWidth;
+    const bd = edge.bevelMm ? Math.min(edge.bevelMm * MM_TO_M, sz * 0.45) : depth;
     return profiledBoardGeometry(sx, sy, sz, {
-      depth,
-      outer: { profile: edge.outer, width: outerWidth, uMin: true, uMax: true, vMin: true, vMax: true },
+      depth: bd,
+      outer: { profile: edge.outer, width: bw, uMin: true, uMax: true, vMin: true, vMax: true },
     });
   }
 
@@ -161,10 +169,80 @@ function edgeProfiledGeometry(
   return geometry;
 }
 
+/**
+ * Plain box with 45° chamfers between the front (+z) face and the listed
+ * side faces — beveled opening edges on rails and dividers. All listed
+ * sides must share an axis (x± or y±).
+ */
+function chamferedFrontPrism(
+  w: number,
+  h: number,
+  d: number,
+  bevel: number,
+  sides: Array<'x+' | 'x-' | 'y+' | 'y-'>,
+): THREE.BufferGeometry {
+  const alongY = sides[0].startsWith('x');
+  if (alongY) {
+    // Cross-section in (x, z), extruded along y.
+    const pts: THREE.Vector2[] = [new THREE.Vector2(-w / 2, -d / 2), new THREE.Vector2(w / 2, -d / 2)];
+    if (sides.includes('x+')) {
+      pts.push(new THREE.Vector2(w / 2, d / 2 - bevel), new THREE.Vector2(w / 2 - bevel, d / 2));
+    } else {
+      pts.push(new THREE.Vector2(w / 2, d / 2));
+    }
+    if (sides.includes('x-')) {
+      pts.push(new THREE.Vector2(-w / 2 + bevel, d / 2), new THREE.Vector2(-w / 2, d / 2 - bevel));
+    } else {
+      pts.push(new THREE.Vector2(-w / 2, d / 2));
+    }
+    const geometry = new THREE.ExtrudeGeometry(new THREE.Shape(pts), {
+      depth: h,
+      bevelEnabled: false,
+    });
+    geometry.translate(0, 0, -h / 2);
+    geometry.rotateX(Math.PI / 2);
+    return geometry;
+  }
+  // Cross-section in (−z, y), extruded along x (the pins-prism convention).
+  const pts: THREE.Vector2[] = [new THREE.Vector2(d / 2, -h / 2), new THREE.Vector2(d / 2, h / 2)];
+  if (sides.includes('y+')) {
+    pts.push(new THREE.Vector2(-d / 2 + bevel, h / 2), new THREE.Vector2(-d / 2, h / 2 - bevel));
+  } else {
+    pts.push(new THREE.Vector2(-d / 2, h / 2));
+  }
+  if (sides.includes('y-')) {
+    pts.push(new THREE.Vector2(-d / 2, -h / 2 + bevel), new THREE.Vector2(-d / 2 + bevel, -h / 2));
+  } else {
+    pts.push(new THREE.Vector2(-d / 2, -h / 2));
+  }
+  const geometry = new THREE.ExtrudeGeometry(new THREE.Shape(pts), {
+    depth: w,
+    bevelEnabled: false,
+  });
+  geometry.rotateY(Math.PI / 2);
+  geometry.translate(-w / 2, 0, 0);
+  return geometry;
+}
+
 function partGeometry(part: Part): THREE.BufferGeometry {
   const [w, h, d] = part.sizeMm.map((v) => v * MM_TO_M) as [number, number, number];
   if (part.fingerPullTop && part.shape === 'box') {
-    return fingerPullFrontGeometry(w, h, d, part.edgeProfile?.outer);
+    return fingerPullFrontGeometry(
+      w,
+      h,
+      d,
+      part.edgeProfile?.outer,
+      part.edgeProfile?.bevelMm ? part.edgeProfile.bevelMm * MM_TO_M : undefined,
+    );
+  }
+  if (part.frontBevel && part.shape === 'box') {
+    return chamferedFrontPrism(
+      w,
+      h,
+      d,
+      part.frontBevel.bevelMm * MM_TO_M,
+      part.frontBevel.sides,
+    );
   }
   if (part.raisedPanel && part.shape === 'box') {
     return raisedPanelGeometry(
@@ -187,12 +265,23 @@ function partGeometry(part: Part): THREE.BufferGeometry {
       // (along x). Pattern runs along the depth. Built in the drawer-box
       // frame, then rotated about x so the box's z-pattern lands on world
       // z and the board length lands on its world axis.
+      const caseBevel = (part.joinery.frontBevelMm ?? 0) * MM_TO_M;
       if (part.joinery.role === 'tails') {
         // Half-blind case corners lap at BOTH ends of the side.
         const lapped = part.joinery.frontLipMm
           ? joint.depth - part.joinery.frontLipMm * MM_TO_M
           : undefined;
-        const jointed = tailsBoardGeometry(w, d, h, joint, lapped, lapped);
+        const jointed = caseBevel
+          ? caseSideTailsGeometry(
+              w,
+              d,
+              h,
+              joint,
+              caseBevel,
+              // Builder extrusion sign of the inner face: world x = −extrude.
+              (-(part.joinery.bevelInnerSign ?? 1)) as 1 | -1,
+            )
+          : tailsBoardGeometry(w, d, h, joint, lapped, lapped);
         if (jointed) {
           jointed.rotateX(-Math.PI / 2);
           return jointed;
@@ -206,6 +295,7 @@ function partGeometry(part: Part): THREE.BufferGeometry {
           part.joinery.pinsOuterSign ?? 1,
           undefined,
           (part.joinery.lipMm ?? 0) * MM_TO_M,
+          caseBevel,
         );
         if (jointed) {
           jointed.rotateX(-Math.PI / 2);

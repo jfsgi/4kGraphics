@@ -108,6 +108,10 @@ const FIELDS: Record<FurnitureKind, NumberField[]> = {
     { key: 'depthMm', label: 'Depth (mm)', min: 350, max: 650 },
     { key: 'drawerCount', label: 'Drawers per column', min: 1, max: 6, step: 1 },
     { key: 'columnCount', label: 'Columns', min: 1, max: 4, step: 1 },
+    { key: 'insideBevelMm', label: 'Opening bevel (mm)', min: 0, max: 8, step: 0.5 },
+    { key: 'openDrawer', label: 'Open drawer (row, 0=closed)', min: 0, max: 6, step: 1 },
+    { key: 'openColumn', label: 'Open column', min: 1, max: 4, step: 1 },
+    { key: 'openAmountMm', label: 'Pull-out (mm)', min: 0, max: 500, step: 10 },
   ],
 };
 

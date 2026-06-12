@@ -206,6 +206,39 @@ describe('drawer box layout', () => {
     expect(gap).toBeCloseTo(spec.stockThicknessMm + 4);
   });
 
+  it('bevels the opening and sets fronts back by the bevel', () => {
+    const spec = {
+      ...defaultDrawerUnitSpec(),
+      frontMount: 'inset' as const,
+      frontStyle: 'slab' as const,
+      insideBevelMm: 5,
+    };
+    const layout = buildLayout(spec);
+    const front = layout.parts.find((p) => p.name === 'Drawer front')!;
+    expect(front.positionMm[2] + front.sizeMm[2] / 2).toBeCloseTo(spec.depthMm / 2 - 5);
+    expect(front.edgeProfile?.bevelMm).toBe(5);
+    const rail = layout.parts.find((p) => p.name === 'Divider rail')!;
+    expect(rail.frontBevel?.bevelMm).toBe(5);
+    const side = layout.parts.find((p) => p.name === 'Side panel')!;
+    expect(side.joinery?.frontBevelMm).toBe(5);
+  });
+
+  it('pulls the requested drawer open with its box', () => {
+    const spec = {
+      ...defaultDrawerUnitSpec(),
+      frontMount: 'inset' as const,
+      frontStyle: 'slab' as const,
+      openDrawer: 2,
+      openAmountMm: 200,
+    };
+    const closed = buildLayout({ ...spec, openDrawer: 0 });
+    const open = buildLayout(spec);
+    const frontsClosed = closed.parts.filter((p) => p.name === 'Drawer front');
+    const frontsOpen = open.parts.filter((p) => p.name === 'Drawer front');
+    expect(frontsOpen[1].positionMm[2] - frontsClosed[1].positionMm[2]).toBeCloseTo(200);
+    expect(frontsOpen[0].positionMm[2]).toBeCloseTo(frontsClosed[0].positionMm[2]);
+  });
+
   it('laps the half-blind case at top and bottom', () => {
     const spec = { ...defaultDrawerUnitSpec(), caseJoinery: 'halfblind' as const };
     const layout = buildLayout(spec);
