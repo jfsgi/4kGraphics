@@ -14,6 +14,8 @@ export interface RenderRequest {
   supersample?: number;
   textureSize?: number;
   transparent?: boolean;
+  ssao?: boolean;
+  photoFinish?: boolean;
 }
 
 /**

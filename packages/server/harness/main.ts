@@ -25,6 +25,8 @@ export interface HarnessRenderConfig {
   supersample?: number;
   textureSize?: number;
   transparent?: boolean;
+  ssao?: boolean;
+  photoFinish?: boolean;
 }
 
 const engine = new FurnitureEngine({ container: document.getElementById('stage')! });
@@ -63,6 +65,8 @@ async function render(config: HarnessRenderConfig): Promise<string> {
     height: config.height ?? 2160,
     supersample: config.supersample ?? 2,
     transparent: config.transparent ?? false,
+    ssao: config.ssao,
+    photoFinish: config.photoFinish,
   });
 
   return await new Promise<string>((resolve, reject) => {
