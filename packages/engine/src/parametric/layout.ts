@@ -788,7 +788,9 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
   const caseDepth = inset ? d : d - frontT;
   const caseFrontZ = d / 2; // carcass front face (after any overlay offset)
   const caseOffsetZ = inset ? 0 : -frontT / 2;
-  const innerDepth = caseDepth - backT;
+  // The ply back sits in rabbets, inset 1/4" from the back edges.
+  const backInset = 6.35;
+  const innerDepth = caseDepth - backT - backInset;
 
   // The carcass is dovetailed together: tails on the sides, pins cut on
   // the full-width top and bottom panels. Half-blind keeps the laps on the
@@ -837,12 +839,14 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
       },
     });
   }
+  // Inset 1/4" from the back edges, captured in rabbets — from behind you
+  // see the case edges framing the recessed ply.
   parts.push({
     name: 'Back panel',
     materialHint: 'ply',
     shape: 'box',
-    sizeMm: [w, h, backT],
-    positionMm: [0, h / 2, -d / 2 + backT / 2],
+    sizeMm: [w - 2 * t + 20, h - 2 * t + 20, backT],
+    positionMm: [0, h / 2, caseOffsetZ - caseDepth / 2 + backInset + backT / 2],
     role: 'panel',
     grainAxis: 'y',
   });
