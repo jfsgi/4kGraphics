@@ -16,6 +16,7 @@ export interface HarnessRenderConfig {
   modelUrl?: string;
   material?: string;
   materials?: Record<string, string>;
+  panelMaterial?: string;
   lighting?: LightingPresetId;
   background?: string;
   camera?: { azimuthDeg?: number; elevationDeg?: number; distanceFactor?: number };
@@ -40,6 +41,7 @@ async function render(config: HarnessRenderConfig): Promise<string> {
   }
 
   if (config.material) engine.setMaterial(config.material);
+  if (config.panelMaterial) engine.setPanelMaterial(config.panelMaterial);
   if (config.materials) {
     for (const [part, materialId] of Object.entries(config.materials)) {
       engine.setMaterial(materialId, part);

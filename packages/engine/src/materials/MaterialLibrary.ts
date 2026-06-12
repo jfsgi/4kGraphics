@@ -44,6 +44,16 @@ function woodPreset(
 }
 
 const PRESETS: Preset[] = [
+  woodPreset('birchply', 'Birch Ply', {
+    seed: 67,
+    lightColor: [232, 218, 192],
+    darkColor: [199, 178, 147],
+    ringsPerPlank: 26,
+    turbulence: 0.18,
+    baseRoughness: 0.55,
+    contrast: 0.22,
+    plankCount: 1,
+  }),
   woodPreset('oak', 'White Oak', {
     seed: 11,
     lightColor: [214, 196, 168],

@@ -97,7 +97,8 @@ describe('drawer box layout', () => {
   });
 
   it('runs side grain along the depth', () => {
-    const spec = defaultDrawerBoxSpec();
+    // Through joinery here — the default half-blind shortens sides by the lap.
+    const spec = { ...defaultDrawerBoxSpec(), joinery: 'dovetail' as const };
     const layout = buildLayout(spec);
     const side = layout.parts.find((p) => p.name === 'Drawer side')!;
     expect(side.grainAxis).toBe('z');

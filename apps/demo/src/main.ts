@@ -464,6 +464,25 @@ function buildMaterialPanel() {
     host.appendChild(button);
   }
   markActive(host, host.firstElementChild as HTMLElement);
+
+  // Sheet-goods stock: drawer bottoms and back panels render in this
+  // material instead of the primary wood.
+  const row = document.createElement('label');
+  row.className = 'field-row';
+  row.innerHTML = '<span>Bottoms & backs</span>';
+  const select = document.createElement('select');
+  for (const info of engine.listMaterials()) {
+    const option = document.createElement('option');
+    option.value = info.id;
+    option.textContent = info.label;
+    if (info.id === 'birchply') option.selected = true;
+    select.appendChild(option);
+  }
+  select.onchange = () => {
+    busy('Applying panel stock…', () => engine.setPanelMaterial(select.value));
+  };
+  row.appendChild(select);
+  host.parentElement!.appendChild(row);
   refreshPartSelect();
 }
 

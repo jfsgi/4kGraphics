@@ -21,6 +21,7 @@ wheel to zoom) and follows container resizes automatically.
 | `showFurniture(spec, { frame? })` | `FurnitureLayout` | Display a parametric piece; `frame: false` keeps the camera |
 | `loadModel(urlOrFile, { format?, normalize? })` | `Promise<void>` | Import glTF/GLB/OBJ/FBX/STL |
 | `setMaterial(materialId, partName?)` | `void` | Apply to whole piece, or to all parts named e.g. `'Leg'` |
+| `setPanelMaterial(materialId)` | `void` | Sheet-goods stock (drawer bottoms, back panels) — defaults to `birchply` |
 | `setLighting(presetId)` | `void` | Swap light rig |
 | `setBackground(color \| 'transparent')` | `void` | |
 | `setTextureResolution(size)` | `void` | Regenerate textures (e.g. `4096`) and reapply |
@@ -159,6 +160,7 @@ Body (JSON) — everything optional except one of `spec` / `modelUrl`:
 | `modelUrl` | string | URL of a glTF/GLB/OBJ/FBX/STL file the service can reach |
 | `material` | string | Material id for the whole piece |
 | `materials` | object | Per-part overrides, e.g. `{ "Leg": "steel" }` |
+| `panelMaterial` | string | Sheet-goods stock for bottoms/backs (default `birchply`) |
 | `lighting` | string | `studio` / `showroom` / `daylight` |
 | `background` | string | CSS color |
 | `camera` | object | `{ azimuthDeg, elevationDeg, distanceFactor }` |

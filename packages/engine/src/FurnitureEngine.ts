@@ -41,6 +41,7 @@ export class FurnitureEngine {
   private currentLayout: FurnitureLayout | null = null;
   /** partName → materialId; '*' applies to every part. */
   private assignments = new Map<string, string>();
+  private panelMaterialId = 'birchply';
   private resizeObserver: ResizeObserver;
   private disposed = false;
   private animationHandle = 0;
@@ -146,7 +147,31 @@ export class FurnitureEngine {
       if (
         child instanceof THREE.Mesh &&
         !child.userData.isGlass &&
-        (!partName || child.name === partName)
+        // Sheet-goods parts keep the panel material unless targeted by name.
+        (partName ? child.name === partName : !child.userData.materialHint)
+      ) {
+        child.material = material;
+      }
+    });
+  }
+
+  /**
+   * Material for sheet-goods parts — drawer bottoms and back panels —
+   * which default to birch ply instead of the piece's primary wood.
+   */
+  setPanelMaterial(materialId: string): void {
+    this.panelMaterialId = materialId;
+    this.applyPanelMaterial();
+  }
+
+  private applyPanelMaterial(): void {
+    if (!this.currentObject) return;
+    const material = this.materials.get(this.panelMaterialId);
+    this.currentObject.traverse((child) => {
+      if (
+        child instanceof THREE.Mesh &&
+        child.userData.materialHint === 'ply' &&
+        !this.assignments.has(child.name)
       ) {
         child.material = material;
       }
@@ -290,6 +315,7 @@ export class FurnitureEngine {
     for (const [part, materialId] of this.assignments) {
       if (part !== '*') this.setMaterial(materialId, part);
     }
+    this.applyPanelMaterial();
   }
 
   private swapObject(next: THREE.Object3D | null, frame = true): void {

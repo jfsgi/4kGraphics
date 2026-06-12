@@ -5,6 +5,7 @@ export interface RenderRequest {
   modelUrl?: string;
   material?: string;
   materials?: Record<string, string>;
+  panelMaterial?: string;
   lighting?: string;
   background?: string;
   camera?: { azimuthDeg?: number; elevationDeg?: number; distanceFactor?: number };

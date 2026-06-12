@@ -25,6 +25,9 @@ import { validateSpec } from './spec.js';
 
 export type PartShape = 'box' | 'cylinder' | 'taperedLeg';
 
+/** Half-blind drawer-box fronts: tails stop 1/16" shy of the show face. */
+const BOX_LIP = 1.5875;
+
 type EdgeProfileName = Exclude<EdgeProfile, 'square'>;
 
 export type PartRole = 'structure' | 'surface' | 'panel' | 'hardware' | 'glass';
@@ -45,6 +48,11 @@ export interface Part {
   role: PartRole;
   /** Axis the wood grain runs along, for the cut list. */
   grainAxis: 'x' | 'y' | 'z';
+  /**
+   * Sheet-goods parts (drawer bottoms, back panels) default to the panel
+   * material instead of the piece's primary wood.
+   */
+  materialHint?: 'ply';
   /**
    * Renders interlocking corner joinery on the board ends (the cut list is
    * unaffected — joinery lives within the board's nominal dimensions).
@@ -275,6 +283,7 @@ function bookshelfLayout(spec: BookshelfSpec): FurnitureLayout {
   if (spec.backPanel) {
     parts.push({
       name: 'Back panel',
+      materialHint: 'ply',
       shape: 'box',
       sizeMm: [w, h, backT],
       positionMm: [0, h / 2, -d / 2 + backT / 2],
@@ -343,6 +352,7 @@ function cabinetLayout(spec: CabinetSpec): FurnitureLayout {
   });
   parts.push({
     name: 'Back panel',
+    materialHint: 'ply',
     shape: 'box',
     sizeMm: [w, caseH, backT],
     positionMm: [0, legH + caseH / 2, -d / 2 + backT / 2],
@@ -460,6 +470,7 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   // Bottom rides in a groove ~12mm above the lower edge.
   parts.push({
     name: 'Drawer bottom',
+    materialHint: 'ply',
     shape: 'box',
     sizeMm: [w - 2 * t + 12, spec.bottomThicknessMm, d - 2 * t + 12],
     positionMm: [0, 12 + spec.bottomThicknessMm / 2, 0],
@@ -727,11 +738,11 @@ function endTableLayout(spec: EndTableSpec): FurnitureLayout {
     parts.push({
       name: 'Drawer side',
       shape: 'box',
-      sizeMm: [boxT, boxH, boxD],
-      positionMm: [sx * (boxW / 2 - boxT / 2), boxY0 + boxH / 2, boxZ],
+      sizeMm: [boxT, boxH, boxD - BOX_LIP],
+      positionMm: [sx * (boxW / 2 - boxT / 2), boxY0 + boxH / 2, boxZ - BOX_LIP / 2],
       role: 'structure',
       grainAxis: 'z',
-      joinery: { type: 'dovetail', role: 'tails', matingThicknessMm: boxT },
+      joinery: { type: 'dovetail', role: 'tails', matingThicknessMm: boxT, frontLipMm: BOX_LIP },
     });
   }
   for (const sz of [1, -1]) {
@@ -747,11 +758,13 @@ function endTableLayout(spec: EndTableSpec): FurnitureLayout {
         role: 'pins',
         matingThicknessMm: boxT,
         pinsOuterSign: sz as 1 | -1,
+        lipMm: sz > 0 ? BOX_LIP : undefined,
       },
     });
   }
   parts.push({
     name: 'Drawer bottom',
+    materialHint: 'ply',
     shape: 'box',
     sizeMm: [boxW - 2 * boxT + 12, 6, boxD - 2 * boxT + 12],
     positionMm: [0, boxY0 + 12 + 3, boxZ],
@@ -826,6 +839,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
   }
   parts.push({
     name: 'Back panel',
+    materialHint: 'ply',
     shape: 'box',
     sizeMm: [w, h, backT],
     positionMm: [0, h / 2, -d / 2 + backT / 2],
@@ -945,11 +959,11 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
         parts.push({
           name: 'Drawer side',
           shape: 'box',
-          sizeMm: [boxT, boxH, boxD],
-          positionMm: [colCenter + sx * (boxW / 2 - boxT / 2), boxY0 + boxH / 2, boxZ],
+          sizeMm: [boxT, boxH, boxD - BOX_LIP],
+          positionMm: [colCenter + sx * (boxW / 2 - boxT / 2), boxY0 + boxH / 2, boxZ - BOX_LIP / 2],
           role: 'structure',
           grainAxis: 'z',
-          joinery: { type: 'dovetail', role: 'tails', matingThicknessMm: boxT },
+          joinery: { type: 'dovetail', role: 'tails', matingThicknessMm: boxT, frontLipMm: BOX_LIP },
         });
       }
       for (const sz of [1, -1]) {
@@ -965,11 +979,13 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
             role: 'pins',
             matingThicknessMm: boxT,
             pinsOuterSign: sz as 1 | -1,
+            lipMm: sz > 0 ? BOX_LIP : undefined,
           },
         });
       }
       parts.push({
         name: 'Drawer bottom',
+        materialHint: 'ply',
         shape: 'box',
         sizeMm: [boxW - 2 * boxT + 12, 6, boxD - 2 * boxT + 12],
         positionMm: [colCenter, boxY0 + 12 + 3, boxZ],

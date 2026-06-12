@@ -282,7 +282,7 @@ export function defaultDrawerBoxSpec(): DrawerBoxSpec {
     heightMm: 150,
     stockThicknessMm: 13,
     bottomThicknessMm: 6,
-    joinery: 'dovetail',
+    joinery: 'halfblind',
   };
 }
 

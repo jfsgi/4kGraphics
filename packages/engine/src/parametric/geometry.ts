@@ -51,6 +51,7 @@ export function buildGroup(layout: FurnitureLayout, material: THREE.Material): T
       mesh.castShadow = false;
       mesh.userData.isGlass = true;
     }
+    if (part.materialHint) mesh.userData.materialHint = part.materialHint;
     mesh.name = part.name;
     mesh.position.set(
       part.positionMm[0] * MM_TO_M,
