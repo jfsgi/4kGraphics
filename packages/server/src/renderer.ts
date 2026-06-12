@@ -6,6 +6,7 @@ export interface RenderRequest {
   material?: string;
   materials?: Record<string, string>;
   panelMaterial?: string;
+  stain?: string;
   lighting?: string;
   background?: string;
   camera?: { azimuthDeg?: number; elevationDeg?: number; distanceFactor?: number };

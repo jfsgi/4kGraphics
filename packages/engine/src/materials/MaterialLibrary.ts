@@ -16,6 +16,7 @@ export interface MaterialInfo {
 }
 
 type Generator = (size: number) => PbrMaps;
+type WoodParams = Parameters<typeof generateWoodMaps>[1];
 
 interface Preset {
   info: MaterialInfo;
@@ -24,6 +25,8 @@ interface Preset {
   /** Extra texture repeat for small-scale patterns (weave) so they stay crisp. */
   uvRepeat?: number;
   generate: Generator;
+  /** Present on woods so stains can recolor the species and regenerate. */
+  woodParams?: WoodParams;
 }
 
 function hex(rgb: RGB): string {
@@ -33,25 +36,94 @@ function hex(rgb: RGB): string {
 function woodPreset(
   id: string,
   label: string,
-  params: Omit<Parameters<typeof generateWoodMaps>[1], 'plankCount'> & { plankCount?: number },
+  params: Omit<WoodParams, 'plankCount'> & { plankCount?: number },
 ): Preset {
+  const woodParams: WoodParams = { plankCount: 12, ...params };
   return {
     info: { id, label, category: 'wood', swatch: hex(params.lightColor) },
     metalness: 0,
     clearcoat: 0.22,
-    generate: (size) => generateWoodMaps(size, { plankCount: 12, ...params }),
+    generate: (size) => generateWoodMaps(size, woodParams),
+    woodParams,
   };
+}
+
+export interface StainInfo {
+  id: string;
+  label: string;
+  /** Approximate finished color for UI swatches, as CSS hex. */
+  swatch: string;
+}
+
+export interface StainDef {
+  id: string;
+  label: string;
+  /** Pigment color. */
+  color: RGB;
+  /** Pigment load — how far the wood color moves toward the stain. */
+  strength: number;
+  /** Penetrating stain keeps the wood's light/dark grain; a wash sits on top. */
+  mode: 'stain' | 'wash';
+}
+
+/**
+ * Hand-applied finish palette. Stains recolor any procedural wood species
+ * while preserving its grain figure (swatches reference: cherry base).
+ */
+export const STAINS: StainDef[] = [
+  { id: 'marine-blue', label: 'Marine Blue', color: [110, 106, 122], strength: 0.85, mode: 'stain' },
+  { id: 'southern-pecan', label: 'Southern Pecan', color: [167, 128, 88], strength: 0.8, mode: 'stain' },
+  { id: 'walnut', label: 'Walnut', color: [228, 148, 58], strength: 0.8, mode: 'stain' },
+  { id: 'rojo', label: 'Rojo', color: [204, 82, 52], strength: 0.85, mode: 'stain' },
+  { id: 'espresso', label: 'Espresso', color: [72, 60, 48], strength: 0.88, mode: 'stain' },
+  { id: 'golden', label: 'Golden', color: [224, 162, 52], strength: 0.8, mode: 'stain' },
+  { id: 'stone-gray-wash', label: 'Stone Gray Wash', color: [200, 180, 150], strength: 0.6, mode: 'wash' },
+  { id: 'white-wash', label: 'White Wash', color: [228, 206, 184], strength: 0.58, mode: 'wash' },
+  { id: 'green', label: 'Green', color: [112, 118, 64], strength: 0.85, mode: 'stain' },
+  { id: 'aged-bronze', label: 'Aged Bronze', color: [98, 84, 54], strength: 0.85, mode: 'stain' },
+  { id: 'black', label: 'Black', color: [40, 36, 32], strength: 0.92, mode: 'stain' },
+  { id: 'brick', label: 'Brick', color: [180, 90, 62], strength: 0.85, mode: 'stain' },
+  { id: 'peach', label: 'Peach', color: [245, 166, 74], strength: 0.8, mode: 'stain' },
+  { id: 'coffee', label: 'Coffee', color: [112, 84, 56], strength: 0.85, mode: 'stain' },
+  { id: 'chestnut', label: 'Chestnut', color: [142, 86, 60], strength: 0.85, mode: 'stain' },
+  { id: 'terracotta', label: 'Terracotta', color: [208, 122, 62], strength: 0.85, mode: 'stain' },
+  { id: 'smoke', label: 'Smoke', color: [130, 128, 126], strength: 0.85, mode: 'stain' },
+];
+
+function luminance(c: RGB): number {
+  return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
+}
+
+/**
+ * Recolors a wood tone with a finish. Penetrating stains shift the hue to the
+ * pigment while keeping the wood's own light/dark variation (so earlywood
+ * stays lighter than latewood under the color); washes blend toward the
+ * pigment directly, lightening like a pickling coat.
+ */
+export function applyStain(base: RGB, stain: StainDef): RGB {
+  if (stain.mode === 'wash') {
+    return base.map((c, i) => Math.round(c + (stain.color[i] - c) * stain.strength)) as RGB;
+  }
+  // Anchor the pigment to the base tone's luminance: lighter wood lifts the
+  // stain color, darker wood deepens it — grain contrast survives the color.
+  const lift = 0.45 + 1.1 * luminance(base);
+  return base.map((c, i) => {
+    const tinted = Math.min(255, stain.color[i] * lift);
+    return Math.round(c + (tinted - c) * stain.strength);
+  }) as RGB;
 }
 
 const PRESETS: Preset[] = [
   woodPreset('birchply', 'Birch Ply', {
     seed: 67,
-    lightColor: [232, 218, 192],
-    darkColor: [199, 178, 147],
-    ringsPerPlank: 70,
-    turbulence: 0.18,
+    lightColor: [242, 228, 206],
+    darkColor: [216, 196, 168],
+    ringsPerPlank: 36,
+    turbulence: 0.55,
     baseRoughness: 0.55,
-    contrast: 0.22,
+    contrast: 0.13,
+    figure: 'cathedral',
+    ringSharpness: 2,
     plankCount: 1,
   }),
   woodPreset('oak', 'White Oak', {
@@ -104,14 +176,14 @@ const PRESETS: Preset[] = [
   }),
   woodPreset('redoak', 'Red Oak', {
     seed: 89,
-    lightColor: [228, 186, 144],
-    darkColor: [166, 104, 70],
-    ringsPerPlank: 42,
-    turbulence: 1.0,
+    lightColor: [233, 196, 158],
+    darkColor: [178, 112, 78],
+    ringsPerPlank: 46,
+    turbulence: 0.9,
     baseRoughness: 0.55,
-    contrast: 0.95,
+    contrast: 0.8,
     figure: 'cathedral',
-    ringSharpness: 3,
+    ringSharpness: 2.6,
     maxKnots: 1,
     plankCount: 10,
   }),
@@ -128,14 +200,14 @@ const PRESETS: Preset[] = [
   }),
   woodPreset('cedar', 'Aromatic Cedar', {
     seed: 71,
-    lightColor: [198, 108, 76],
-    darkColor: [128, 52, 36],
-    ringsPerPlank: 52,
-    turbulence: 1.4,
-    baseRoughness: 0.55,
-    contrast: 0.9,
+    lightColor: [196, 96, 62],
+    darkColor: [126, 46, 30],
+    ringsPerPlank: 48,
+    turbulence: 1.0,
+    baseRoughness: 0.5,
+    contrast: 0.85,
     figure: 'cathedral',
-    ringSharpness: 5,
+    ringSharpness: 3.5,
     maxKnots: 1,
     plankCount: 6,
   }),
@@ -231,6 +303,11 @@ export class MaterialLibrary {
     return PRESETS.some((p) => p.info.id === id) || this.scanned.has(id);
   }
 
+  /** Finish palette for UI pickers; the swatch approximates the cured color. */
+  listStains(): StainInfo[] {
+    return STAINS.map((s) => ({ id: s.id, label: s.label, swatch: hex(s.color) }));
+  }
+
   /** Registers a photo-scanned material; it appears in list() immediately. */
   addScanned(def: ScannedMaterialDef): void {
     this.scanned.set(def.id, def);
@@ -267,8 +344,16 @@ export class MaterialLibrary {
     return material;
   }
 
-  get(id: string): THREE.MeshPhysicalMaterial {
-    const cached = this.cache.get(id);
+  get(id: string, stainId?: string | null): THREE.MeshPhysicalMaterial {
+    const stain = stainId ? STAINS.find((s) => s.id === stainId) : undefined;
+    if (stainId && !stain) {
+      throw new Error(`Unknown stain "${stainId}". Available: ${STAINS.map((s) => s.id).join(', ')}`);
+    }
+    const preset = PRESETS.find((p) => p.info.id === id);
+    // Stains recolor procedural woods; other categories render natural.
+    const applied = stain && preset?.woodParams ? stain : undefined;
+    const key = applied ? `${id}@${applied.id}` : id;
+    const cached = this.cache.get(key);
     if (cached) return cached;
     const scanned = this.scanned.get(id);
     if (scanned) {
@@ -276,11 +361,17 @@ export class MaterialLibrary {
       this.cache.set(id, material);
       return material;
     }
-    const preset = PRESETS.find((p) => p.info.id === id);
     if (!preset) {
       throw new Error(`Unknown material "${id}". Available: ${this.list().map((m) => m.id).join(', ')}`);
     }
-    const maps = preset.generate(this.textureSize);
+    const maps =
+      applied && preset.woodParams
+        ? generateWoodMaps(this.textureSize, {
+            ...preset.woodParams,
+            lightColor: applyStain(preset.woodParams.lightColor, applied),
+            darkColor: applyStain(preset.woodParams.darkColor, applied),
+          })
+        : preset.generate(this.textureSize);
     if (preset.uvRepeat) {
       for (const texture of [maps.map, maps.roughnessMap, maps.normalMap]) {
         texture.repeat.set(preset.uvRepeat, preset.uvRepeat);
@@ -298,8 +389,8 @@ export class MaterialLibrary {
       // End-grain darkening rides in vertex colors (see applyBoxUVs).
       vertexColors: true,
     });
-    material.name = id;
-    this.cache.set(id, material);
+    material.name = key;
+    this.cache.set(key, material);
     return material;
   }
 

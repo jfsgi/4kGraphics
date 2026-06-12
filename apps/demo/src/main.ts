@@ -451,6 +451,7 @@ function buildMaterialPanel() {
   const host = document.getElementById('materials')!;
   host.innerHTML = '';
   document.getElementById('panel-stock-row')?.remove();
+  document.getElementById('stain-row')?.remove();
   for (const info of engine.listMaterials()) {
     const button = document.createElement('button');
     button.className = 'swatch';
@@ -486,6 +487,29 @@ function buildMaterialPanel() {
   };
   row.appendChild(select);
   host.parentElement!.appendChild(row);
+
+  // Stain finish: recolors every wood on the piece, keeping each species'
+  // grain figure. Natural = no stain.
+  const stainRow = document.createElement('label');
+  stainRow.className = 'field-row';
+  stainRow.id = 'stain-row';
+  stainRow.innerHTML = '<span>Stain / finish</span>';
+  const stainSelect = document.createElement('select');
+  const natural = document.createElement('option');
+  natural.value = '';
+  natural.textContent = 'Natural (no stain)';
+  stainSelect.appendChild(natural);
+  for (const stain of engine.listStains()) {
+    const option = document.createElement('option');
+    option.value = stain.id;
+    option.textContent = stain.label;
+    stainSelect.appendChild(option);
+  }
+  stainSelect.onchange = () => {
+    busy('Applying stain…', () => engine.setStain(stainSelect.value || null));
+  };
+  stainRow.appendChild(stainSelect);
+  host.parentElement!.appendChild(stainRow);
   refreshPartSelect();
 }
 

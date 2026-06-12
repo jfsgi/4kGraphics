@@ -33,7 +33,15 @@ export {
   type CutListItem,
   type HardwareItem,
 } from './buildplan/buildplan.js';
-export { MaterialLibrary, type MaterialInfo, type ScannedMaterialDef } from './materials/MaterialLibrary.js';
+export {
+  MaterialLibrary,
+  STAINS,
+  applyStain,
+  type MaterialInfo,
+  type ScannedMaterialDef,
+  type StainDef,
+  type StainInfo,
+} from './materials/MaterialLibrary.js';
 export { applyBoxUVs } from './materials/uv.js';
 export {
   loadModel,

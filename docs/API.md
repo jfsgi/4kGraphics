@@ -22,6 +22,7 @@ wheel to zoom) and follows container resizes automatically.
 | `loadModel(urlOrFile, { format?, normalize? })` | `Promise<void>` | Import glTF/GLB/OBJ/FBX/STL |
 | `setMaterial(materialId, partName?)` | `void` | Apply to whole piece, or to all parts named e.g. `'Leg'` |
 | `setPanelMaterial(materialId)` | `void` | Sheet-goods stock (drawer bottoms, back panels) — defaults to `birchply` |
+| `setStain(stainId \| null)` | `void` | Stain finish over every wood on the piece (`null` = natural) — see Stain finishes |
 | `registerScannedMaterial(def)` | `void` | Adds a photo-scanned material (see Scanned materials below) |
 | `setLighting(presetId)` | `void` | Swap light rig |
 | `setBackground(color \| 'studio' \| 'transparent')` | `void` | `'studio'` = graded photo backdrop |
@@ -31,7 +32,7 @@ wheel to zoom) and follows container resizes automatically.
 | `renderSnapshot(options?)` | `Promise<Blob>` | High-quality still — see below |
 | `getBuildPlan()` | `BuildPlan \| null` | Plan for the current parametric piece (null for imports) |
 | `getLayout()` | `FurnitureLayout \| null` | Current part layout |
-| `listMaterials()` / `listParts()` / `listLightingPresets()` | arrays | For building UIs |
+| `listMaterials()` / `listParts()` / `listStains()` / `listLightingPresets()` | arrays | For building UIs |
 | `dispose()` | `void` | Release GL resources and detach |
 
 ### `renderSnapshot(options)`
@@ -141,6 +142,19 @@ scale.
 `oak`, `redoak`, `walnut`, `cherry`, `maple`, `mahogany`, `cedar`, `birchply`, `paint-white`, `paint-forest`, `steel`, `brass`, `linen`, plus any registered scanned materials
 — or call `listMaterials()` for ids, labels, categories, and swatch colors.
 
+### Stain finishes
+
+Hand-applied finish palette, layered over **any** procedural wood species —
+each species keeps its own grain figure under the color (penetrating stains
+preserve the wood's light/dark variation; the washes sit on top like a
+pickling coat). Applies to the primary wood, per-part materials, and panel
+stock together. Paint/metal/fabric/scanned materials render unchanged.
+
+`marine-blue`, `southern-pecan`, `walnut`, `rojo`, `espresso`, `golden`,
+`stone-gray-wash`, `white-wash`, `green`, `aged-bronze`, `black`, `brick`,
+`peach`, `coffee`, `chestnut`, `terracotta`, `smoke`
+— or call `listStains()` for ids, labels, and swatch colors.
+
 ### `BuildPlan` shape
 
 ```ts
@@ -179,6 +193,7 @@ Body (JSON) — everything optional except one of `spec` / `modelUrl`:
 | `material` | string | Material id for the whole piece |
 | `materials` | object | Per-part overrides, e.g. `{ "Leg": "steel" }` |
 | `panelMaterial` | string | Sheet-goods stock for bottoms/backs (default `birchply`) |
+| `stain` | string | Stain finish id applied over every wood (see Stain finishes) |
 | `lighting` | string | `studio` / `showroom` / `daylight` |
 | `background` | string | CSS color, or `studio` for the graded backdrop |
 | `camera` | object | `{ azimuthDeg, elevationDeg, distanceFactor }` |

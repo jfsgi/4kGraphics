@@ -17,6 +17,7 @@ export interface HarnessRenderConfig {
   material?: string;
   materials?: Record<string, string>;
   panelMaterial?: string;
+  stain?: string;
   lighting?: LightingPresetId;
   background?: string;
   camera?: { azimuthDeg?: number; elevationDeg?: number; distanceFactor?: number };
@@ -49,6 +50,7 @@ async function render(config: HarnessRenderConfig): Promise<string> {
       engine.setMaterial(materialId, part);
     }
   }
+  if (config.stain) engine.setStain(config.stain);
   if (config.camera) {
     engine.setCameraOrbit(
       config.camera.azimuthDeg ?? 35,

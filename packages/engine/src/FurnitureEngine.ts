@@ -41,6 +41,7 @@ export class FurnitureEngine {
   /** partName → materialId; '*' applies to every part. */
   private assignments = new Map<string, string>();
   private panelMaterialId = 'birchply';
+  private stainId: string | null = null;
   private resizeObserver: ResizeObserver;
   private disposed = false;
   private animationHandle = 0;
@@ -96,7 +97,7 @@ export class FurnitureEngine {
    */
   showFurniture(spec: FurnitureSpec, options?: { frame?: boolean }): FurnitureLayout {
     const layout = buildLayout(spec);
-    const material = this.materials.get(this.assignments.get('*') ?? 'oak');
+    const material = this.materials.get(this.assignments.get('*') ?? 'oak', this.stainId);
     const group = buildGroup(layout, material);
     this.swapObject(group, options?.frame ?? true);
     this.currentLayout = layout;
@@ -142,7 +143,7 @@ export class FurnitureEngine {
    * given name (e.g. "Tabletop", "Leg", "Door").
    */
   setMaterial(materialId: string, partName?: string): void {
-    const material = this.materials.get(materialId);
+    const material = this.materials.get(materialId, this.stainId);
     if (partName) {
       this.assignments.set(partName, materialId);
     } else {
@@ -163,6 +164,25 @@ export class FurnitureEngine {
   }
 
   /**
+   * Applies a stain finish over every wood material on the piece — primary
+   * wood, per-part assignments, and panel stock alike. Each species keeps its
+   * own grain figure under the color. Pass `null` to return to natural.
+   */
+  setStain(stainId: string | null): void {
+    this.stainId = stainId;
+    if (!this.currentObject) return;
+    // Parametric pieces that never had an explicit material wear the default;
+    // pin it so the stain lands. Imported models keep their own materials.
+    if (!this.assignments.has('*') && this.currentLayout) this.assignments.set('*', 'oak');
+    this.reapplyAssignments();
+  }
+
+  /** Available stain finishes, for building UIs. */
+  listStains() {
+    return this.materials.listStains();
+  }
+
+  /**
    * Material for sheet-goods parts — drawer bottoms and back panels —
    * which default to birch ply instead of the piece's primary wood.
    */
@@ -173,7 +193,7 @@ export class FurnitureEngine {
 
   private applyPanelMaterial(): void {
     if (!this.currentObject) return;
-    const material = this.materials.get(this.panelMaterialId);
+    const material = this.materials.get(this.panelMaterialId, this.stainId);
     this.currentObject.traverse((child) => {
       if (
         child instanceof THREE.Mesh &&
@@ -353,9 +373,13 @@ export class FurnitureEngine {
 
   private reapplyAssignments(): void {
     if (!this.currentObject) return;
-    const base = this.assignments.get('*');
-    if (base) this.setMaterial(base);
-    for (const [part, materialId] of this.assignments) {
+    // Snapshot first: setMaterial('*') clears the map, which would otherwise
+    // drop per-part assignments mid-iteration. Base coat goes on before the
+    // per-part overrides.
+    const entries = [...this.assignments];
+    const base = entries.find(([part]) => part === '*');
+    if (base) this.setMaterial(base[1]);
+    for (const [part, materialId] of entries) {
       if (part !== '*') this.setMaterial(materialId, part);
     }
     this.applyPanelMaterial();
