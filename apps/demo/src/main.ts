@@ -449,6 +449,8 @@ function scheduleRebuild() {
 
 function buildMaterialPanel() {
   const host = document.getElementById('materials')!;
+  host.innerHTML = '';
+  document.getElementById('panel-stock-row')?.remove();
   for (const info of engine.listMaterials()) {
     const button = document.createElement('button');
     button.className = 'swatch';
@@ -469,6 +471,7 @@ function buildMaterialPanel() {
   // material instead of the primary wood.
   const row = document.createElement('label');
   row.className = 'field-row';
+  row.id = 'panel-stock-row';
   row.innerHTML = '<span>Bottoms & backs</span>';
   const select = document.createElement('select');
   for (const info of engine.listMaterials()) {
@@ -707,11 +710,27 @@ function busy(message: string, work: () => void) {
 
 // ----------------------------------------------------------------- startup
 
+/** Photo-scanned materials, if any have been processed into public/textures. */
+async function registerScannedMaterials(): Promise<boolean> {
+  try {
+    const response = await fetch('textures/scanned/manifest.json');
+    if (!response.ok) return false;
+    const defs = await response.json();
+    for (const def of defs) engine.registerScannedMaterial(def);
+    return defs.length > 0;
+  } catch {
+    return false; // no scanned set shipped — procedural materials only
+  }
+}
+
 engine.showFurniture(spec);
 updateStatus();
 buildCatalog();
 buildControls();
 buildMaterialPanel();
+void registerScannedMaterials().then((added) => {
+  if (added) buildMaterialPanel();
+});
 buildLightingPanel();
 wireScenePanel();
 wireImport();

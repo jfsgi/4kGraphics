@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { generateBuildPlan, type BuildPlan } from './buildplan/buildplan.js';
 import { loadModel, type LoadModelOptions } from './loaders/ModelLoader.js';
 import { createLightRig, LIGHTING_PRESETS, type LightingPresetId } from './lighting/presets.js';
-import { MaterialLibrary, type MaterialInfo } from './materials/MaterialLibrary.js';
+import { MaterialLibrary, type MaterialInfo, type ScannedMaterialDef } from './materials/MaterialLibrary.js';
 import { buildGroup } from './parametric/geometry.js';
 import { buildLayout, type FurnitureLayout } from './parametric/layout.js';
 import type { FurnitureSpec } from './parametric/spec.js';
@@ -114,6 +114,14 @@ export class FurnitureEngine {
 
   listMaterials(): MaterialInfo[] {
     return this.materials.list();
+  }
+
+  /**
+   * Registers a photo-scanned material (tileable maps produced by
+   * scripts/process-texture.py). Available to setMaterial immediately.
+   */
+  registerScannedMaterial(def: ScannedMaterialDef): void {
+    this.materials.addScanned(def);
   }
 
   listLightingPresets() {

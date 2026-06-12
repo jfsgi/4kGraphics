@@ -55,6 +55,9 @@ async function render(config: HarnessRenderConfig): Promise<string> {
     );
   }
 
+  // Scanned-material textures stream in asynchronously — wait for them.
+  await engine.materials.texturesReady();
+
   const blob = await engine.renderSnapshot({
     width: config.width ?? 3840,
     height: config.height ?? 2160,
@@ -77,5 +80,17 @@ declare global {
   }
 }
 
+async function registerScannedMaterials() {
+  try {
+    const response = await fetch('textures/scanned/manifest.json');
+    if (!response.ok) return;
+    for (const def of await response.json()) engine.registerScannedMaterial(def);
+  } catch {
+    // No scanned set shipped — procedural materials only.
+  }
+}
+
 window.__render = render;
-window.__ready = true;
+void registerScannedMaterials().then(() => {
+  window.__ready = true;
+});

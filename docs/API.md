@@ -118,6 +118,16 @@ your app's boundaries.
 `defaultSpec(kind)` give sensible starting points; `validateSpec(spec)` throws a
 descriptive error for impossible geometry (it runs automatically in `showFurniture`).
 
+### Scanned materials (photo textures)
+
+Real board photos become materials via `scripts/process-texture.py` (evens
+lighting, makes the image tile, derives roughness/normal maps, updates
+`manifest.json`). Host the output folder at `textures/scanned/` and the demo
+and render service register every entry automatically; in your own app call
+`engine.registerScannedMaterial(def)` with the manifest entry. Pass
+`--width-mm/--height-mm` (the photographed area) so grain renders at true
+scale.
+
 ### Material ids
 
 `oak`, `redoak`, `walnut`, `cherry`, `maple`, `mahogany`, `cedar`, `paint-white`, `paint-forest`, `steel`, `brass`, `linen`

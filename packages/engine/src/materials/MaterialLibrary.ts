@@ -10,7 +10,7 @@ import {
 export interface MaterialInfo {
   id: string;
   label: string;
-  category: 'wood' | 'paint' | 'metal' | 'fabric';
+  category: 'wood' | 'paint' | 'metal' | 'fabric' | 'scanned';
   /** Representative color for UI swatches, as CSS hex. */
   swatch: string;
 }
@@ -187,25 +187,98 @@ const PRESETS: Preset[] = [
  * Texture generation is the expensive step (a full noise pass per material),
  * so materials are built on first use and reused after that.
  */
+/**
+ * A photo-scanned material: real board photos processed into tileable PBR
+ * maps (see scripts/process-texture.py). Textures load from URLs; the
+ * physical scan size sets the repeat so grain renders at true scale.
+ */
+export interface ScannedMaterialDef {
+  id: string;
+  label: string;
+  swatch: string;
+  mapUrl: string;
+  normalMapUrl?: string;
+  roughnessMapUrl?: string;
+  /** Physical size of the scanned area in meters. */
+  widthM: number;
+  heightM: number;
+  clearcoat?: number;
+}
+
+/** Geometry box-UVs put one tile across this many meters (see geometry.ts). */
+const TEXTURE_TILE_M = 2.4;
+
 export class MaterialLibrary {
   private cache = new Map<string, THREE.MeshPhysicalMaterial>();
+  private scanned = new Map<string, ScannedMaterialDef>();
+  private pendingLoads: Promise<unknown>[] = [];
 
   constructor(private textureSize = 2048) {}
 
   list(): MaterialInfo[] {
-    return PRESETS.map((p) => p.info);
+    return [
+      ...PRESETS.map((p) => p.info),
+      ...[...this.scanned.values()].map((s) => ({
+        id: s.id,
+        label: s.label,
+        category: 'scanned' as const,
+        swatch: s.swatch,
+      })),
+    ];
   }
 
   has(id: string): boolean {
-    return PRESETS.some((p) => p.info.id === id);
+    return PRESETS.some((p) => p.info.id === id) || this.scanned.has(id);
+  }
+
+  /** Registers a photo-scanned material; it appears in list() immediately. */
+  addScanned(def: ScannedMaterialDef): void {
+    this.scanned.set(def.id, def);
+    this.cache.get(def.id)?.dispose();
+    this.cache.delete(def.id);
+  }
+
+  private buildScanned(def: ScannedMaterialDef): THREE.MeshPhysicalMaterial {
+    const loader = new THREE.TextureLoader();
+    const load = (url: string, srgb: boolean) => {
+      let done: () => void = () => undefined;
+      this.pendingLoads.push(new Promise<void>((resolve) => (done = resolve)));
+      const texture = loader.load(url, done, undefined, () => done());
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.anisotropy = 16;
+      if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
+      // Repeat so the scan covers its true physical size within the tile.
+      texture.repeat.set(TEXTURE_TILE_M / def.widthM, TEXTURE_TILE_M / def.heightM);
+      return texture;
+    };
+    const material = new THREE.MeshPhysicalMaterial({
+      map: load(def.mapUrl, true),
+      normalMap: def.normalMapUrl ? load(def.normalMapUrl, false) : null,
+      roughnessMap: def.roughnessMapUrl ? load(def.roughnessMapUrl, false) : null,
+      roughness: 1,
+      metalness: 0,
+      clearcoat: def.clearcoat ?? 0.22,
+      clearcoatRoughness: 0.28,
+      normalScale: new THREE.Vector2(0.6, 0.6),
+      vertexColors: true,
+    });
+    material.name = def.id;
+    return material;
   }
 
   get(id: string): THREE.MeshPhysicalMaterial {
     const cached = this.cache.get(id);
     if (cached) return cached;
+    const scanned = this.scanned.get(id);
+    if (scanned) {
+      const material = this.buildScanned(scanned);
+      this.cache.set(id, material);
+      return material;
+    }
     const preset = PRESETS.find((p) => p.info.id === id);
     if (!preset) {
-      throw new Error(`Unknown material "${id}". Available: ${PRESETS.map((p) => p.info.id).join(', ')}`);
+      throw new Error(`Unknown material "${id}". Available: ${this.list().map((m) => m.id).join(', ')}`);
     }
     const maps = preset.generate(this.textureSize);
     if (preset.uvRepeat) {
@@ -228,6 +301,11 @@ export class MaterialLibrary {
     material.name = id;
     this.cache.set(id, material);
     return material;
+  }
+
+  /** Resolves when every scanned texture requested so far has loaded. */
+  async texturesReady(): Promise<void> {
+    await Promise.allSettled(this.pendingLoads);
   }
 
   /** Current texture resolution (per side, in pixels). */
