@@ -420,8 +420,10 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   // from the side, the joint pattern ends at the lap line. The back corners
   // stay through-dovetailed, as jigs cut them.
   const lip = 1.5875;
+  // Pull cutout per the shop drawing: 5.59" opening, 3/4" deep on a 15"
+  // front; narrower fronts scale the opening down.
   const scoop = spec.scoop
-    ? { widthMm: Math.min(120, w * 0.35), depthMm: Math.min(32, h * 0.4) }
+    ? { widthMm: Math.min(142, w * 0.38), depthMm: Math.min(19.05, h * 0.35) }
     : undefined;
 
   for (const sx of [1, -1]) {

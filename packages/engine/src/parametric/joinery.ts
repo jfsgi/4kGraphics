@@ -32,8 +32,12 @@ export interface ScoopSpec {
 }
 
 /**
- * Board outline in the (x, y) plane with an optional elliptical finger
- * scoop in the top edge, as a centered extrusion along z.
+ * Board outline in the (x, y) plane with the MEJA pull cutout in the top
+ * edge, as a centered extrusion along z. Digitized from the shop's
+ * to-scale drawing (15×3 front): the opening's flanks run 30° from
+ * vertical, blended by arcs of radius 5/6 × depth at the top edge and
+ * into the flat bottom — all tangent-continuous, like the router
+ * template. `scoop.width` is the opening width at the top edge.
  */
 export function scoopedBoardGeometry(
   length: number,
@@ -41,19 +45,48 @@ export function scoopedBoardGeometry(
   thickness: number,
   scoop: ScoopSpec,
 ): THREE.BufferGeometry {
-  const a = Math.min(scoop.width / 2, length * 0.45);
-  const b = Math.min(scoop.depth, height * 0.6);
+  const depth = Math.min(scoop.depth, height * 0.6);
+  const r = (depth * 5) / 6;
+  const flankRun = (depth - r) * Math.tan(Math.PI / 6);
+  const sideRun = 2 * r * Math.sin(Math.PI / 3) + flankRun;
+  // Keep a flat bottom: clamp the opening between the geometric minimum
+  // and what fits on the board.
+  const width = Math.max(2 * sideRun + 0.01, Math.min(scoop.width, length * 0.9));
+  const half = width / 2;
+  const top = height / 2;
+
   const pts: THREE.Vector2[] = [
     new THREE.Vector2(-length / 2, -height / 2),
     new THREE.Vector2(length / 2, -height / 2),
-    new THREE.Vector2(length / 2, height / 2),
+    new THREE.Vector2(length / 2, top),
   ];
-  const segments = 18;
-  for (let i = 0; i <= segments; i++) {
-    const theta = (i / segments) * Math.PI;
-    pts.push(new THREE.Vector2(a * Math.cos(theta), height / 2 - b * Math.sin(theta)));
-  }
-  pts.push(new THREE.Vector2(-length / 2, height / 2));
+  // Right side of the cutout, entering from the top edge (x decreasing).
+  const arc = (cx: number, cy: number, a0: number, a1: number, segments = 10) => {
+    for (let i = 1; i <= segments; i++) {
+      const a = a0 + ((a1 - a0) * i) / segments;
+      pts.push(new THREE.Vector2(cx + r * Math.cos(a), cy + r * Math.sin(a)));
+    }
+  };
+  const sin60 = Math.sin(Math.PI / 3);
+  // Entry roundover: tangent to the top edge, sweeping 60°.
+  pts.push(new THREE.Vector2(half, top));
+  arc(half, top - r, Math.PI / 2, Math.PI / 2 + Math.PI / 3);
+  // 30°-from-vertical flank (straight), then the fillet into the flat.
+  const flankTopX = half - r * sin60;
+  const fillet0 = Math.PI / 2 + Math.PI / 3 - Math.PI; // fillet start angle
+  const filletCx = flankTopX - flankRun - r * Math.cos(fillet0);
+  const filletCy = top - depth + r;
+  pts.push(new THREE.Vector2(flankTopX - flankRun, top - r / 2 - (depth - r)));
+  arc(filletCx, filletCy, fillet0, -Math.PI / 2);
+  // Flat bottom, then mirror up the left side.
+  const flatHalf = Math.abs(filletCx);
+  pts.push(new THREE.Vector2(-flatHalf, top - depth));
+  arc(-filletCx, filletCy, -Math.PI / 2, -Math.PI / 2 - Math.PI / 3);
+  pts.push(new THREE.Vector2(-(flankTopX - flankRun), top - r / 2 - (depth - r)));
+  pts.push(new THREE.Vector2(-flankTopX, top - r / 2));
+  arc(-half, top - r, Math.PI / 2 - Math.PI / 3, Math.PI / 2);
+  pts.push(new THREE.Vector2(-length / 2, top));
+
   const shape = new THREE.Shape(pts);
   const geometry = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
   geometry.translate(0, 0, -thickness / 2);
