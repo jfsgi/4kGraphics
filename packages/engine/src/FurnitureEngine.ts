@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { generateBuildPlan, type BuildPlan } from './buildplan/buildplan.js';
 import { loadModel, type LoadModelOptions } from './loaders/ModelLoader.js';
 import { createLightRig, LIGHTING_PRESETS, type LightingPresetId } from './lighting/presets.js';
@@ -311,7 +310,43 @@ export class FurnitureEngine {
 
   private makeEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
     const pmrem = new THREE.PMREMGenerator(renderer);
-    const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    // Purpose-built photo studio instead of the generic room: a dark shell
+    // with large softboxes whose reflections sweep across flat panels the
+    // way real strobes through fabric do.
+    const studio = new THREE.Scene();
+    const shell = new THREE.Mesh(
+      new THREE.BoxGeometry(16, 9, 16),
+      new THREE.MeshBasicMaterial({ color: 0x16181c, side: THREE.BackSide }),
+    );
+    shell.position.y = 3.5;
+    studio.add(shell);
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(16, 16).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0x2c2e33 }),
+    );
+    floor.position.y = -0.95;
+    studio.add(floor);
+
+    const softbox = (
+      w: number,
+      h: number,
+      color: number,
+      intensity: number,
+      position: [number, number, number],
+    ) => {
+      const material = new THREE.MeshBasicMaterial();
+      material.color.set(color).multiplyScalar(intensity);
+      const panel = new THREE.Mesh(new THREE.PlaneGeometry(w, h), material);
+      panel.position.set(...position);
+      panel.lookAt(0, 0.8, 0);
+      studio.add(panel);
+    };
+    softbox(5, 3.5, 0xfff1de, 9, [-4.5, 4.2, 3.2]); // warm key, upper left
+    softbox(4.2, 3, 0xdfe8ff, 2.2, [4.6, 2.6, 3.6]); // cool fill, right
+    softbox(5, 1.3, 0xffffff, 6, [0.5, 4.6, -4.4]); // rim strip behind
+    softbox(3, 2, 0xffffff, 0.9, [0, 0.9, 5]); // bounce card at camera
+
+    const environment = pmrem.fromScene(studio, 0.07).texture;
     pmrem.dispose();
     return environment;
   }
