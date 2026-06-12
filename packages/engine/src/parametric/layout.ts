@@ -917,12 +917,14 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
         ? Math.min(spec.openAmountMm ?? boxD * 0.6, boxD - 60)
         : 0;
 
-      if (railH > 0 && i > 0 && c === 0) {
+      // One rail per column, butting into the dividers — rails never cross
+      // a divider (coplanar faces would fight, and it isn't how it's built).
+      if (railH > 0 && i > 0) {
         parts.push({
           name: 'Divider rail',
           shape: 'box',
-          sizeMm: [innerW, railH, frontT],
-          positionMm: [0, openingBottom - railH / 2, caseFrontZ - frontT / 2],
+          sizeMm: [colW, railH, frontT],
+          positionMm: [colCenter, openingBottom - railH / 2, caseFrontZ - frontT / 2],
           role: 'structure',
           grainAxis: 'x',
           frontBevel: bevel ? { bevelMm: bevel, sides: ['y+', 'y-'] } : undefined,
