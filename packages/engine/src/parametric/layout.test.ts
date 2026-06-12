@@ -212,6 +212,7 @@ describe('drawer box layout', () => {
       frontMount: 'inset' as const,
       frontStyle: 'slab' as const,
       insideBevelMm: 5,
+      dividerRails: true,
     };
     const layout = buildLayout(spec);
     const front = layout.parts.find((p) => p.name === 'Drawer front')!;
@@ -221,6 +222,20 @@ describe('drawer box layout', () => {
     expect(rail.frontBevel?.bevelMm).toBe(5);
     const side = layout.parts.find((p) => p.name === 'Side panel')!;
     expect(side.joinery?.frontBevelMm).toBe(5);
+  });
+
+  it('omits divider rails unless the option is on', () => {
+    const spec = {
+      ...defaultDrawerUnitSpec(),
+      frontMount: 'inset' as const,
+      frontStyle: 'slab' as const,
+    };
+    const without = buildLayout(spec);
+    expect(without.parts.some((p) => p.name === 'Divider rail')).toBe(false);
+    const withRails = buildLayout({ ...spec, dividerRails: true });
+    expect(withRails.parts.filter((p) => p.name === 'Divider rail')).toHaveLength(
+      spec.drawerCount - 1,
+    );
   });
 
   it('pulls the requested drawer open with its box', () => {
@@ -338,7 +353,12 @@ describe('drawer unit layout', () => {
   });
 
   it('adds divider rails and narrower fronts for inset mounting', () => {
-    const spec = { ...defaultDrawerUnitSpec(), frontMount: 'inset' as const, drawerCount: 3 };
+    const spec = {
+      ...defaultDrawerUnitSpec(),
+      frontMount: 'inset' as const,
+      drawerCount: 3,
+      dividerRails: true,
+    };
     const layout = buildLayout(spec);
     expect(layout.parts.filter((p) => p.name === 'Divider rail')).toHaveLength(2);
     const stiles = layout.parts.filter((p) => p.name === 'Drawer front stile');

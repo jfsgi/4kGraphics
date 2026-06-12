@@ -341,6 +341,20 @@ function buildControls() {
       if (spec.kind === 'drawerunit') spec.columnDivider = value as typeof spec.columnDivider;
       scheduleRebuild();
     });
+    {
+      const row = document.createElement('label');
+      row.className = 'field-row';
+      row.innerHTML = '<span>Divider rails (between rows)</span>';
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.checked = spec.dividerRails ?? false;
+      check.onchange = () => {
+        if (spec.kind === 'drawerunit') spec.dividerRails = check.checked;
+        scheduleRebuild();
+      };
+      row.appendChild(check);
+      host.appendChild(row);
+    }
     addSelect(host, 'Front style', spec.frontStyle, ['shaker', 'raised', 'slab'], (value) => {
       if (spec.kind === 'drawerunit') spec.frontStyle = value as typeof spec.frontStyle;
       buildControls();

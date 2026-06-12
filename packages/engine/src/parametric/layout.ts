@@ -729,9 +729,10 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
 
   const boxW = colW - 2 * (undermount ? 5 : slideClearance);
 
-  // Inset banks show divider rails between the openings; overlay fronts
-  // cover the carcass so none are needed.
-  const railH = 20;
+  // Divider rails between openings are an option (inset only); without
+  // them the drawers separate by reveals alone. Overlay fronts cover the
+  // carcass so they never need rails.
+  const railH = inset && spec.dividerRails ? 20 : 0;
   const interiorH = h - 2 * t;
   const openingH = inset ? (interiorH - (n - 1) * railH) / n : (h - 4 - 3 * (n - 1)) / n;
   const overlayW = (w - 4 - 3 * (cols - 1)) / cols;
@@ -768,7 +769,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
         ? Math.min(spec.openAmountMm ?? boxD * 0.6, boxD - 60)
         : 0;
 
-      if (inset && i > 0 && c === 0) {
+      if (railH > 0 && i > 0 && c === 0) {
         parts.push({
           name: 'Divider rail',
           shape: 'box',

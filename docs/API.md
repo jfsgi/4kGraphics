@@ -95,6 +95,7 @@ the visible viewport size is irrelevant.
   caseJoinery?: 'dovetail' | 'halfblind',       // carcass corners: through (default) or lapped
   insideBevelMm?: number,                       // 45° bevel on opening edges + front faces;
                                                 // inset fronts set back by the bevel (slab, inset)
+  dividerRails?: boolean,                       // horizontal rails between rows (inset; default off)
   openDrawer?: number,                          // pull a drawer open: row from bottom, 0 = closed
   openColumn?: number,                          // column of the open drawer (default 1)
   openAmountMm?: number }                       // pull-out distance (default 60% of box depth)

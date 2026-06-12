@@ -184,6 +184,11 @@ export interface DrawerUnitSpec {
    * bevel depth. 0 or undefined = square edges.
    */
   insideBevelMm?: number;
+  /**
+   * Horizontal divider rails between drawer openings (inset fronts).
+   * Off by default — drawers separate by reveals only.
+   */
+  dividerRails?: boolean;
   /** Pull a drawer open: row from the bottom (1-based), 0/undefined = closed. */
   openDrawer?: number;
   /** Column of the open drawer (1-based, default 1). */
@@ -294,6 +299,7 @@ export function defaultDrawerUnitSpec(): DrawerUnitSpec {
     drawerCount: 3,
     columnCount: 1,
     insideBevelMm: 0,
+    dividerRails: false,
     openDrawer: 0,
     openColumn: 1,
     openAmountMm: 300,
