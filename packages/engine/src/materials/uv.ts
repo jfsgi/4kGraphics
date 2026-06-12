@@ -47,9 +47,11 @@ export function applyBoxUVs(
     // End grain: face normal parallel to the grain — darker and warmer.
     const endGrain = dominant === grainAxis;
     const occlusion = ao ? ao(coord.x, coord.y, coord.z) : 1;
-    colors[i * 3] = (endGrain ? 0.72 : 1) * occlusion;
-    colors[i * 3 + 1] = (endGrain ? 0.64 : 1) * occlusion;
-    colors[i * 3 + 2] = (endGrain ? 0.56 : 1) * occlusion;
+    // Finished end grain reads darker and warmer than face grain, but
+    // nowhere near black — too strong and joints look like open gaps.
+    colors[i * 3] = (endGrain ? 0.84 : 1) * occlusion;
+    colors[i * 3 + 1] = (endGrain ? 0.78 : 1) * occlusion;
+    colors[i * 3 + 2] = (endGrain ? 0.72 : 1) * occlusion;
   }
 
   geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
