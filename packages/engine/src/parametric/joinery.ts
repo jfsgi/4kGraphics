@@ -298,25 +298,28 @@ export function pinsBoardGeometry(
   for (const [g0, g1, atBottom, atTop] of gaps) {
     const f0 = atBottom ? 0 : flare;
     const f1 = atTop ? 0 : flare;
-    // The opening bevel is cut before assembly and the side panel's bevel
-    // plane continues through the front pin, so the two bevels meet on a
-    // 45° miter at the opening corner. The front pin is built as an exact
-    // two-segment sweep: its cross-section grows linearly from the miter
-    // back to the full chamfered pentagon.
+    // Picture-frame bevel: the opening bevels meet on a 45° miter at each
+    // corner and STOP there — the cut never runs through the joint, so the
+    // case's outer arrises stay intact. The front pin is an exact swept
+    // solid: chamfered pentagon at the opening corner, closing through the
+    // miter to the full square section within one bevel-width.
     if (atBottom && frontBevel > 0) {
       const b = Math.min(frontBevel, (g1 - g0) * 0.95);
       const tipX = -zTip;
       const innX = -zInner;
       const dir = Math.sign(tipX - innX);
-      // Cross-section at sweep distance e from the opening corner.
+      // Cross-section at sweep distance e from the opening corner: the
+      // front boundary is the side-bevel plane (flat at c) out to the
+      // miter diagonal, then the pin's own chamfer, then full material.
       const section = (e: number): Array<[number, number]> => {
         const c = g0 + Math.max(0, b - e);
         return [
-          [tipX, c],
+          [tipX, g0],
           [tipX, g1],
           [innX, g1 + f1],
-          [innX, g0 + b],
+          [innX, c],
           [innX + dir * Math.min(e, b), c],
+          [innX + dir * b, g0],
         ];
       };
       for (const endSign of [1, -1] as const) {
@@ -333,8 +336,8 @@ export function pinsBoardGeometry(
           const p1 = section(stations[s + 1]);
           const x0 = X(stations[s]);
           const x1 = X(stations[s + 1]);
-          for (let i = 0; i < 5; i++) {
-            const j = (i + 1) % 5;
+          for (let i = 0; i < p0.length; i++) {
+            const j = (i + 1) % p0.length;
             const a: [number, number, number] = [x0, p0[i][1], -p0[i][0]];
             const bb: [number, number, number] = [x0, p0[j][1], -p0[j][0]];
             const cc: [number, number, number] = [x1, p1[j][1], -p1[j][0]];
@@ -350,7 +353,7 @@ export function pinsBoardGeometry(
         ] as Array<[number, boolean]>) {
           const p = section(e);
           const x = X(e);
-          for (let i = 1; i < 4; i++) {
+          for (let i = 1; i < p.length - 1; i++) {
             const a: [number, number, number] = [x, p[0][1], -p[0][0]];
             const bb: [number, number, number] = [x, p[i][1], -p[i][0]];
             const cc: [number, number, number] = [x, p[i + 1][1], -p[i + 1][0]];
