@@ -217,7 +217,8 @@ describe('drawer box layout', () => {
     const layout = buildLayout(spec);
     const front = layout.parts.find((p) => p.name === 'Drawer front')!;
     expect(front.positionMm[2] + front.sizeMm[2] / 2).toBeCloseTo(spec.depthMm / 2 - 5);
-    expect(front.edgeProfile?.bevelMm).toBe(5);
+    // The bevel stays on the case opening — the front face keeps its own edges.
+    expect(front.edgeProfile?.bevelMm).toBeUndefined();
     const rail = layout.parts.find((p) => p.name === 'Divider rail')!;
     expect(rail.frontBevel?.bevelMm).toBe(5);
     const side = layout.parts.find((p) => p.name === 'Side panel')!;

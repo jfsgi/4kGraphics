@@ -486,8 +486,6 @@ function pushFrontParts(
     frameJoint?: 'cope' | 'miter';
     glassPanel?: boolean;
     fingerPull?: boolean;
-    /** Slab fronts: 45° face-edge bevel of this size. */
-    bevelEdgeMm?: number;
     centerXMm: number;
     bottomYMm: number;
     centerZMm: number;
@@ -506,11 +504,7 @@ function pushFrontParts(
       : undefined
   ) as EdgeProfileName | undefined;
   const miter = options.frameJoint === 'miter';
-  // Beveled openings force an exact 45° chamfer on the face's outer edges.
-  const faceBevel = options.bevelEdgeMm;
-  const outerEff = faceBevel ? ('chamfer' as EdgeProfileName) : outer;
   if (style === 'slab') {
-    const bevelEdge = options.bevelEdgeMm;
     parts.push({
       name: `${namePrefix}`,
       shape: 'box',
@@ -519,11 +513,7 @@ function pushFrontParts(
       role: 'panel',
       grainAxis: options.slabGrain,
       fingerPullTop: options.fingerPull || undefined,
-      edgeProfile: bevelEdge
-        ? { outer: 'chamfer', axis: 'slab', bevelMm: bevelEdge }
-        : outer
-          ? { outer, axis: 'slab' }
-          : undefined,
+      edgeProfile: outer ? { outer, axis: 'slab' } : undefined,
     });
     return;
   }
@@ -537,8 +527,7 @@ function pushFrontParts(
       grainAxis: 'y',
       edgeProfile: {
         inner: pattern,
-        outer: outerEff,
-        bevelMm: faceBevel,
+        outer,
         innerSide: sx > 0 ? 'x-' : 'x+',
         axis: 'y',
         // The stick cut runs the stile's full length; the rail copes onto it.
@@ -560,8 +549,7 @@ function pushFrontParts(
       grainAxis: 'x',
       edgeProfile: {
         inner: pattern,
-        outer: outerEff,
-        bevelMm: faceBevel,
+        outer,
         innerSide: top ? 'y-' : 'y+',
         axis: 'x',
         innerInsetMm: 0,
@@ -801,7 +789,6 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
         outerEdgeProfile: spec.outerEdgeProfile,
         frameJoint: spec.frameJoint,
         fingerPull: spec.fingerPull,
-        bevelEdgeMm: bevel || undefined,
         centerXMm: frontCX,
         bottomYMm: y0,
         centerZMm: frontZ + pull,

@@ -296,12 +296,25 @@ export function pinsBoardGeometry(
     const f1 = atTop ? 0 : flare;
     // rotateY(π/2) maps shape (sx, sy, extrude) → world (extrude, sy, −sx),
     // so shape X carries the NEGATED z coordinate.
-    const shape = new THREE.Shape([
-      new THREE.Vector2(-zTip, g0),
-      new THREE.Vector2(-zTip, g1),
-      new THREE.Vector2(-zInner, g1 + f1),
-      new THREE.Vector2(-zInner, g0 - f0),
-    ]);
+    // The opening bevel is cut before assembly, so it runs through the
+    // joint: the front gap's prism loses its inner-front corner too,
+    // keeping the chamfer continuous around the assembled opening.
+    const bevelDir = Math.sign(zInner - zTip);
+    const shape =
+      atBottom && frontBevel > 0
+        ? new THREE.Shape([
+            new THREE.Vector2(-zTip, g0),
+            new THREE.Vector2(-zTip, g1),
+            new THREE.Vector2(-zInner, g1 + f1),
+            new THREE.Vector2(-zInner, g0 + frontBevel),
+            new THREE.Vector2(-zInner + bevelDir * frontBevel, g0),
+          ])
+        : new THREE.Shape([
+            new THREE.Vector2(-zTip, g0),
+            new THREE.Vector2(-zTip, g1),
+            new THREE.Vector2(-zInner, g1 + f1),
+            new THREE.Vector2(-zInner, g0 - f0),
+          ]);
     const prism = new THREE.ExtrudeGeometry(shape, { depth: spec.depth, bevelEnabled: false });
     prism.rotateY(Math.PI / 2);
     // The cross-section is uniform along the board, so both ends use the
