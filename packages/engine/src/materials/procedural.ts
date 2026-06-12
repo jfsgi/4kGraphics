@@ -205,7 +205,7 @@ export function generateWoodMaps(size: number, params: WoodParams): PbrMaps {
         // the v coefficient is kept on a 1/2 grid so the texture still tiles.
         const axis = (0.3 + h1 * 0.4) * plankW;
         const du = (uIn - axis) / plankW;
-        const archesAlongV = Math.max(1, Math.round(ringsPerPlank * 0.1 + h2 * 2)) * 0.5;
+        const archesAlongV = Math.max(1, Math.round(ringsPerPlank * 0.06 + h2 * 3)) * 0.5;
         phase = du * du * ringsPerPlank * 0.5 + v * archesAlongV + h1 * 13 + wander;
         // Arches fade in and out along the board: large calm zones between
         // figured zones, like real flat-sawn stock.
@@ -235,9 +235,9 @@ export function generateWoodMaps(size: number, params: WoodParams): PbrMaps {
         ringVisibility;
 
       // Fine streaks elongated along the grain.
-      const fine = fbm2D(u * 32, v * 2, 256, 16, seed + 7 + plank * 31, 5);
+      const fine = fbm2D(u * 56, v * 3, 448, 24, seed + 7 + plank * 31, 5);
       // Sparse darker hairline filaments.
-      const fil = valueNoise2D(u * 96, v * 8, 768, 64, seed + 19 + plank * 13);
+      const fil = valueNoise2D(u * 160, v * 12, 1280, 96, seed + 19 + plank * 13);
       const hair = Math.max(0, fil - 0.45) * 1.6;
       // Pore speckle.
       const pore = valueNoise2D(u * 48, v * 4, 384, 32, seed + 23) * 0.5 + 0.5;
