@@ -210,7 +210,7 @@ export class MaterialLibrary {
       roughness: 1,
       metalness: preset.metalness,
       clearcoat: preset.clearcoat,
-      clearcoatRoughness: 0.35,
+      clearcoatRoughness: 0.28,
       normalScale: new THREE.Vector2(0.6, 0.6),
       // End-grain darkening rides in vertex colors (see applyBoxUVs).
       vertexColors: true,

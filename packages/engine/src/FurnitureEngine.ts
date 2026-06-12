@@ -51,7 +51,7 @@ export class FurnitureEngine {
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.95;
+    this.renderer.toneMappingExposure = 1.05;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -69,15 +69,17 @@ export class FurnitureEngine {
     this.controls.maxDistance = 15;
 
     this.scene.environment = this.makeEnvironment(this.renderer);
-    this.scene.environmentIntensity = 0.42;
-    this.setBackground(options.background ?? '#22252a');
+    // Softer key-to-ambient ratio: most of the "CG look" is ambient that's
+    // too dark against a hard key.
+    this.scene.environmentIntensity = 0.58;
+    this.setBackground(options.background ?? 'studio');
 
     this.lightRig = createLightRig(options.lighting ?? 'studio');
     this.scene.add(this.lightRig);
 
     this.floor = new THREE.Mesh(
       new THREE.CircleGeometry(7, 64).rotateX(-Math.PI / 2),
-      new THREE.ShadowMaterial({ opacity: 0.32 }),
+      new THREE.ShadowMaterial({ opacity: 0.26 }),
     );
     this.floor.receiveShadow = true;
     this.scene.add(this.floor);
@@ -162,7 +164,29 @@ export class FurnitureEngine {
   }
 
   setBackground(value: string | 'transparent'): void {
-    this.scene.background = value === 'transparent' ? null : new THREE.Color(value);
+    if (value === 'transparent') {
+      this.scene.background = null;
+      return;
+    }
+    if (value === 'studio') {
+      // Seamless-backdrop gradient: lighter behind the piece, falling off
+      // toward the edges — reads as a lit cyclorama instead of a void.
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d')!;
+      const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+      gradient.addColorStop(0, '#34373e');
+      gradient.addColorStop(0.45, '#272a30');
+      gradient.addColorStop(1, '#101114');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 64, 512);
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      this.scene.background = texture;
+      return;
+    }
+    this.scene.background = new THREE.Color(value);
   }
 
   /**
