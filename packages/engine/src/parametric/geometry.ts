@@ -155,7 +155,9 @@ function edgeProfiledGeometry(
     outer: edge.outer
       ? {
           profile: edge.outer,
-          width: outerWidth,
+          // Exact 45° opening bevels override the standard band size.
+          width: edge.bevelMm ? edge.bevelMm * MM_TO_M : outerWidth,
+          depth: edge.bevelMm ? Math.min(edge.bevelMm * MM_TO_M, sz * 0.45) : undefined,
           // Door-edge detail wraps the board ends on stiles so it runs
           // continuously around the assembled door.
           uMin: alongY,

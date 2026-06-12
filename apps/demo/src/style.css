@@ -407,3 +407,16 @@ select#part-select {
     color: #000;
   }
 }
+
+#controls h2 {
+  margin-top: 18px;
+}
+#controls h2:first-child {
+  margin-top: 0;
+}
+.section-hint {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+  margin: -4px 0 10px;
+}

@@ -506,6 +506,9 @@ function pushFrontParts(
       : undefined
   ) as EdgeProfileName | undefined;
   const miter = options.frameJoint === 'miter';
+  // Beveled openings force an exact 45° chamfer on the face's outer edges.
+  const faceBevel = options.bevelEdgeMm;
+  const outerEff = faceBevel ? ('chamfer' as EdgeProfileName) : outer;
   if (style === 'slab') {
     const bevelEdge = options.bevelEdgeMm;
     parts.push({
@@ -534,7 +537,8 @@ function pushFrontParts(
       grainAxis: 'y',
       edgeProfile: {
         inner: pattern,
-        outer,
+        outer: outerEff,
+        bevelMm: faceBevel,
         innerSide: sx > 0 ? 'x-' : 'x+',
         axis: 'y',
         // The stick cut runs the stile's full length; the rail copes onto it.
@@ -556,7 +560,8 @@ function pushFrontParts(
       grainAxis: 'x',
       edgeProfile: {
         inner: pattern,
-        outer,
+        outer: outerEff,
+        bevelMm: faceBevel,
         innerSide: top ? 'y-' : 'y+',
         axis: 'x',
         innerInsetMm: 0,

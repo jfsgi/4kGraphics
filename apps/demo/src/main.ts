@@ -106,12 +106,6 @@ const FIELDS: Record<FurnitureKind, NumberField[]> = {
     { key: 'widthMm', label: 'Width (mm)', min: 300, max: 2400 },
     { key: 'heightMm', label: 'Height (mm)', min: 300, max: 1500 },
     { key: 'depthMm', label: 'Depth (mm)', min: 350, max: 650 },
-    { key: 'drawerCount', label: 'Drawers per column', min: 1, max: 6, step: 1 },
-    { key: 'columnCount', label: 'Columns', min: 1, max: 4, step: 1 },
-    { key: 'insideBevelMm', label: 'Opening bevel (mm)', min: 0, max: 8, step: 0.5 },
-    { key: 'openDrawer', label: 'Open drawer (row, 0=closed)', min: 0, max: 6, step: 1 },
-    { key: 'openColumn', label: 'Open column', min: 1, max: 4, step: 1 },
-    { key: 'openAmountMm', label: 'Pull-out (mm)', min: 0, max: 500, step: 10 },
   ],
 };
 
@@ -138,15 +132,40 @@ function addSelect(
   host.appendChild(row);
 }
 
-function buildControls() {
-  const host = document.getElementById('controls')!;
-  host.innerHTML = '';
-  if (showingImport) {
-    host.innerHTML = '<p class="muted">Imported model — dimensions come from the file.</p>';
-    return;
+function addSection(host: HTMLElement, title: string, hint?: string) {
+  const h = document.createElement('h2');
+  h.textContent = title;
+  host.appendChild(h);
+  if (hint) {
+    const p = document.createElement('p');
+    p.className = 'section-hint';
+    p.textContent = hint;
+    host.appendChild(p);
   }
+}
 
-  for (const field of FIELDS[spec.kind]) {
+function addCheck(host: HTMLElement, label: string, checked: boolean, onChange: (v: boolean) => void) {
+  const row = document.createElement('label');
+  row.className = 'field-row';
+  row.innerHTML = `<span>${label}</span>`;
+  const check = document.createElement('input');
+  check.type = 'checkbox';
+  check.checked = checked;
+  check.onchange = () => onChange(check.checked);
+  row.appendChild(check);
+  host.appendChild(row);
+}
+
+interface FieldDef {
+  key: string;
+  label: string;
+  min: number;
+  max: number;
+  step?: number;
+}
+
+function renderSliders(host: HTMLElement, defs: FieldDef[]) {
+  for (const field of defs) {
     const row = document.createElement('label');
     row.className = 'slider-row';
     const value = (spec as unknown as Record<string, number>)[field.key];
@@ -167,75 +186,61 @@ function buildControls() {
     row.appendChild(input);
     host.appendChild(row);
   }
+}
+
+function buildControls() {
+  const host = document.getElementById('controls')!;
+  host.innerHTML = '';
+  if (showingImport) {
+    host.innerHTML = '<p class="muted">Imported model — dimensions come from the file.</p>';
+    return;
+  }
+
+  addSection(host, 'Dimensions', 'Overall size of the piece.');
+  renderSliders(host, FIELDS[spec.kind]);
 
   if (spec.kind === 'table') {
-    const styleRow = document.createElement('label');
-    styleRow.className = 'field-row';
-    styleRow.innerHTML = '<span>Leg style</span>';
-    const select = document.createElement('select');
-    for (const style of ['tapered', 'square', 'round']) {
-      const option = document.createElement('option');
-      option.value = style;
-      option.textContent = style;
-      if (spec.legStyle === style) option.selected = true;
-      select.appendChild(option);
-    }
-    select.onchange = () => {
-      if (spec.kind === 'table') spec.legStyle = select.value as typeof spec.legStyle;
+    addSection(host, 'Construction', 'Leg shape and the skirt under the top.');
+    addSelect(host, 'Leg style', spec.legStyle, ['tapered', 'square', 'round'], (value) => {
+      if (spec.kind === 'table') spec.legStyle = value as typeof spec.legStyle;
       scheduleRebuild();
-    };
-    styleRow.appendChild(select);
-    host.appendChild(styleRow);
-
-    const apronRow = document.createElement('label');
-    apronRow.className = 'field-row';
-    apronRow.innerHTML = '<span>Apron</span>';
-    const check = document.createElement('input');
-    check.type = 'checkbox';
-    check.checked = spec.apron;
-    check.onchange = () => {
-      if (spec.kind === 'table') spec.apron = check.checked;
+    });
+    addCheck(host, 'Apron (skirt under the top)', spec.apron, (v) => {
+      if (spec.kind === 'table') spec.apron = v;
       scheduleRebuild();
-    };
-    apronRow.appendChild(check);
-    host.appendChild(apronRow);
+    });
   }
 
   if (spec.kind === 'bookshelf') {
-    const backRow = document.createElement('label');
-    backRow.className = 'field-row';
-    backRow.innerHTML = '<span>Back panel</span>';
-    const check = document.createElement('input');
-    check.type = 'checkbox';
-    check.checked = spec.backPanel;
-    check.onchange = () => {
-      if (spec.kind === 'bookshelf') spec.backPanel = check.checked;
+    addSection(host, 'Construction');
+    addCheck(host, 'Back panel', spec.backPanel, (v) => {
+      if (spec.kind === 'bookshelf') spec.backPanel = v;
       scheduleRebuild();
-    };
-    backRow.appendChild(check);
-    host.appendChild(backRow);
+    });
   }
 
   if (spec.kind === 'drawerbox') {
-    addSelect(host, 'Joinery', spec.joinery, ['dovetail', 'halfblind', 'boxjoint', 'dado'], (value) => {
+    addSection(
+      host,
+      'Joinery',
+      'Corner joints. Through dovetails show on the front; half-blind stops 1/16" shy of it for a clean show face.',
+    );
+    addSelect(host, 'Corner joint', spec.joinery, ['dovetail', 'halfblind', 'boxjoint', 'dado'], (value) => {
       if (spec.kind === 'drawerbox') spec.joinery = value as typeof spec.joinery;
       scheduleRebuild();
     });
-    const row = document.createElement('label');
-    row.className = 'field-row';
-    row.innerHTML = '<span>Finger scoop</span>';
-    const check = document.createElement('input');
-    check.type = 'checkbox';
-    check.checked = spec.scoop ?? false;
-    check.onchange = () => {
-      if (spec.kind === 'drawerbox') spec.scoop = check.checked;
+    addCheck(host, 'Finger scoop (front top edge)', spec.scoop ?? false, (v) => {
+      if (spec.kind === 'drawerbox') spec.scoop = v;
       scheduleRebuild();
-    };
-    row.appendChild(check);
-    host.appendChild(row);
+    });
   }
 
   if (spec.kind === 'door' || spec.kind === 'drawerfront') {
+    addSection(
+      host,
+      'Front construction',
+      'Slab, or a five-piece frame — stiles and rails around a panel. Cope & stick joins the frame with mating profiles; miter cuts it at 45°.',
+    );
     addSelect(host, 'Style', spec.style, ['shaker', 'raised', 'slab'], (value) => {
       if (spec.kind === 'door' || spec.kind === 'drawerfront') {
         spec.style = value as typeof spec.style;
@@ -246,8 +251,22 @@ function buildControls() {
       buildControls();
       scheduleRebuild();
     });
+    if (spec.style !== 'slab') {
+      addSelect(host, 'Frame joint', spec.frameJoint ?? 'cope', ['cope', 'miter'], (value) => {
+        if (spec.kind === 'door' || spec.kind === 'drawerfront') {
+          spec.frameJoint = value as typeof spec.frameJoint;
+        }
+        scheduleRebuild();
+      });
+    }
+
+    addSection(
+      host,
+      'Profiles',
+      'Cutter shapes: the raise on the panel, the stick pattern along the frame’s inner edge, and the detail around the door’s outer edge.',
+    );
     if (spec.style === 'raised') {
-      addSelect(host, 'Raise profile', spec.raiseProfile ?? 'cove', ['cove', 'ogee', 'bevel', 'roundover', 'stepcove', 'bevelstep', 'covebead', 'ogeebead'], (value) => {
+      addSelect(host, 'Raise profile (panel)', spec.raiseProfile ?? 'cove', ['cove', 'ogee', 'bevel', 'roundover', 'stepcove', 'bevelstep', 'covebead', 'ogeebead'], (value) => {
         if (spec.kind === 'door' || spec.kind === 'drawerfront') {
           spec.raiseProfile = value as typeof spec.raiseProfile;
         }
@@ -257,7 +276,7 @@ function buildControls() {
     if (spec.style !== 'slab') {
       addSelect(
         host,
-        'Edge pattern (inner)',
+        'Stick pattern (inner edge)',
         spec.edgeProfile ?? 'square',
         ['square', 'chamfer', 'bevel30', 'roundover', 'ogee', 'bead', 'cove', 'ovolo', 'step', 'thumbnail', 'fingerpull', 'classical'],
         (value) => {
@@ -280,88 +299,72 @@ function buildControls() {
         scheduleRebuild();
       },
     );
-    if (spec.style !== 'slab') {
-      addSelect(host, 'Frame joint', spec.frameJoint ?? 'cope', ['cope', 'miter'], (value) => {
-        if (spec.kind === 'door' || spec.kind === 'drawerfront') {
-          spec.frameJoint = value as typeof spec.frameJoint;
-        }
+
+    addSection(host, 'Options');
+    if (spec.kind === 'drawerfront' && spec.style === 'slab') {
+      addCheck(host, 'Finger pull (routed top edge)', spec.fingerPull ?? false, (v) => {
+        if (spec.kind === 'drawerfront') spec.fingerPull = v;
         scheduleRebuild();
       });
     }
-    if (spec.kind === 'drawerfront' && spec.style === 'slab') {
-      const row = document.createElement('label');
-      row.className = 'field-row';
-      row.innerHTML = '<span>Finger pull (top edge)</span>';
-      const check = document.createElement('input');
-      check.type = 'checkbox';
-      check.checked = spec.fingerPull ?? false;
-      check.onchange = () => {
-        if (spec.kind === 'drawerfront') spec.fingerPull = check.checked;
-        scheduleRebuild();
-      };
-      row.appendChild(check);
-      host.appendChild(row);
-    }
     if (spec.kind === 'door' && spec.style !== 'slab') {
-      const row = document.createElement('label');
-      row.className = 'field-row';
-      row.innerHTML = '<span>Glass panel</span>';
-      const check = document.createElement('input');
-      check.type = 'checkbox';
-      check.checked = spec.glassPanel ?? false;
-      check.onchange = () => {
-        if (spec.kind === 'door') spec.glassPanel = check.checked;
+      addCheck(host, 'Glass panel', spec.glassPanel ?? false, (v) => {
+        if (spec.kind === 'door') spec.glassPanel = v;
         scheduleRebuild();
-      };
-      row.appendChild(check);
-      host.appendChild(row);
+      });
     }
     if (spec.kind === 'door') {
-      const row = document.createElement('label');
-      row.className = 'field-row';
-      row.innerHTML = '<span>Hinge boring</span>';
-      const check = document.createElement('input');
-      check.type = 'checkbox';
-      check.checked = spec.hingeBoring;
-      check.onchange = () => {
-        if (spec.kind === 'door') spec.hingeBoring = check.checked;
+      addCheck(host, 'Hinge boring (euro hinges)', spec.hingeBoring, (v) => {
+        if (spec.kind === 'door') spec.hingeBoring = v;
         scheduleRebuild();
-      };
-      row.appendChild(check);
-      host.appendChild(row);
+      });
     }
   }
 
   if (spec.kind === 'drawerunit') {
-    addSelect(host, 'Case joinery', spec.caseJoinery ?? 'dovetail', ['dovetail', 'halfblind'], (value) => {
-      if (spec.kind === 'drawerunit') spec.caseJoinery = value as typeof spec.caseJoinery;
-      scheduleRebuild();
-    });
+    addSection(
+      host,
+      'Bank layout',
+      'Rows of drawers, and side-by-side columns separated by full-height dividers.',
+    );
+    renderSliders(host, [
+      { key: 'drawerCount', label: 'Drawers per column', min: 1, max: 6, step: 1 },
+      { key: 'columnCount', label: 'Columns', min: 1, max: 4, step: 1 },
+    ]);
     addSelect(host, 'Column divider', spec.columnDivider ?? 'setback', ['setback', 'flush'], (value) => {
       if (spec.kind === 'drawerunit') spec.columnDivider = value as typeof spec.columnDivider;
       scheduleRebuild();
     });
-    {
-      const row = document.createElement('label');
-      row.className = 'field-row';
-      row.innerHTML = '<span>Divider rails (between rows)</span>';
-      const check = document.createElement('input');
-      check.type = 'checkbox';
-      check.checked = spec.dividerRails ?? false;
-      check.onchange = () => {
-        if (spec.kind === 'drawerunit') spec.dividerRails = check.checked;
-        scheduleRebuild();
-      };
-      row.appendChild(check);
-      host.appendChild(row);
-    }
+    addCheck(host, 'Divider rails (between rows)', spec.dividerRails ?? false, (v) => {
+      if (spec.kind === 'drawerunit') spec.dividerRails = v;
+      scheduleRebuild();
+    });
+
+    addSection(
+      host,
+      'Carcass',
+      'Dovetailed case — tails on the sides, pins on the top and bottom. The opening bevel cuts a 45° chamfer around each opening and the front faces, and sets inset fronts back by the same amount.',
+    );
+    addSelect(host, 'Case joinery', spec.caseJoinery ?? 'dovetail', ['dovetail', 'halfblind'], (value) => {
+      if (spec.kind === 'drawerunit') spec.caseJoinery = value as typeof spec.caseJoinery;
+      scheduleRebuild();
+    });
+    renderSliders(host, [
+      { key: 'insideBevelMm', label: 'Opening bevel (mm, 0 = square)', min: 0, max: 8, step: 0.5 },
+    ]);
+
+    addSection(host, 'Drawer fronts', 'Inset fronts sit inside the openings; overlay fronts cover the case.');
+    addSelect(host, 'Front mount', spec.frontMount ?? 'overlay', ['overlay', 'inset'], (value) => {
+      if (spec.kind === 'drawerunit') spec.frontMount = value as typeof spec.frontMount;
+      scheduleRebuild();
+    });
     addSelect(host, 'Front style', spec.frontStyle, ['shaker', 'raised', 'slab'], (value) => {
       if (spec.kind === 'drawerunit') spec.frontStyle = value as typeof spec.frontStyle;
       buildControls();
       scheduleRebuild();
     });
     if (spec.frontStyle === 'raised') {
-      addSelect(host, 'Raise profile', spec.raiseProfile ?? 'cove', ['cove', 'ogee', 'bevel', 'roundover', 'stepcove', 'bevelstep', 'covebead', 'ogeebead'], (value) => {
+      addSelect(host, 'Raise profile (panel)', spec.raiseProfile ?? 'cove', ['cove', 'ogee', 'bevel', 'roundover', 'stepcove', 'bevelstep', 'covebead', 'ogeebead'], (value) => {
         if (spec.kind === 'drawerunit') spec.raiseProfile = value as typeof spec.raiseProfile;
         scheduleRebuild();
       });
@@ -383,27 +386,28 @@ function buildControls() {
       });
     }
     if (spec.frontStyle === 'slab') {
-      const row = document.createElement('label');
-      row.className = 'field-row';
-      row.innerHTML = '<span>Finger pull (top edges)</span>';
-      const check = document.createElement('input');
-      check.type = 'checkbox';
-      check.checked = spec.fingerPull ?? false;
-      check.onchange = () => {
-        if (spec.kind === 'drawerunit') spec.fingerPull = check.checked;
+      addCheck(host, 'Finger pull (routed top edges)', spec.fingerPull ?? false, (v) => {
+        if (spec.kind === 'drawerunit') spec.fingerPull = v;
         scheduleRebuild();
-      };
-      row.appendChild(check);
-      host.appendChild(row);
+      });
     }
-    addSelect(host, 'Front mount', spec.frontMount ?? 'overlay', ['overlay', 'inset'], (value) => {
-      if (spec.kind === 'drawerunit') spec.frontMount = value as typeof spec.frontMount;
-      scheduleRebuild();
-    });
+
+    addSection(host, 'Boxes & slides', 'Drawer boxes are through-dovetailed; slide type sets the box clearances.');
     addSelect(host, 'Slides', spec.slideType ?? 'sidemount', ['sidemount', 'undermount'], (value) => {
       if (spec.kind === 'drawerunit') spec.slideType = value as typeof spec.slideType;
       scheduleRebuild();
     });
+
+    addSection(
+      host,
+      'Preview — open a drawer',
+      'Pulls a drawer out in the render only; the cut list and build plan are unchanged.',
+    );
+    renderSliders(host, [
+      { key: 'openDrawer', label: 'Row (from bottom, 0 = closed)', min: 0, max: 6, step: 1 },
+      { key: 'openColumn', label: 'Column', min: 1, max: 4, step: 1 },
+      { key: 'openAmountMm', label: 'Pull-out (mm)', min: 0, max: 500, step: 10 },
+    ]);
   }
 }
 

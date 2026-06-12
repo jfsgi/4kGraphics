@@ -457,9 +457,6 @@ export function validateSpec(spec: FurnitureSpec): void {
         if (spec.frontMount !== 'inset') {
           throw new Error('drawerunit: insideBevelMm is an inset-front detail — set frontMount to "inset"');
         }
-        if (spec.frontStyle !== 'slab') {
-          throw new Error('drawerunit: insideBevelMm bevels slab fronts — set frontStyle to "slab"');
-        }
       }
       if (spec.openDrawer) {
         if (!Number.isInteger(spec.openDrawer) || spec.openDrawer < 0 || spec.openDrawer > spec.drawerCount) {
