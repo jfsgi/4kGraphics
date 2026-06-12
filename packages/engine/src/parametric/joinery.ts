@@ -131,15 +131,19 @@ export function tailsBoardGeometry(
   points.push([ziFront, height / 2]);
   // Top edge.
   points.push([-ziBack, height / 2]);
-  // Back toothed end, top to bottom (mirror of the front end).
-  for (const c of [...tailCenters].reverse()) {
-    const cy = yBottom + c;
-    points.push(
-      [-ziBack, cy + tailWide / 2 - flare],
-      [-zo, cy + tailWide / 2],
-      [-zo, cy - tailWide / 2],
-      [-ziBack, cy - tailWide / 2 + flare],
-    );
+  // Back toothed end, top to bottom (mirror of the front end). A zero
+  // backDepth leaves that end square (a case side that only joins at one
+  // end, like an end table's floor-running sides).
+  if (zo - ziBack > 1e-9) {
+    for (const c of [...tailCenters].reverse()) {
+      const cy = yBottom + c;
+      points.push(
+        [-ziBack, cy + tailWide / 2 - flare],
+        [-zo, cy + tailWide / 2],
+        [-zo, cy - tailWide / 2],
+        [-ziBack, cy - tailWide / 2 + flare],
+      );
+    }
   }
 
   const shape = new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y)));

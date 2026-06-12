@@ -283,7 +283,7 @@ function partGeometry(part: Part): THREE.BufferGeometry {
               // Builder extrusion sign of the inner face: world x = −extrude.
               (-(part.joinery.bevelInnerSign ?? 1)) as 1 | -1,
             )
-          : tailsBoardGeometry(w, d, h, joint, lapped, lapped);
+          : tailsBoardGeometry(w, d, h, joint, lapped, part.joinery.singleEnd ? 0 : lapped);
         if (jointed) {
           jointed.rotateX(-Math.PI / 2);
           return jointed;

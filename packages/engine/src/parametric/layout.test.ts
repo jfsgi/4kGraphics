@@ -8,6 +8,7 @@ import {
   defaultDrawerBoxSpec,
   defaultDrawerFrontSpec,
   defaultDrawerUnitSpec,
+  defaultEndTableSpec,
   defaultTableSpec,
   validateSpec,
 } from './spec.js';
@@ -253,6 +254,24 @@ describe('drawer box layout', () => {
     const frontsOpen = open.parts.filter((p) => p.name === 'Drawer front');
     expect(frontsOpen[1].positionMm[2] - frontsClosed[1].positionMm[2]).toBeCloseTo(200);
     expect(frontsOpen[0].positionMm[2]).toBeCloseTo(frontsClosed[0].positionMm[2]);
+  });
+
+  it('builds the coastal end table: dovetailed top, shelves, inset drawer', () => {
+    const spec = defaultEndTableSpec();
+    const layout = buildLayout(spec);
+    const sides = layout.parts.filter((p) => p.name === 'Side panel');
+    expect(sides).toHaveLength(2);
+    expect(sides[0].joinery?.role).toBe('tails');
+    expect(sides[0].joinery?.singleEnd).toBe(true);
+    const top = layout.parts.find((p) => p.name === 'Top')!;
+    expect(top.joinery?.role).toBe('pins');
+    expect(top.sizeMm[0]).toBe(spec.widthMm);
+    expect(layout.parts.some((p) => p.name === 'Middle shelf')).toBe(true);
+    expect(layout.parts.some((p) => p.name === 'Bottom shelf')).toBe(true);
+    const front = layout.parts.find((p) => p.name === 'Drawer front')!;
+    expect(front.positionMm[2] + front.sizeMm[2] / 2).toBeCloseTo(spec.depthMm / 2);
+    const boxSide = layout.parts.find((p) => p.name === 'Drawer side')!;
+    expect(boxSide.joinery?.type).toBe('dovetail');
   });
 
   it('laps the half-blind case at top and bottom', () => {

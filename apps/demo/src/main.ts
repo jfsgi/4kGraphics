@@ -31,6 +31,7 @@ const CATALOG: Array<{ kind: FurnitureKind; label: string }> = [
   { kind: 'door', label: 'Cabinet Door' },
   { kind: 'drawerfront', label: 'Drawer Front' },
   { kind: 'drawerunit', label: 'Drawer Unit' },
+  { kind: 'endtable', label: 'Coastal End Table' },
 ];
 
 function buildCatalog() {
@@ -106,6 +107,12 @@ const FIELDS: Record<FurnitureKind, NumberField[]> = {
     { key: 'widthMm', label: 'Width (mm)', min: 300, max: 2400 },
     { key: 'heightMm', label: 'Height (mm)', min: 300, max: 1500 },
     { key: 'depthMm', label: 'Depth (mm)', min: 350, max: 650 },
+  ],
+  endtable: [
+    { key: 'widthMm', label: 'Width (mm)', min: 350, max: 800 },
+    { key: 'heightMm', label: 'Height (mm)', min: 400, max: 800 },
+    { key: 'depthMm', label: 'Depth (mm)', min: 300, max: 600 },
+    { key: 'drawerHeightMm', label: 'Drawer height (mm)', min: 90, max: 220, step: 5 },
   ],
 };
 
@@ -319,6 +326,20 @@ function buildControls() {
         scheduleRebuild();
       });
     }
+  }
+
+  if (spec.kind === 'endtable') {
+    addSection(
+      host,
+      'Construction',
+      'Dovetailed case — tails on the floor-running sides, pins on the top. Inset drawer on side-mount slides over two open shelves.',
+    );
+    addSection(
+      host,
+      'Preview — open the drawer',
+      'Render only; the build plan is unchanged.',
+    );
+    renderSliders(host, [{ key: 'openMm', label: 'Pull-out (mm)', min: 0, max: 350, step: 10 }]);
   }
 
   if (spec.kind === 'drawerunit') {

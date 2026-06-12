@@ -99,6 +99,13 @@ the visible viewport size is irrelevant.
   openDrawer?: number,                          // pull a drawer open: row from bottom, 0 = closed
   openColumn?: number,                          // column of the open drawer (default 1)
   openAmountMm?: number }                       // pull-out distance (default 60% of box depth)
+
+// kind: 'endtable' — coastal end table: dovetailed case (tails on the
+// floor-running sides, pins on the top), inset drawer on side-mount
+// slides, two open shelves, open back
+{ kind, widthMm, depthMm, heightMm, stockThicknessMm,
+  drawerHeightMm, boxStockThicknessMm, bottomShelfLiftMm,
+  openMm?: number }                             // preview: pull the drawer open (0 = closed)
 ```
 
 Cut-list items and overall dimensions also carry fractional-inch strings
