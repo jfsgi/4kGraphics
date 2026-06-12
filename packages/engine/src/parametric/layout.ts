@@ -67,6 +67,8 @@ export interface Part {
     pinsOuterSign?: 1 | -1;
     /** Tails boards: half-blind front — tails stop this short of the show face. */
     frontLipMm?: number;
+    /** Tails boards: half-blind back — same lap at the −z end. */
+    backLipMm?: number;
     /** Pins boards: blind sockets with a solid lap this thick at the show face. */
     lipMm?: number;
     /**
@@ -426,14 +428,14 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
     parts.push({
       name: 'Drawer side',
       shape: 'box',
-      sizeMm: [t, h, halfblind ? d - lip : d],
-      positionMm: [sx * (w / 2 - t / 2), h / 2, halfblind ? -lip / 2 : 0],
+      sizeMm: [t, h, halfblind ? d - 2 * lip : d],
+      positionMm: [sx * (w / 2 - t / 2), h / 2, 0],
       role: 'structure',
       grainAxis: 'z',
       joinery: through
         ? { type: spec.joinery as 'dovetail' | 'boxjoint', role: 'tails', matingThicknessMm: t }
         : halfblind
-          ? { type: 'dovetail', role: 'tails', matingThicknessMm: t, frontLipMm: lip }
+          ? { type: 'dovetail', role: 'tails', matingThicknessMm: t, frontLipMm: lip, backLipMm: lip }
           : undefined,
     });
   }
@@ -460,8 +462,8 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
               role: 'pins',
               matingThicknessMm: t,
               pinsOuterSign: sz as 1 | -1,
-              // Blind sockets on the front only; the back stays through.
-              lipMm: sz > 0 ? lip : undefined,
+              // Blind sockets front and back — no joint breaks a show face.
+              lipMm: lip,
             }
           : undefined,
       scoop: sz > 0 ? scoop : undefined,
@@ -738,11 +740,17 @@ function endTableLayout(spec: EndTableSpec): FurnitureLayout {
     parts.push({
       name: 'Drawer side',
       shape: 'box',
-      sizeMm: [boxT, boxH, boxD - BOX_LIP],
-      positionMm: [sx * (boxW / 2 - boxT / 2), boxY0 + boxH / 2, boxZ - BOX_LIP / 2],
+      sizeMm: [boxT, boxH, boxD - 2 * BOX_LIP],
+      positionMm: [sx * (boxW / 2 - boxT / 2), boxY0 + boxH / 2, boxZ],
       role: 'structure',
       grainAxis: 'z',
-      joinery: { type: 'dovetail', role: 'tails', matingThicknessMm: boxT, frontLipMm: BOX_LIP },
+      joinery: {
+        type: 'dovetail',
+        role: 'tails',
+        matingThicknessMm: boxT,
+        frontLipMm: BOX_LIP,
+        backLipMm: BOX_LIP,
+      },
     });
   }
   for (const sz of [1, -1]) {
@@ -758,7 +766,7 @@ function endTableLayout(spec: EndTableSpec): FurnitureLayout {
         role: 'pins',
         matingThicknessMm: boxT,
         pinsOuterSign: sz as 1 | -1,
-        lipMm: sz > 0 ? BOX_LIP : undefined,
+        lipMm: BOX_LIP,
       },
     });
   }
@@ -965,11 +973,17 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
         parts.push({
           name: 'Drawer side',
           shape: 'box',
-          sizeMm: [boxT, boxH, boxD - BOX_LIP],
-          positionMm: [colCenter + sx * (boxW / 2 - boxT / 2), boxY0 + boxH / 2, boxZ - BOX_LIP / 2],
+          sizeMm: [boxT, boxH, boxD - 2 * BOX_LIP],
+          positionMm: [colCenter + sx * (boxW / 2 - boxT / 2), boxY0 + boxH / 2, boxZ],
           role: 'structure',
           grainAxis: 'z',
-          joinery: { type: 'dovetail', role: 'tails', matingThicknessMm: boxT, frontLipMm: BOX_LIP },
+          joinery: {
+            type: 'dovetail',
+            role: 'tails',
+            matingThicknessMm: boxT,
+            frontLipMm: BOX_LIP,
+            backLipMm: BOX_LIP,
+          },
         });
       }
       for (const sz of [1, -1]) {
@@ -985,7 +999,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
             role: 'pins',
             matingThicknessMm: boxT,
             pinsOuterSign: sz as 1 | -1,
-            lipMm: sz > 0 ? BOX_LIP : undefined,
+            lipMm: BOX_LIP,
           },
         });
       }

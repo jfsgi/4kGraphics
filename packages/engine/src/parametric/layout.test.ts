@@ -105,18 +105,19 @@ describe('drawer box layout', () => {
     expect(side.sizeMm[2]).toBe(spec.depthMm);
   });
 
-  it('builds the half-blind front with a 1/16" lap and a through back', () => {
+  it('laps the half-blind box at both the front and the back', () => {
     const spec = { ...defaultDrawerBoxSpec(), joinery: 'halfblind' as const };
     const layout = buildLayout(spec);
     const lip = 1.5875;
     const side = layout.parts.find((p) => p.name === 'Drawer side')!;
-    expect(side.sizeMm[2]).toBeCloseTo(spec.depthMm - lip);
+    expect(side.sizeMm[2]).toBeCloseTo(spec.depthMm - 2 * lip);
     expect(side.joinery?.frontLipMm).toBeCloseTo(lip);
+    expect(side.joinery?.backLipMm).toBeCloseTo(lip);
     const front = layout.parts.find((p) => p.name === 'Drawer front (box)')!;
     expect(front.joinery?.lipMm).toBeCloseTo(lip);
     expect(front.sizeMm[0]).toBe(spec.widthMm);
     const back = layout.parts.find((p) => p.name === 'Drawer back (box)')!;
-    expect(back.joinery?.lipMm).toBeUndefined();
+    expect(back.joinery?.lipMm).toBeCloseTo(lip);
   });
 
   it('marks the front with a scoop when requested', () => {
