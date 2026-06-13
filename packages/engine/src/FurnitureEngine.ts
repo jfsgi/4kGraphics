@@ -8,6 +8,7 @@ import { buildGroup } from './parametric/geometry.js';
 import { buildLayout, type FurnitureLayout } from './parametric/layout.js';
 import type { FurnitureSpec } from './parametric/spec.js';
 import { renderSnapshot, type SnapshotOptions } from './render/SnapshotRenderer.js';
+import { VERSION } from './version.js';
 
 export interface FurnitureEngineOptions {
   /** Element the engine's canvas is appended to (and sized against). */
@@ -27,6 +28,9 @@ export interface FurnitureEngineOptions {
  * generation for whatever is currently displayed.
  */
 export class FurnitureEngine {
+  /** Engine version (matches the package version of the loaded build). */
+  static readonly version = VERSION;
+  readonly version = VERSION;
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
   readonly renderer: THREE.WebGLRenderer;

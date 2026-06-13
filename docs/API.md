@@ -37,6 +37,10 @@ wheel to zoom) and follows container resizes automatically.
 | `listMaterials()` / `listParts()` / `listStains()` / `listLightingPresets()` | arrays | For building UIs |
 | `dispose()` | `void` | Release GL resources and detach |
 
+`engine.version` (and the exported `VERSION`, and `FurnitureEngine.version`)
+report the loaded build — handy for confirming which bundle is live. In the
+demo it shows in the header (`v0.13.x · build …`) and as `window.__4kg_version`.
+
 ### `renderSnapshot(options)`
 
 | Option | Default | |
@@ -206,7 +210,9 @@ npm run serve     # listens on PORT (default 8787)
 
 ### `GET /healthz`
 
-`{ "ok": true, "service": "4kgraphics-render", "version": "0.1.0" }`
+`{ "ok": true, "service": "4kgraphics-render", "version": "0.13.x" }` — the
+`version` is the live engine build. Renders also carry it in the
+`X-Engine-Version` response header (alongside `X-Render-Ms`).
 
 ### `POST /v1/render` → `image/png`
 

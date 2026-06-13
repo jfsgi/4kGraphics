@@ -29,7 +29,9 @@ const statusLine = document.getElementById('status-line')!;
 const engine = new FurnitureEngine({ container: viewport, textureSize: 4096 });
 
 document.getElementById('build-tag')!.textContent =
-  `build ${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}`;
+  `v${engine.version} · build ${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}`;
+// Also expose it for a quick console check: __4kg_version
+(globalThis as unknown as { __4kg_version?: string }).__4kg_version = engine.version;
 
 let spec: FurnitureSpec = defaultSpec('table');
 let showingImport = false;

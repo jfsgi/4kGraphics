@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
-import { generateBuildPlan, validateSpec, type FurnitureSpec } from '@4kgraphics/engine';
+import { generateBuildPlan, validateSpec, VERSION, type FurnitureSpec } from '@4kgraphics/engine';
 import { HeadlessRenderer, type RenderRequest } from './renderer.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -12,7 +12,7 @@ const app = express();
 app.use(express.json({ limit: '4mb' }));
 
 app.get('/healthz', (_req, res) => {
-  res.json({ ok: true, service: '4kgraphics-render', version: '0.1.0' });
+  res.json({ ok: true, service: '4kgraphics-render', version: VERSION });
 });
 
 /** Build plan generation is pure logic — no browser involved. */
@@ -48,6 +48,7 @@ app.post('/v1/render', async (req, res) => {
     res
       .type('image/png')
       .setHeader('X-Render-Ms', String(Date.now() - started))
+      .setHeader('X-Engine-Version', VERSION)
       .send(png);
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
