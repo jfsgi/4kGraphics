@@ -107,8 +107,11 @@ export interface Part {
   };
   /** Finger-scoop cutout on a board's top edge (drawer-box fronts). */
   scoop?: { widthMm: number; depthMm: number };
-  /** Undermount-slide notches cut into the two back corners of a bottom panel. */
-  notch?: { widthMm: number; depthMm: number };
+  /**
+   * Undermount-slide clearance slots cut through a pins board (drawer back),
+   * one near each bottom corner, sitting above the bottom panel.
+   */
+  backNotch?: { lengthMm: number; heightMm: number; bottomOffsetMm: number };
   /**
    * Finger-pull channel routed along the board's top edge (handle-less
    * slab fronts). The cut list keeps the part's nominal dimensions.
@@ -417,13 +420,19 @@ function cabinetLayout(spec: CabinetSpec): FurnitureLayout {
   return { spec, parts, overallMm: [w + 2 * topOverhang, h + t, d + topOverhang] };
 }
 
-/** Undermount notch height (into the bottom from the back edge): 1/2". */
+/** Undermount notch height (tall): 1/2". */
 const UNDERMOUNT_NOTCH_HEIGHT_MM = 12.7;
-/** Default undermount notch length (along the back edge): 1‑3/8". */
+/** Default undermount notch length (along the back board): 1‑3/8". */
 const UNDERMOUNT_NOTCH_LENGTH_MM = 34.925;
 
-function undermountNotch(lengthMm?: number) {
-  return { widthMm: lengthMm ?? UNDERMOUNT_NOTCH_LENGTH_MM, depthMm: UNDERMOUNT_NOTCH_HEIGHT_MM };
+/** Back-board clearance slot for undermount slides, clear of the bottom panel. */
+function undermountBackNotch(bottomThicknessMm: number, lengthMm?: number) {
+  return {
+    lengthMm: lengthMm ?? UNDERMOUNT_NOTCH_LENGTH_MM,
+    heightMm: UNDERMOUNT_NOTCH_HEIGHT_MM,
+    // Above the bottom panel (groove ~12 mm up) so it never touches the bottom.
+    bottomOffsetMm: 12 + bottomThicknessMm + 3,
+  };
 }
 
 function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
@@ -488,6 +497,11 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
             }
           : undefined,
       scoop: sz > 0 ? scoop : undefined,
+      // Undermount clearance slots go in the back board, above the bottom.
+      backNotch:
+        sz < 0 && spec.undermountNotches
+          ? undermountBackNotch(spec.bottomThicknessMm, spec.undermountNotchLengthMm)
+          : undefined,
     });
   }
   // Bottom rides in a groove ~12mm above the lower edge.
@@ -499,7 +513,6 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
     positionMm: [0, 12 + spec.bottomThicknessMm / 2, 0],
     role: 'panel',
     grainAxis: 'x',
-    notch: spec.undermountNotches ? undermountNotch(spec.undermountNotchLengthMm) : undefined,
   });
 
   return { spec, parts, overallMm: [w, h, d] };
@@ -1023,6 +1036,8 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
             pinsOuterSign: sz as 1 | -1,
             lipMm: BOX_LIP,
           },
+          // Undermount clearance slots go in the back board, above the bottom.
+          backNotch: sz < 0 && undermount ? undermountBackNotch(6) : undefined,
         });
       }
       parts.push({
@@ -1033,8 +1048,6 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
         positionMm: [colCenter, boxY0 + 12 + 3, boxZ],
         role: 'panel',
         grainAxis: 'x',
-        // Undermount slides need clearance notches in the bottom's back corners.
-        notch: undermount ? undermountNotch() : undefined,
       });
     }
   }

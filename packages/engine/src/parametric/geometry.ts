@@ -270,44 +270,8 @@ function bakePlyEdges(geometry: THREE.BufferGeometry, sizesM: number[]): void {
   geometry.setAttribute('ply', new THREE.BufferAttribute(ply, 2));
 }
 
-/**
- * A bottom panel with rectangular notches cut into its two back corners, for
- * undermount slide hardware (the locking devices reach up through them). The
- * panel lies in the XZ plane (thin in Y); the back edge is −Z.
- */
-function notchedBottomGeometry(
-  width: number,
-  thickness: number,
-  depth: number,
-  notchW: number,
-  notchDepth: number,
-): THREE.BufferGeometry {
-  const hw = width / 2;
-  const hd = depth / 2;
-  const nw = Math.min(notchW, width / 2 - 0.001);
-  const nd = Math.min(notchDepth, depth - 0.001);
-  const shape = new THREE.Shape();
-  shape.moveTo(-hw, hd); // front-left
-  shape.lineTo(hw, hd); // front-right
-  shape.lineTo(hw, -hd + nd); // down the right side to the notch
-  shape.lineTo(hw - nw, -hd + nd);
-  shape.lineTo(hw - nw, -hd); // back edge, right of the notch
-  shape.lineTo(-hw + nw, -hd); // across the back between notches
-  shape.lineTo(-hw + nw, -hd + nd);
-  shape.lineTo(-hw, -hd + nd); // out to the left side
-  shape.closePath();
-  const geometry = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
-  geometry.translate(0, 0, -thickness / 2);
-  geometry.rotateX(Math.PI / 2); // shape XZ-plane, extrude → +Y thickness
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
 function partGeometry(part: Part): THREE.BufferGeometry {
   const [w, h, d] = part.sizeMm.map((v) => v * MM_TO_M) as [number, number, number];
-  if (part.notch) {
-    return notchedBottomGeometry(w, h, d, part.notch.widthMm * MM_TO_M, part.notch.depthMm * MM_TO_M);
-  }
   if (part.fingerPullTop && part.shape === 'box') {
     return fingerPullFrontGeometry(
       w,
@@ -408,6 +372,14 @@ function partGeometry(part: Part): THREE.BufferGeometry {
             part.joinery.pinsOuterSign ?? 1,
             scoop,
             (part.joinery.lipMm ?? 0) * MM_TO_M,
+            0,
+            part.backNotch
+              ? {
+                  length: part.backNotch.lengthMm * MM_TO_M,
+                  height: part.backNotch.heightMm * MM_TO_M,
+                  bottom: part.backNotch.bottomOffsetMm * MM_TO_M,
+                }
+              : undefined,
           );
     if (jointed) return jointed;
   }

@@ -291,6 +291,11 @@ export function pinsBoardGeometry(
    * opening's inside front edge), ending at the joint baselines.
    */
   frontBevel = 0,
+  /**
+   * Undermount clearance slots through the body: one near each end, sitting
+   * `bottom` above the board's lower edge (so they clear the bottom panel).
+   */
+  notch?: { length: number; height: number; bottom: number },
 ): THREE.BufferGeometry | null {
   const joint = layoutJoint(height, spec);
   if (!joint) return null;
@@ -322,6 +327,33 @@ export function pinsBoardGeometry(
     body = new THREE.ExtrudeGeometry(shape, { depth: bodyLength, bevelEnabled: false });
     body.rotateY(Math.PI / 2);
     body.translate(-bodyLength / 2, 0, 0);
+  } else if (notch) {
+    // Board face in XY with two rectangular slots cut near the ends, sitting
+    // above the bottom edge; extruded through the thickness in Z.
+    const hb = bodyLength / 2;
+    const shape = new THREE.Shape();
+    shape.moveTo(-hb, yBottom);
+    shape.lineTo(hb, yBottom);
+    shape.lineTo(hb, height / 2);
+    shape.lineTo(-hb, height / 2);
+    shape.closePath();
+    const ny0 = yBottom + notch.bottom;
+    const ny1 = Math.min(ny0 + notch.height, height / 2 - 0.002);
+    const slotLen = Math.min(notch.length, hb - 0.004);
+    for (const sign of [1, -1]) {
+      const xOuter = sign * (hb - 0.002);
+      const xa = Math.min(xOuter, xOuter - sign * slotLen);
+      const xb = Math.max(xOuter, xOuter - sign * slotLen);
+      const hole = new THREE.Path();
+      hole.moveTo(xa, ny0);
+      hole.lineTo(xb, ny0);
+      hole.lineTo(xb, ny1);
+      hole.lineTo(xa, ny1);
+      hole.closePath();
+      shape.holes.push(hole);
+    }
+    body = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
+    body.translate(0, 0, -thickness / 2);
   } else {
     body = new THREE.BoxGeometry(bodyLength, height, thickness).toNonIndexed();
   }
