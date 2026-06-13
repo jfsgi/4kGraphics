@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@4kgraphics/engine": "0.13.19"
+    "@4kgraphics/engine": "0.13.20"
   },
   "devDependencies": {
     "typescript": "^5.6.0",
