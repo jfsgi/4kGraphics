@@ -5,6 +5,7 @@ import {
   caseSideTailsGeometry,
   pinsBoardGeometry,
   scoopedBoardGeometry,
+  slopedDrawerSideGeometry,
   tailsBoardGeometry,
 } from './joinery.js';
 import { profiledBoardGeometry } from './profiledBoard.js';
@@ -355,33 +356,70 @@ function partGeometry(part: Part): THREE.BufferGeometry {
         }
       }
     }
-    const jointed =
-      part.joinery.role === 'tails'
-        ? tailsBoardGeometry(
-            w,
-            h,
-            d,
-            joint,
-            part.joinery.frontLipMm ? joint.depth - part.joinery.frontLipMm * MM_TO_M : undefined,
-            part.joinery.backLipMm ? joint.depth - part.joinery.backLipMm * MM_TO_M : undefined,
-          )
-        : pinsBoardGeometry(
-            w,
-            h,
-            d,
-            joint,
-            part.joinery.pinsOuterSign ?? 1,
-            scoop,
-            (part.joinery.lipMm ?? 0) * MM_TO_M,
-            0,
-            part.backNotch
-              ? {
-                  length: part.backNotch.lengthMm * MM_TO_M,
-                  height: part.backNotch.heightMm * MM_TO_M,
-                }
-              : undefined,
-          );
-    if (jointed) return jointed;
+    // Board orientation: length runs along the grain. tailsBoardGeometry is
+    // built length-along-Z and pinsBoardGeometry length-along-X; when a board's
+    // grain runs the other way (e.g. tails on a drawer front, pins on a side),
+    // build it then rotate 90° about Y to land the length on the right axis.
+    const lenX = part.grainAxis === 'x';
+    const len = lenX ? w : d;
+    const thk = lenX ? d : w;
+    // Scooped-tray side: the top edge slopes from a low front to a full back.
+    if (part.slopedTop && part.joinery.role === 'pins') {
+      const jointed = slopedDrawerSideGeometry(
+        len,
+        part.slopedTop.frontHeightMm * MM_TO_M,
+        part.slopedTop.backHeightMm * MM_TO_M,
+        thk,
+        joint,
+        part.joinery.pinsOuterSign ?? 1,
+      );
+      if (jointed) {
+        if (!lenX) jointed.rotateY(Math.PI / 2); // native length X → world Z
+        return jointed;
+      }
+    }
+    if (part.joinery.role === 'tails') {
+      const jointed = tailsBoardGeometry(
+        thk,
+        h,
+        len,
+        joint,
+        part.joinery.frontLipMm ? joint.depth - part.joinery.frontLipMm * MM_TO_M : undefined,
+        part.joinery.backLipMm ? joint.depth - part.joinery.backLipMm * MM_TO_M : undefined,
+        scoop,
+        part.backNotch
+          ? {
+              length: part.backNotch.lengthMm * MM_TO_M,
+              height: part.backNotch.heightMm * MM_TO_M,
+            }
+          : undefined,
+      );
+      if (jointed) {
+        if (lenX) jointed.rotateY(Math.PI / 2); // native length Z → world X
+        return jointed;
+      }
+    } else {
+      const jointed = pinsBoardGeometry(
+        len,
+        h,
+        thk,
+        joint,
+        part.joinery.pinsOuterSign ?? 1,
+        scoop,
+        (part.joinery.lipMm ?? 0) * MM_TO_M,
+        0,
+        part.backNotch
+          ? {
+              length: part.backNotch.lengthMm * MM_TO_M,
+              height: part.backNotch.heightMm * MM_TO_M,
+            }
+          : undefined,
+      );
+      if (jointed) {
+        if (!lenX) jointed.rotateY(Math.PI / 2); // native length X → world Z
+        return jointed;
+      }
+    }
   }
   if (scoop && part.shape === 'box') {
     return scoopedBoardGeometry(w, h, d, scoop);

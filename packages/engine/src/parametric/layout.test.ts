@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildLayout } from './layout.js';
-import { pinsBoardGeometry, tailsBoardGeometry } from './joinery.js';
+import { pinsBoardGeometry, slopedDrawerSideGeometry, tailsBoardGeometry } from './joinery.js';
 import {
   defaultBookshelfSpec,
   defaultCabinetDoorSpec,
@@ -105,19 +105,22 @@ describe('drawer box layout', () => {
     expect(side.sizeMm[2]).toBe(spec.depthMm);
   });
 
-  it('laps the half-blind box at both the front and the back', () => {
+  it('laps the half-blind box: pins on the sides, tails on the front and back', () => {
     const spec = { ...defaultDrawerBoxSpec(), joinery: 'halfblind' as const };
     const layout = buildLayout(spec);
     const lip = 1.5875;
+    // MEJA convention: sides carry the (blind) pins; front/back carry the tails.
     const side = layout.parts.find((p) => p.name === 'Drawer side')!;
     expect(side.sizeMm[2]).toBeCloseTo(spec.depthMm - 2 * lip);
-    expect(side.joinery?.frontLipMm).toBeCloseTo(lip);
-    expect(side.joinery?.backLipMm).toBeCloseTo(lip);
+    expect(side.joinery?.role).toBe('pins');
+    expect(side.joinery?.lipMm).toBeCloseTo(lip);
     const front = layout.parts.find((p) => p.name === 'Drawer front (box)')!;
-    expect(front.joinery?.lipMm).toBeCloseTo(lip);
+    expect(front.joinery?.role).toBe('tails');
+    expect(front.joinery?.frontLipMm).toBeCloseTo(lip);
+    expect(front.joinery?.backLipMm).toBeCloseTo(lip);
     expect(front.sizeMm[0]).toBe(spec.widthMm);
     const back = layout.parts.find((p) => p.name === 'Drawer back (box)')!;
-    expect(back.joinery?.lipMm).toBeCloseTo(lip);
+    expect(back.joinery?.role).toBe('tails');
   });
 
   it('marks the front with a scoop when requested', () => {
@@ -126,6 +129,43 @@ describe('drawer box layout', () => {
     expect(front.scoop).toBeDefined();
     const back = layout.parts.find((p) => p.name === 'Drawer back (box)')!;
     expect(back.scoop).toBeUndefined();
+  });
+
+  it('builds a scooped tray: low front, sides sloping up to a full back', () => {
+    const spec = {
+      ...defaultDrawerBoxSpec(),
+      joinery: 'halfblind' as const,
+      heightMm: 150,
+      scoopedSides: true,
+      scoopFrontHeightMm: 60,
+    };
+    const layout = buildLayout(spec);
+    const front = layout.parts.find((p) => p.name === 'Drawer front (box)')!;
+    const back = layout.parts.find((p) => p.name === 'Drawer back (box)')!;
+    const side = layout.parts.find((p) => p.name === 'Drawer side')!;
+    // The front is lowered and bottom-aligned; the back stays full height.
+    expect(front.sizeMm[1]).toBe(60);
+    expect(front.positionMm[1]).toBe(30);
+    expect(back.sizeMm[1]).toBe(150);
+    // Sides keep full height but carry the slope from the low front to the back.
+    expect(side.sizeMm[1]).toBe(150);
+    expect(side.slopedTop).toEqual({ frontHeightMm: 60, backHeightMm: 150 });
+    // Scooped trays are through-dovetailed (no half-blind lap); front/back tails.
+    expect(side.joinery?.role).toBe('pins');
+    expect(side.joinery?.lipMm).toBeUndefined();
+    expect(side.sizeMm[2]).toBe(spec.depthMm);
+    expect(front.joinery?.role).toBe('tails');
+    expect(front.joinery?.frontLipMm).toBeUndefined();
+  });
+
+  it('renders a sloped drawer side with pins at both ends', () => {
+    const joint = { type: 'dovetail' as const, depth: 0.013, edgeTails: true };
+    const sloped = slopedDrawerSideGeometry(0.42, 0.06, 0.15, 0.013, joint, 1);
+    expect(sloped).not.toBeNull();
+    expect(sloped!.attributes.position.count).toBeGreaterThan(100);
+    sloped!.computeBoundingBox();
+    // Centered on the full height; the back end reaches the full half-height.
+    expect(sloped!.boundingBox!.max.y).toBeCloseTo(0.075, 5);
   });
 
   it('generates real dovetail geometry for both joint boards', () => {

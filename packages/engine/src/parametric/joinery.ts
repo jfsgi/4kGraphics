@@ -38,35 +38,32 @@ export interface ScoopSpec {
 }
 
 /**
- * Board outline in the (x, y) plane with the MEJA pull cutout in the top
- * edge, as a centered extrusion along z. Digitized from the shop's
- * to-scale drawing (15×3 front): the opening's flanks run 30° from
- * vertical, blended by arcs of radius 5/6 × depth at the top edge and
- * into the flat bottom — all tangent-continuous, like the router
- * template. `scoop.width` is the opening width at the top edge.
+ * The MEJA finger-pull cutout as a top-edge profile: the points run from
+ * the right top corner `(rightX, top)`, down into the centered opening, across
+ * its flat bottom, and back up to the left top corner `(leftX, top)`.
+ * Digitized from the shop's to-scale drawing (15×3 front): the opening's
+ * flanks run 30° from vertical, blended by arcs of radius 5/6 × depth at the
+ * top edge and into the flat bottom — all tangent-continuous, like the router
+ * template. `scoop.width` is the opening width at the top edge; the cutout is
+ * centered on x = 0 and `maxDepth` caps how deep it can dip.
  */
-export function scoopedBoardGeometry(
-  length: number,
-  height: number,
-  thickness: number,
+function scoopTopProfile(
+  rightX: number,
+  leftX: number,
+  top: number,
   scoop: ScoopSpec,
-): THREE.BufferGeometry {
-  const depth = Math.min(scoop.depth, height * 0.6);
+  maxDepth: number,
+): THREE.Vector2[] {
+  const depth = Math.min(scoop.depth, maxDepth);
   const r = (depth * 5) / 6;
   const flankRun = (depth - r) * Math.tan(Math.PI / 6);
   const sideRun = 2 * r * Math.sin(Math.PI / 3) + flankRun;
   // Keep a flat bottom: clamp the opening between the geometric minimum
-  // and what fits on the board.
-  const width = Math.max(2 * sideRun + 0.01, Math.min(scoop.width, length * 0.9));
+  // and what fits between the shoulders.
+  const width = Math.max(2 * sideRun + 0.01, Math.min(scoop.width, (rightX - leftX) * 0.9));
   const half = width / 2;
-  const top = height / 2;
 
-  const pts: THREE.Vector2[] = [
-    new THREE.Vector2(-length / 2, -height / 2),
-    new THREE.Vector2(length / 2, -height / 2),
-    new THREE.Vector2(length / 2, top),
-  ];
-  // Right side of the cutout, entering from the top edge (x decreasing).
+  const pts: THREE.Vector2[] = [new THREE.Vector2(rightX, top)];
   const arc = (cx: number, cy: number, a0: number, a1: number, segments = 10) => {
     for (let i = 1; i <= segments; i++) {
       const a = a0 + ((a1 - a0) * i) / segments;
@@ -74,7 +71,7 @@ export function scoopedBoardGeometry(
     }
   };
   const sin60 = Math.sin(Math.PI / 3);
-  // Entry roundover: tangent to the top edge, sweeping 60°.
+  // Right shoulder, then the entry roundover tangent to the top edge (60°).
   pts.push(new THREE.Vector2(half, top));
   arc(half, top - r, Math.PI / 2, Math.PI / 2 + Math.PI / 3);
   // 30°-from-vertical flank (straight), then the fillet into the flat.
@@ -91,8 +88,26 @@ export function scoopedBoardGeometry(
   pts.push(new THREE.Vector2(-(flankTopX - flankRun), top - r / 2 - (depth - r)));
   pts.push(new THREE.Vector2(-flankTopX, top - r / 2));
   arc(-half, top - r, Math.PI / 2 - Math.PI / 3, Math.PI / 2);
-  pts.push(new THREE.Vector2(-length / 2, top));
+  pts.push(new THREE.Vector2(leftX, top));
+  return pts;
+}
 
+/**
+ * Board outline in the (x, y) plane with the MEJA pull cutout in the top
+ * edge, as a centered extrusion along z.
+ */
+export function scoopedBoardGeometry(
+  length: number,
+  height: number,
+  thickness: number,
+  scoop: ScoopSpec,
+): THREE.BufferGeometry {
+  const top = height / 2;
+  const pts: THREE.Vector2[] = [
+    new THREE.Vector2(-length / 2, -height / 2),
+    new THREE.Vector2(length / 2, -height / 2),
+    ...scoopTopProfile(length / 2, -length / 2, top, scoop, height * 0.6),
+  ];
   const shape = new THREE.Shape(pts);
   const geometry = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
   geometry.translate(0, 0, -thickness / 2);
@@ -192,7 +207,10 @@ function layoutJoint(height: number, spec: JointSpec): JointLayout | null {
  * orientation — or null when the board is too small for the joint.
  * `frontDepth` shortens the +z end's engagement (half-blind: the tails
  * stop at the lap, depth = mating stock − lip); `backDepth` does the same
- * for the −z end (half-blind case corners at both ends).
+ * for the −z end (half-blind case corners at both ends). `scoop` cuts the
+ * MEJA finger pull into the top edge; `notch` cuts undermount-clearance bites
+ * up from the bottom edge near each end (drawer fronts/backs carry the tails
+ * in MEJA boxes, so these details live here rather than on the pins board).
  */
 export function tailsBoardGeometry(
   thickness: number,
@@ -201,6 +219,8 @@ export function tailsBoardGeometry(
   spec: JointSpec,
   frontDepth?: number,
   backDepth?: number,
+  scoop?: ScoopSpec,
+  notch?: { length: number; height: number },
 ): THREE.BufferGeometry | null {
   const joint = layoutJoint(height, spec);
   if (!joint) return null;
@@ -224,15 +244,36 @@ export function tailsBoardGeometry(
 
   const points: Array<[number, number]> = [];
   points.push([-ziBack, yBottom]);
-  // Bottom edge: a baseline (pin) unless the first tail runs to the edge.
-  if (!(segs.length && segs[0].y0 <= yBottom + eps)) points.push([ziFront, yBottom]);
+  // Bottom edge: a baseline (pin) unless the first tail runs to the edge,
+  // detoured up and over a clearance notch near each end when requested.
+  if (notch) {
+    const nh = Math.min(notch.height, height - 0.004);
+    const nl = Math.min(notch.length, (ziFront + ziBack) / 2 - 0.004);
+    points.push(
+      [-ziBack, yBottom + nh],
+      [-ziBack + nl, yBottom + nh],
+      [-ziBack + nl, yBottom],
+      [ziFront - nl, yBottom],
+      [ziFront - nl, yBottom + nh],
+      [ziFront, yBottom + nh],
+      [ziFront, yBottom],
+    );
+  } else if (!(segs.length && segs[0].y0 <= yBottom + eps)) {
+    points.push([ziFront, yBottom]);
+  }
   // Front (+z) toothed end, bottom to top.
   for (const { y0, y1, f0, f1 } of segs) {
     points.push([ziFront, y0 + f0], [zo, y0], [zo, y1], [ziFront, y1 - f1]);
   }
   if (!(segs.length && segs[segs.length - 1].y1 >= yTop - eps)) points.push([ziFront, yTop]);
-  // Top edge.
-  points.push([-ziBack, yTop]);
+  // Top edge — straight, or detoured through the finger-pull cutout.
+  if (scoop) {
+    for (const v of scoopTopProfile(ziFront, -ziBack, yTop, scoop, height * 0.5)) {
+      points.push([v.x, v.y]);
+    }
+  } else {
+    points.push([-ziBack, yTop]);
+  }
   // Back toothed end, top to bottom (mirror of the front end). A zero
   // backDepth leaves that end square (a case side that only joins at one
   // end, like an end table's floor-running sides).
@@ -573,4 +614,127 @@ export function pinsBoardGeometry(
   const merged = mergeGeometries(pieces, false);
   for (const piece of pieces) piece.dispose();
   return merged!;
+}
+
+/** Pin gaps (y-spans between the tails) for a joint layout measured from `yBottom`. */
+function pinGapsFromLayout(
+  joint: JointLayout,
+  height: number,
+  yBottom: number,
+): Array<[number, number, boolean, boolean]> {
+  const gaps: Array<[number, number, boolean, boolean]> = [];
+  if (joint.pinSegs) {
+    const eps = 1e-6;
+    for (const [a, b] of joint.pinSegs) {
+      gaps.push([yBottom + a, yBottom + b, a <= eps, b >= height - eps]);
+    }
+  } else {
+    let cursor = yBottom;
+    for (const c of joint.tailCenters) {
+      const tailBottom = yBottom + c - joint.tailWide / 2;
+      gaps.push([cursor, tailBottom, cursor === yBottom, false]);
+      cursor = yBottom + c + joint.tailWide / 2;
+    }
+    gaps.push([cursor, yBottom + height, false, true]);
+  }
+  return gaps;
+}
+
+/** Pin prisms filling the gaps at one end of a pins board (length along X). */
+function endPinPrisms(
+  gaps: Array<[number, number, boolean, boolean]>,
+  endSign: 1 | -1,
+  length: number,
+  depth: number,
+  zTip: number,
+  zInner: number,
+  flare: number,
+): THREE.BufferGeometry[] {
+  const out: THREE.BufferGeometry[] = [];
+  for (const [g0, g1, atBottom, atTop] of gaps) {
+    const f0 = atBottom ? 0 : flare;
+    const f1 = atTop ? 0 : flare;
+    // rotateY(π/2) maps shape (sx, sy, extrude) → world (extrude, sy, −sx).
+    const shape = new THREE.Shape([
+      new THREE.Vector2(-zTip, g0),
+      new THREE.Vector2(-zTip, g1),
+      new THREE.Vector2(-zInner, g1 + f1),
+      new THREE.Vector2(-zInner, g0 - f0),
+    ]);
+    const prism = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
+    prism.rotateY(Math.PI / 2);
+    prism.translate(endSign > 0 ? length / 2 - depth : -length / 2, 0, 0);
+    out.push(prism);
+  }
+  return out;
+}
+
+/**
+ * Scooped (letter-tray) drawer side: a pins board whose top edge slopes from a
+ * low front up to a full-height back. Built length-along-X (front at −X, back
+ * at +X), centered on the full height, so the caller rotates it like any pins
+ * board. The pins at each end size to that end's height, mating the low front
+ * and the full back independently. Returns null when the board is too small.
+ */
+export function slopedDrawerSideGeometry(
+  length: number,
+  frontHeight: number,
+  backHeight: number,
+  thickness: number,
+  spec: JointSpec,
+  outerSign: 1 | -1,
+): THREE.BufferGeometry | null {
+  const fullH = Math.max(frontHeight, backHeight);
+  const yBottom = -fullH / 2;
+  const bodyLength = length - 2 * spec.depth;
+  if (bodyLength <= 0) return null;
+  const frontLayout = layoutJoint(frontHeight, spec);
+  const backLayout = layoutJoint(backHeight, spec);
+
+  // Body: flat bottom, top sloping from the low front (−X) to the full back (+X).
+  const hb = bodyLength / 2;
+  const body = new THREE.ExtrudeGeometry(
+    new THREE.Shape([
+      new THREE.Vector2(-hb, yBottom),
+      new THREE.Vector2(hb, yBottom),
+      new THREE.Vector2(hb, yBottom + backHeight),
+      new THREE.Vector2(-hb, yBottom + frontHeight),
+    ]),
+    { depth: thickness, bevelEnabled: false },
+  );
+  body.translate(0, 0, -thickness / 2);
+  const pieces: THREE.BufferGeometry[] = [body];
+
+  const zOuter = (thickness / 2) * outerSign;
+  const zInner = -zOuter;
+  if (frontLayout) {
+    pieces.push(
+      ...endPinPrisms(
+        pinGapsFromLayout(frontLayout, frontHeight, yBottom),
+        -1,
+        length,
+        spec.depth,
+        zOuter,
+        zInner,
+        frontLayout.flare,
+      ),
+    );
+  }
+  if (backLayout) {
+    pieces.push(
+      ...endPinPrisms(
+        pinGapsFromLayout(backLayout, backHeight, yBottom),
+        1,
+        length,
+        spec.depth,
+        zOuter,
+        zInner,
+        backLayout.flare,
+      ),
+    );
+  }
+
+  const merged = mergeGeometries(pieces, false);
+  for (const piece of pieces) piece.dispose();
+  return merged;
 }

@@ -306,6 +306,35 @@ function buildControls() {
         scheduleRebuild();
       });
     }
+    addSection(
+      host,
+      'Profile',
+      'A scooped (letter-tray) box: a low front with the sides sloping up to the full-height back. Always through-dovetailed.',
+    );
+    addCheck(host, 'Scooped sides (low front, sloped to the back)', spec.scoopedSides ?? false, (v) => {
+      if (spec.kind === 'drawerbox') spec.scoopedSides = v;
+      scheduleRebuild();
+    });
+    if (spec.scoopedSides) {
+      const row = document.createElement('label');
+      row.className = 'slider-row';
+      const cur = spec.scoopFrontHeightMm ?? Math.round(spec.heightMm * 0.42);
+      const disp = (v: number) => `${v} · ${formatInches(v)}`;
+      row.innerHTML = `<span>Front height (mm)</span><output>${disp(cur)}</output>`;
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = String(Math.max(20, spec.stockThicknessMm + 18));
+      input.max = String(spec.heightMm - 5);
+      input.step = '5';
+      input.value = String(cur);
+      input.oninput = () => {
+        if (spec.kind === 'drawerbox') spec.scoopFrontHeightMm = Number(input.value);
+        row.querySelector('output')!.textContent = disp(Number(input.value));
+        scheduleRebuild();
+      };
+      row.appendChild(input);
+      host.appendChild(row);
+    }
   }
 
   if (spec.kind === 'door' || spec.kind === 'drawerfront') {

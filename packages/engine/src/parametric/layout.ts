@@ -115,6 +115,12 @@ export interface Part {
    */
   backNotch?: { lengthMm: number; heightMm: number };
   /**
+   * Scooped (letter-tray) drawer side: the board's top edge slopes from a low
+   * front to a full-height back. `frontHeightMm` is the height at the front
+   * (+z) end; `backHeightMm` the full height at the back.
+   */
+  slopedTop?: { frontHeightMm: number; backHeightMm: number };
+  /**
    * Finger-pull channel routed along the board's top edge (handle-less
    * slab fronts). The cut list keeps the part's nominal dimensions.
    */
@@ -435,17 +441,25 @@ function undermountBackNotch(lengthMm?: number) {
 function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   const parts: Part[] = [];
   const { widthMm: w, depthMm: d, heightMm: h, stockThicknessMm: t } = spec;
-  const halfblind = spec.joinery === 'halfblind';
-  const through = spec.joinery === 'dovetail' || spec.joinery === 'boxjoint';
+  // Scooped (letter-tray) boxes are through-dovetailed: a low front, sides
+  // sloping up to the full-height back. They never carry a half-blind lap.
+  const scoopedSides = spec.scoopedSides === true;
+  const frontH = scoopedSides
+    ? Math.max(t + 20, Math.min(h - 1, spec.scoopFrontHeightMm ?? Math.round(h * 0.42)))
+    : h;
+  const halfblind = !scoopedSides && spec.joinery === 'halfblind';
+  const through = scoopedSides || spec.joinery === 'dovetail' || spec.joinery === 'boxjoint';
   // Half-blind tails stop 1/16" short of the front face (clean show face);
   // from the side, the joint pattern ends at the lap line. The back corners
   // stay through-dovetailed, as jigs cut them.
   const lip = 1.5875;
   // Pull cutout per the shop drawing: 5.59" opening, 3/4" deep on a 15"
-  // front; narrower fronts scale the opening down.
-  const scoop = spec.scoop
-    ? { widthMm: Math.min(142, w * 0.38), depthMm: Math.min(19.05, h * 0.35) }
-    : undefined;
+  // front; narrower fronts scale the opening down. A scooped tray is its own
+  // pull, so the two never combine.
+  const scoop =
+    spec.scoop && !scoopedSides
+      ? { widthMm: Math.min(142, w * 0.38), depthMm: Math.min(19.05, h * 0.35) }
+      : undefined;
   // Dovetail pin count / cutter diameter, and the drawer half-tail edge
   // convention (half-tails top and bottom, pins inboard).
   const dt = {
@@ -454,6 +468,13 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
     edgeTails: true,
   };
 
+  // Through-jointed and scooped boxes use a plain 'dovetail'/'boxjoint' type;
+  // half-blind boxes are always dovetailed.
+  const jointType = (scoopedSides ? 'dovetail' : spec.joinery) as 'dovetail' | 'boxjoint';
+
+  // MEJA drawers: the FRONT & BACK carry the wide tails (with a half-tail at
+  // top and bottom), the SIDES carry the narrow pins. Scooped trays slope the
+  // sides' top edge from the low front up to the full-height back.
   for (const sx of [1, -1]) {
     parts.push({
       name: 'Drawer side',
@@ -463,28 +484,11 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
       role: 'structure',
       grainAxis: 'z',
       joinery: through
-        ? { type: spec.joinery as 'dovetail' | 'boxjoint', role: 'tails', matingThicknessMm: t, ...dt }
-        : halfblind
-          ? { type: 'dovetail', role: 'tails', matingThicknessMm: t, frontLipMm: lip, backLipMm: lip, ...dt }
-          : undefined,
-    });
-  }
-  for (const sz of [1, -1]) {
-    parts.push({
-      name: sz > 0 ? 'Drawer front (box)' : 'Drawer back (box)',
-      shape: 'box',
-      // Through-jointed and half-blind fronts/backs run the full width;
-      // dadoed ones sit between the sides.
-      sizeMm: [spec.joinery === 'dado' ? w - 2 * t : w, h, t],
-      positionMm: [0, h / 2, sz * (d / 2 - t / 2)],
-      role: 'structure',
-      grainAxis: 'x',
-      joinery: through
         ? {
-            type: spec.joinery as 'dovetail' | 'boxjoint',
+            type: jointType,
             role: 'pins',
             matingThicknessMm: t,
-            pinsOuterSign: sz as 1 | -1,
+            pinsOuterSign: sx as 1 | -1,
             ...dt,
           }
         : halfblind
@@ -492,13 +496,39 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
               type: 'dovetail',
               role: 'pins',
               matingThicknessMm: t,
-              pinsOuterSign: sz as 1 | -1,
-              // Blind sockets front and back — no joint breaks a show face.
+              pinsOuterSign: sx as 1 | -1,
               lipMm: lip,
               ...dt,
             }
           : undefined,
-      scoop: sz > 0 ? scoop : undefined,
+      slopedTop: scoopedSides ? { frontHeightMm: frontH, backHeightMm: h } : undefined,
+    });
+  }
+  for (const sz of [1, -1]) {
+    const isFront = sz > 0;
+    const boardH = isFront ? frontH : h;
+    parts.push({
+      name: isFront ? 'Drawer front (box)' : 'Drawer back (box)',
+      shape: 'box',
+      // Through-jointed and half-blind fronts/backs run the full width;
+      // dadoed ones sit between the sides. A scooped front is lower.
+      sizeMm: [spec.joinery === 'dado' ? w - 2 * t : w, boardH, t],
+      positionMm: [0, boardH / 2, sz * (d / 2 - t / 2)],
+      role: 'structure',
+      grainAxis: 'x',
+      joinery: through
+        ? { type: jointType, role: 'tails', matingThicknessMm: t, ...dt }
+        : halfblind
+          ? {
+              type: 'dovetail',
+              role: 'tails',
+              matingThicknessMm: t,
+              frontLipMm: lip,
+              backLipMm: lip,
+              ...dt,
+            }
+          : undefined,
+      scoop: isFront ? scoop : undefined,
       // Undermount clearance notches in the back board, under the bottom panel.
       backNotch:
         sz < 0 && spec.undermountNotches

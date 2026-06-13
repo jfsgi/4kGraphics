@@ -90,6 +90,13 @@ export interface DrawerBoxSpec {
   joinery: DrawerJoinery;
   /** Finger-scoop cutout on the front's top edge. */
   scoop?: boolean;
+  /**
+   * Letter-tray profile: a low front with the sides sloping up to a
+   * full-height back. Always through-dovetailed; overrides half-blind.
+   */
+  scoopedSides?: boolean;
+  /** Low-front height for scoopedSides (default ≈ 42% of heightMm). */
+  scoopFrontHeightMm?: number;
   /** Notches in the back corners of the bottom for undermount slide hardware. */
   undermountNotches?: boolean;
   /** Notch length in mm — typically 1‑3/8" (34.925) or 2" (50.8); 1‑3/8" default. */
@@ -439,6 +446,14 @@ export function validateSpec(spec: FurnitureSpec): void {
       }
       if (spec.heightMm < 40) {
         throw new Error('drawerbox: heightMm must be at least 40mm');
+      }
+      if (spec.scoopedSides && spec.scoopFrontHeightMm !== undefined) {
+        if (spec.scoopFrontHeightMm < spec.stockThicknessMm + 18) {
+          throw new Error('drawerbox: scoopFrontHeightMm too low to hold the bottom panel');
+        }
+        if (spec.scoopFrontHeightMm >= spec.heightMm) {
+          throw new Error('drawerbox: scoopFrontHeightMm must be less than heightMm');
+        }
       }
       break;
     }
