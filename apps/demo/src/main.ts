@@ -270,6 +270,23 @@ function buildControls() {
       if (spec.kind === 'drawerbox') spec.joinery = value as typeof spec.joinery;
       scheduleRebuild();
     });
+    if (spec.joinery === 'dovetail' || spec.joinery === 'halfblind') {
+      const pinOpts = ['Auto', '3', '4', '5', '6', '7', '8'];
+      const pinCur = spec.dovetailPinCount ? String(spec.dovetailPinCount) : 'Auto';
+      addSelect(host, 'Pins per corner', pinCur, pinOpts, (value) => {
+        if (spec.kind === 'drawerbox') {
+          spec.dovetailPinCount = value === 'Auto' ? undefined : Number(value);
+        }
+        scheduleRebuild();
+      });
+      const tools: Record<string, number> = { '1/2"': 12.7, '5/8"': 15.875, '3/4"': 19.05 };
+      const toolMm = spec.dovetailToolDiameterMm;
+      const toolCur = Object.entries(tools).find(([, mm]) => mm === toolMm)?.[0] ?? '1/2"';
+      addSelect(host, 'Dovetail bit (min gap)', toolCur, Object.keys(tools), (value) => {
+        if (spec.kind === 'drawerbox') spec.dovetailToolDiameterMm = tools[value];
+        scheduleRebuild();
+      });
+    }
     addCheck(host, 'Finger scoop (front top edge)', spec.scoop ?? false, (v) => {
       if (spec.kind === 'drawerbox') spec.scoop = v;
       scheduleRebuild();
@@ -278,6 +295,15 @@ function buildControls() {
       if (spec.kind === 'drawerbox') spec.undermountNotches = v;
       scheduleRebuild();
     });
+    if (spec.undermountNotches) {
+      const lengths: Record<string, number> = { '1-3/8"': 34.925, '2"': 50.8 };
+      const notchMm = spec.undermountNotchLengthMm ?? 34.925;
+      const current = Object.entries(lengths).find(([, mm]) => mm === notchMm)?.[0] ?? '1-3/8"';
+      addSelect(host, 'Notch length', current, Object.keys(lengths), (value) => {
+        if (spec.kind === 'drawerbox') spec.undermountNotchLengthMm = lengths[value];
+        scheduleRebuild();
+      });
+    }
   }
 
   if (spec.kind === 'door' || spec.kind === 'drawerfront') {

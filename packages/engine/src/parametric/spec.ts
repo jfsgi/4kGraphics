@@ -92,6 +92,12 @@ export interface DrawerBoxSpec {
   scoop?: boolean;
   /** Notches in the back corners of the bottom for undermount slide hardware. */
   undermountNotches?: boolean;
+  /** Notch length in mm — typically 1‑3/8" (34.925) or 2" (50.8); 1‑3/8" default. */
+  undermountNotchLengthMm?: number;
+  /** Dovetail pins per corner (≥2). Auto-spaced when unset; clamped to the tool. */
+  dovetailPinCount?: number;
+  /** Dovetail bit diameter in mm (min tail opening) — e.g. 12.7 / 15.875 / 19.05. */
+  dovetailToolDiameterMm?: number;
 }
 
 /** A cabinet door: slab, or five-piece shaker with a floating panel. */

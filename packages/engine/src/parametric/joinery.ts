@@ -22,6 +22,10 @@ export interface JointSpec {
   type: 'dovetail' | 'boxjoint';
   /** Joint depth = mating board thickness (m). */
   depth: number;
+  /** Desired pin count (≥2). Clamped down so the tool fits between tails. */
+  pinCount?: number;
+  /** Dovetail bit diameter (m) — the minimum tail opening between pins. */
+  toolDiameterM?: number;
 }
 
 export interface ScoopSpec {
@@ -107,12 +111,19 @@ interface JointLayout {
 function layoutJoint(height: number, spec: JointSpec): JointLayout | null {
   const flare = spec.type === 'dovetail' ? spec.depth * 0.17 : 0;
   const pinTip = Math.min(Math.max(spec.depth * 0.6, 0.006), 0.014);
-  let tailCount = Math.max(1, Math.floor(height / 0.045));
+  // The tail opening between pins can't be narrower than the cutter; that sets
+  // both the minimum tail and how many pins can fit.
+  const minTail = Math.max(spec.toolDiameterM ?? 0, pinTip * 1.2, 2 * flare + 0.004);
+  // Requested pin count (pins = tails + 1) or the automatic ~45 mm pitch.
+  let tailCount =
+    spec.pinCount && spec.pinCount >= 2
+      ? spec.pinCount - 1
+      : Math.max(1, Math.floor(height / 0.045));
   let tailWide = 0;
   while (tailCount >= 1) {
     tailWide = (height - (tailCount + 1) * pinTip) / tailCount;
-    if (tailWide >= Math.max(pinTip * 1.2, 2 * flare + 0.004)) break;
-    tailCount -= 1;
+    if (tailWide >= minTail) break;
+    tailCount -= 1; // too tight for the tool — drop a pin
   }
   if (tailCount < 1) return null; // board too small — caller falls back to a plain box
   const tailCenters: number[] = [];

@@ -84,6 +84,10 @@ export interface Part {
     bevelInnerSign?: 1 | -1;
     /** Case tails sides: teeth at the top end only (bottom end square). */
     singleEnd?: boolean;
+    /** Desired pin count (≥2). Clamped down if the tool can't fit the tails. */
+    pinCount?: number;
+    /** Dovetail bit diameter in mm — the minimum tail opening between pins. */
+    toolDiameterMm?: number;
   };
   /**
    * 45° chamfer between the front (+z) face and the listed side faces —
@@ -413,8 +417,14 @@ function cabinetLayout(spec: CabinetSpec): FurnitureLayout {
   return { spec, parts, overallMm: [w + 2 * topOverhang, h + t, d + topOverhang] };
 }
 
-/** Undermount slide notch in each back corner of the drawer bottom (~5/8"). */
-const UNDERMOUNT_NOTCH = { widthMm: 16, depthMm: 11 };
+/** Undermount notch height (into the bottom from the back edge): 1/2". */
+const UNDERMOUNT_NOTCH_HEIGHT_MM = 12.7;
+/** Default undermount notch length (along the back edge): 1‑3/8". */
+const UNDERMOUNT_NOTCH_LENGTH_MM = 34.925;
+
+function undermountNotch(lengthMm?: number) {
+  return { widthMm: lengthMm ?? UNDERMOUNT_NOTCH_LENGTH_MM, depthMm: UNDERMOUNT_NOTCH_HEIGHT_MM };
+}
 
 function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   const parts: Part[] = [];
@@ -430,6 +440,8 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   const scoop = spec.scoop
     ? { widthMm: Math.min(142, w * 0.38), depthMm: Math.min(19.05, h * 0.35) }
     : undefined;
+  // Dovetail pin count / cutter diameter (drives layoutJoint).
+  const dt = { pinCount: spec.dovetailPinCount, toolDiameterMm: spec.dovetailToolDiameterMm };
 
   for (const sx of [1, -1]) {
     parts.push({
@@ -440,9 +452,9 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
       role: 'structure',
       grainAxis: 'z',
       joinery: through
-        ? { type: spec.joinery as 'dovetail' | 'boxjoint', role: 'tails', matingThicknessMm: t }
+        ? { type: spec.joinery as 'dovetail' | 'boxjoint', role: 'tails', matingThicknessMm: t, ...dt }
         : halfblind
-          ? { type: 'dovetail', role: 'tails', matingThicknessMm: t, frontLipMm: lip, backLipMm: lip }
+          ? { type: 'dovetail', role: 'tails', matingThicknessMm: t, frontLipMm: lip, backLipMm: lip, ...dt }
           : undefined,
     });
   }
@@ -462,6 +474,7 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
             role: 'pins',
             matingThicknessMm: t,
             pinsOuterSign: sz as 1 | -1,
+            ...dt,
           }
         : halfblind
           ? {
@@ -471,6 +484,7 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
               pinsOuterSign: sz as 1 | -1,
               // Blind sockets front and back — no joint breaks a show face.
               lipMm: lip,
+              ...dt,
             }
           : undefined,
       scoop: sz > 0 ? scoop : undefined,
@@ -485,7 +499,7 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
     positionMm: [0, 12 + spec.bottomThicknessMm / 2, 0],
     role: 'panel',
     grainAxis: 'x',
-    notch: spec.undermountNotches ? UNDERMOUNT_NOTCH : undefined,
+    notch: spec.undermountNotches ? undermountNotch(spec.undermountNotchLengthMm) : undefined,
   });
 
   return { spec, parts, overallMm: [w, h, d] };
@@ -1020,7 +1034,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
         role: 'panel',
         grainAxis: 'x',
         // Undermount slides need clearance notches in the bottom's back corners.
-        notch: undermount ? UNDERMOUNT_NOTCH : undefined,
+        notch: undermount ? undermountNotch() : undefined,
       });
     }
   }
