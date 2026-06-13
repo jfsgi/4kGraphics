@@ -97,6 +97,11 @@ export interface DrawerBoxSpec {
   scoopedSides?: boolean;
   /** Low-front height for scoopedSides (default ≈ 42% of heightMm). */
   scoopFrontHeightMm?: number;
+  /**
+   * Length of the ogee sweep on the sides, measured back from the front
+   * (scoopedSides). Defaults to the full inner depth — the whole side curves.
+   */
+  scoopLengthMm?: number;
   /** Notches in the back corners of the bottom for undermount slide hardware. */
   undermountNotches?: boolean;
   /** Notch length in mm — typically 1‑3/8" (34.925) or 2" (50.8); 1‑3/8" default. */
@@ -454,6 +459,9 @@ export function validateSpec(spec: FurnitureSpec): void {
         if (spec.scoopFrontHeightMm >= spec.heightMm) {
           throw new Error('drawerbox: scoopFrontHeightMm must be less than heightMm');
         }
+      }
+      if (spec.scoopedSides && spec.scoopLengthMm !== undefined && spec.scoopLengthMm <= 0) {
+        throw new Error('drawerbox: scoopLengthMm must be a positive number');
       }
       break;
     }

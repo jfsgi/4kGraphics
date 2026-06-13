@@ -115,11 +115,12 @@ export interface Part {
    */
   backNotch?: { lengthMm: number; heightMm: number };
   /**
-   * Scooped (letter-tray) drawer side: the board's top edge slopes from a low
-   * front to a full-height back. `frontHeightMm` is the height at the front
-   * (+z) end; `backHeightMm` the full height at the back.
+   * Scooped (letter-tray) drawer side: the board's top edge sweeps from a low
+   * front up to a full-height back along an ogee. `frontHeightMm` is the height
+   * at the front (+z) end; `backHeightMm` the full height at the back;
+   * `scoopLengthMm` the run of the curved sweep, measured back from the front.
    */
-  slopedTop?: { frontHeightMm: number; backHeightMm: number };
+  slopedTop?: { frontHeightMm: number; backHeightMm: number; scoopLengthMm?: number };
   /**
    * Finger-pull channel routed along the board's top edge (handle-less
    * slab fronts). The cut list keeps the part's nominal dimensions.
@@ -447,6 +448,9 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   const frontH = scoopedSides
     ? Math.max(t + 20, Math.min(h - 1, spec.scoopFrontHeightMm ?? Math.round(h * 0.42)))
     : h;
+  // Length of the ogee sweep on the sides, measured back from the front.
+  // Defaults to the full inner depth (the curve runs the whole side).
+  const scoopRun = scoopedSides ? (spec.scoopLengthMm ?? d - 2 * t) : undefined;
   const halfblind = !scoopedSides && spec.joinery === 'halfblind';
   const through = scoopedSides || spec.joinery === 'dovetail' || spec.joinery === 'boxjoint';
   // Half-blind tails stop 1/16" short of the front face (clean show face);
@@ -501,7 +505,9 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
               ...dt,
             }
           : undefined,
-      slopedTop: scoopedSides ? { frontHeightMm: frontH, backHeightMm: h } : undefined,
+      slopedTop: scoopedSides
+        ? { frontHeightMm: frontH, backHeightMm: h, scoopLengthMm: scoopRun }
+        : undefined,
     });
   }
   for (const sz of [1, -1]) {

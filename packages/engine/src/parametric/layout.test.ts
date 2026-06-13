@@ -149,7 +149,10 @@ describe('drawer box layout', () => {
     expect(back.sizeMm[1]).toBe(150);
     // Sides keep full height but carry the slope from the low front to the back.
     expect(side.sizeMm[1]).toBe(150);
-    expect(side.slopedTop).toEqual({ frontHeightMm: 60, backHeightMm: 150 });
+    expect(side.slopedTop?.frontHeightMm).toBe(60);
+    expect(side.slopedTop?.backHeightMm).toBe(150);
+    // The ogee sweep defaults to the full inner depth (depth − 2 × stock).
+    expect(side.slopedTop?.scoopLengthMm).toBe(spec.depthMm - 2 * spec.stockThicknessMm);
     // Scooped trays are through-dovetailed (no half-blind lap); front/back tails.
     expect(side.joinery?.role).toBe('pins');
     expect(side.joinery?.lipMm).toBeUndefined();

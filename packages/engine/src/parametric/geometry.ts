@@ -372,6 +372,7 @@ function partGeometry(part: Part): THREE.BufferGeometry {
         thk,
         joint,
         part.joinery.pinsOuterSign ?? 1,
+        part.slopedTop.scoopLengthMm ? part.slopedTop.scoopLengthMm * MM_TO_M : undefined,
       );
       if (jointed) {
         if (!lenX) jointed.rotateY(Math.PI / 2); // native length X → world Z

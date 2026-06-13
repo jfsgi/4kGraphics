@@ -316,24 +316,49 @@ function buildControls() {
       scheduleRebuild();
     });
     if (spec.scoopedSides) {
-      const row = document.createElement('label');
-      row.className = 'slider-row';
-      const cur = spec.scoopFrontHeightMm ?? Math.round(spec.heightMm * 0.42);
       const disp = (v: number) => `${v} · ${formatInches(v)}`;
-      row.innerHTML = `<span>Front height (mm)</span><output>${disp(cur)}</output>`;
-      const input = document.createElement('input');
-      input.type = 'range';
-      input.min = String(Math.max(20, spec.stockThicknessMm + 18));
-      input.max = String(spec.heightMm - 5);
-      input.step = '5';
-      input.value = String(cur);
-      input.oninput = () => {
-        if (spec.kind === 'drawerbox') spec.scoopFrontHeightMm = Number(input.value);
-        row.querySelector('output')!.textContent = disp(Number(input.value));
-        scheduleRebuild();
+      const slider = (
+        label: string,
+        value: number,
+        min: number,
+        max: number,
+        set: (v: number) => void,
+      ) => {
+        const row = document.createElement('label');
+        row.className = 'slider-row';
+        row.innerHTML = `<span>${label}</span><output>${disp(value)}</output>`;
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.min = String(min);
+        input.max = String(max);
+        input.step = '5';
+        input.value = String(value);
+        input.oninput = () => {
+          set(Number(input.value));
+          row.querySelector('output')!.textContent = disp(Number(input.value));
+          scheduleRebuild();
+        };
+        row.appendChild(input);
+        host.appendChild(row);
       };
-      row.appendChild(input);
-      host.appendChild(row);
+      slider(
+        'Front height (mm)',
+        spec.scoopFrontHeightMm ?? Math.round(spec.heightMm * 0.42),
+        Math.max(20, spec.stockThicknessMm + 18),
+        spec.heightMm - 5,
+        (v) => {
+          if (spec.kind === 'drawerbox') spec.scoopFrontHeightMm = v;
+        },
+      );
+      slider(
+        'Scoop length from front (mm)',
+        spec.scoopLengthMm ?? spec.depthMm - 2 * spec.stockThicknessMm,
+        Math.round(spec.depthMm * 0.2),
+        spec.depthMm - 2 * spec.stockThicknessMm,
+        (v) => {
+          if (spec.kind === 'drawerbox') spec.scoopLengthMm = v;
+        },
+      );
     }
   }
 

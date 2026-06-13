@@ -670,11 +670,14 @@ function endPinPrisms(
 }
 
 /**
- * Scooped (letter-tray) drawer side: a pins board whose top edge slopes from a
- * low front up to a full-height back. Built length-along-X (front at −X, back
- * at +X), centered on the full height, so the caller rotates it like any pins
- * board. The pins at each end size to that end's height, mating the low front
- * and the full back independently. Returns null when the board is too small.
+ * Scooped (letter-tray) drawer side: a pins board whose top edge sweeps from a
+ * low front up to a full-height back along a cyma (ogee) curve. Built
+ * length-along-X (front at −X, back at +X), centered on the full height, so the
+ * caller rotates it like any pins board. The pins at each end size to that
+ * end's height, mating the low front and the full back independently.
+ * `scoopRun` is the horizontal length of the curved sweep, measured back from
+ * the front; beyond it the top edge runs flat at the full back height. Returns
+ * null when the board is too small.
  */
 export function slopedDrawerSideGeometry(
   length: number,
@@ -683,6 +686,7 @@ export function slopedDrawerSideGeometry(
   thickness: number,
   spec: JointSpec,
   outerSign: 1 | -1,
+  scoopRun?: number,
 ): THREE.BufferGeometry | null {
   const fullH = Math.max(frontHeight, backHeight);
   const yBottom = -fullH / 2;
@@ -691,15 +695,24 @@ export function slopedDrawerSideGeometry(
   const frontLayout = layoutJoint(frontHeight, spec);
   const backLayout = layoutJoint(backHeight, spec);
 
-  // Body: flat bottom, top sloping from the low front (−X) to the full back (+X).
+  // Body: flat bottom; the top sweeps from the low front (−X) up to the full
+  // back (+X) along an ogee. The curve runs `run` back from the front; the
+  // remainder to the back stays flat at full height.
   const hb = bodyLength / 2;
+  const topFront = yBottom + frontHeight;
+  const topBack = yBottom + backHeight;
+  const run = Math.min(Math.max(scoopRun ?? bodyLength, bodyLength * 0.15), bodyLength);
+  const curveStartX = -hb + run; // x where the sweep reaches full back height
+  const top: THREE.Vector2[] = [new THREE.Vector2(hb, topBack)];
+  if (curveStartX < hb - 1e-6) top.push(new THREE.Vector2(curveStartX, topBack));
+  const segs = 24;
+  for (let i = 1; i <= segs; i++) {
+    const u = i / segs; // 0 at the back of the sweep, 1 at the low front
+    const s = u * u * (3 - 2 * u); // smoothstep → ogee with flat tangents
+    top.push(new THREE.Vector2(curveStartX - run * u, topBack + (topFront - topBack) * s));
+  }
   const body = new THREE.ExtrudeGeometry(
-    new THREE.Shape([
-      new THREE.Vector2(-hb, yBottom),
-      new THREE.Vector2(hb, yBottom),
-      new THREE.Vector2(hb, yBottom + backHeight),
-      new THREE.Vector2(-hb, yBottom + frontHeight),
-    ]),
+    new THREE.Shape([new THREE.Vector2(-hb, yBottom), new THREE.Vector2(hb, yBottom), ...top]),
     { depth: thickness, bevelEnabled: false },
   );
   body.translate(0, 0, -thickness / 2);
