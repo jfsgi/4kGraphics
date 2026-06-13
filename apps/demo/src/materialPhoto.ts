@@ -10,8 +10,9 @@ export interface ProcessedPhoto {
   mapUrl: string;
   normalMapUrl: string;
   swatch: string;
-  /** width / height of the processed image. */
-  aspect: number;
+  /** True physical extents of the final (possibly rotated) image, in meters. */
+  widthM: number;
+  heightM: number;
 }
 
 export interface PhotoMeta {
@@ -21,6 +22,12 @@ export interface PhotoMeta {
   height: number;
   /** Dots per inch from the file's metadata, or null if it carries none. */
   dpi: number | null;
+  /**
+   * True when the grain lines run across the image's width (the common case
+   * for a board photo). The convention is grain along V, so such photos are
+   * rotated 90° on import.
+   */
+  grainHorizontal: boolean;
 }
 
 /** Largest map dimension we keep; photos above this are downsampled. */
@@ -84,7 +91,39 @@ function readDpi(buffer: ArrayBuffer): number | null {
   return null;
 }
 
-/** Loads a photo and reports its native resolution and DPI (for the dialog). */
+/**
+ * Estimates whether the grain runs horizontally. Grain lines are smooth along
+ * the grain and busy across it, so the axis with the larger summed gradient is
+ * across-grain: more vertical gradient ⇒ stacked horizontal lines ⇒ horizontal
+ * grain.
+ */
+function detectGrainHorizontal(image: HTMLImageElement): boolean {
+  const n = 160;
+  const w = Math.max(2, Math.min(n, image.naturalWidth));
+  const h = Math.max(2, Math.round((w * image.naturalHeight) / image.naturalWidth));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d')!;
+  ctx.drawImage(image, 0, 0, w, h);
+  const d = ctx.getImageData(0, 0, w, h).data;
+  const lum = (x: number, y: number) => {
+    const i = (y * w + x) * 4;
+    return 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  };
+  let gx = 0;
+  let gy = 0;
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      gx += Math.abs(lum(x + 1, y) - lum(x - 1, y));
+      gy += Math.abs(lum(x, y + 1) - lum(x, y - 1));
+    }
+  }
+  // Normalise by the number of samples along each axis so aspect doesn't bias.
+  return gy / h > gx / w;
+}
+
+/** Loads a photo and reports its native resolution, DPI, and grain direction. */
 export async function readPhotoMeta(file: File): Promise<PhotoMeta> {
   const buffer = await file.arrayBuffer();
   const dpi = readDpi(buffer);
@@ -94,6 +133,7 @@ export async function readPhotoMeta(file: File): Promise<PhotoMeta> {
     width: image.naturalWidth,
     height: image.naturalHeight,
     dpi: dpi && dpi > 1 ? Math.round(dpi) : null,
+    grainHorizontal: detectGrainHorizontal(image),
   };
 }
 
@@ -151,22 +191,38 @@ function deriveNormalMap(data: ImageData, w: number, h: number, strength = 2.2):
 /**
  * Builds the PBR maps from an already-loaded image. Keeps the source aspect
  * ratio and resolution, only downsampling when a side exceeds MAX_DIM (never
- * upscales — small photos stay crisp at their native size).
+ * upscales). When `rotate` is set the image is turned 90° so its grain runs
+ * along V (the texture convention); the returned physical extents follow the
+ * rotation so the material still renders at the photographed scale.
+ *
+ * `originalWidthM` is the real-world width of the photo as shot (its U extent).
  */
-export function buildMaterialMaps(meta: PhotoMeta): ProcessedPhoto {
+export function buildMaterialMaps(meta: PhotoMeta, originalWidthM: number, rotate: boolean): ProcessedPhoto {
   const scale = Math.min(1, MAX_DIM / Math.max(meta.width, meta.height));
   const w = Math.max(1, Math.round(meta.width * scale));
   const h = Math.max(1, Math.round(meta.height * scale));
+  const originalHeightM = (originalWidthM * h) / w;
+
   const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
   const ctx = canvas.getContext('2d')!;
-  ctx.drawImage(meta.image, 0, 0, w, h);
-  const data = ctx.getImageData(0, 0, w, h);
+  if (rotate) {
+    canvas.width = h;
+    canvas.height = w;
+    ctx.translate(h, 0);
+    ctx.rotate(Math.PI / 2);
+    ctx.drawImage(meta.image, 0, 0, w, h);
+  } else {
+    canvas.width = w;
+    canvas.height = h;
+    ctx.drawImage(meta.image, 0, 0, w, h);
+  }
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
   return {
     mapUrl: canvas.toDataURL('image/jpeg', 0.92),
-    normalMapUrl: deriveNormalMap(data, w, h),
+    normalMapUrl: deriveNormalMap(data, canvas.width, canvas.height),
     swatch: averageHex(data),
-    aspect: w / h,
+    // After a 90° turn the U/V physical extents swap.
+    widthM: rotate ? originalHeightM : originalWidthM,
+    heightM: rotate ? originalWidthM : originalHeightM,
   };
 }

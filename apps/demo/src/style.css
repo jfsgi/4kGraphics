@@ -475,6 +475,12 @@ select#part-select {
   margin: 10px 0 0;
   font-size: 11px;
 }
+.check-row {
+  color: var(--text);
+}
+.check-row input {
+  width: auto;
+}
 .width-input {
   width: 70px;
   padding: 7px 9px;

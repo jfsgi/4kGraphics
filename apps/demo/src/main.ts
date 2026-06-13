@@ -967,16 +967,15 @@ async function addMaterialPhoto(file: File): Promise<void> {
   if (!meta) return;
   toast(`Processing ${meta.name}…`, 0);
   try {
-    const processed = buildMaterialMaps(photo);
-    const widthM = meta.widthIn * 0.0254;
+    const processed = buildMaterialMaps(photo, meta.widthIn * 0.0254, meta.rotate);
     const material: StoredMaterial = {
       id: 'photo_' + newModelId(),
       label: meta.name,
       swatch: processed.swatch,
       mapUrl: processed.mapUrl,
       normalMapUrl: processed.normalMapUrl,
-      widthM,
-      heightM: widthM / processed.aspect,
+      widthM: processed.widthM,
+      heightM: processed.heightM,
       savedAt: Date.now(),
     };
     await putStoredMaterial(material);
@@ -1037,12 +1036,12 @@ async function renameMaterial(id: string, currentLabel: string): Promise<void> {
   toast(`Renamed to “${next}”`);
 }
 
-/** Name + photographed board width (inches) for a dropped material photo. */
+/** Name, photographed width, and grain orientation for a dropped material photo. */
 function askMaterialMeta(
   defaultName: string,
   photo: PhotoMeta,
   detectedWidthIn: number | null,
-): Promise<{ name: string; widthIn: number } | null> {
+): Promise<{ name: string; widthIn: number; rotate: boolean } | null> {
   return new Promise((resolve) => {
     const detected = photo.dpi
       ? `Detected ${photo.width}×${photo.height}px · ${photo.dpi} DPI → ${detectedWidthIn!.toFixed(1)}″ wide`
@@ -1057,6 +1056,10 @@ function askMaterialMeta(
         <label class="meta-row"><span>Photo width</span>
           <input type="number" class="width-input" min="1" max="120" step="0.25" /> in
         </label>
+        <label class="meta-row check-row">
+          <input type="checkbox" class="rotate-input" />
+          <span>Rotate grain 90° (run along part length)</span>
+        </label>
         <p class="muted detected-line">${detected}</p>
         <div class="name-actions">
           <button class="ghost" data-act="cancel">Cancel</button>
@@ -1065,16 +1068,19 @@ function askMaterialMeta(
       </div>`;
     const name = overlay.querySelector('.name-input') as HTMLInputElement;
     const width = overlay.querySelector('.width-input') as HTMLInputElement;
+    const rotate = overlay.querySelector('.rotate-input') as HTMLInputElement;
     name.value = defaultName;
     width.value = (detectedWidthIn ?? 6).toFixed(2).replace(/\.?0+$/, '');
+    // Default to rotating when the photo's grain runs across its width.
+    rotate.checked = photo.grainHorizontal;
     document.body.appendChild(overlay);
-    const close = (value: { name: string; widthIn: number } | null) => {
+    const close = (value: { name: string; widthIn: number; rotate: boolean } | null) => {
       overlay.remove();
       resolve(value);
     };
     const confirm = () => {
       const widthIn = Math.min(120, Math.max(1, parseFloat(width.value) || 6));
-      close({ name: name.value.trim() || defaultName, widthIn });
+      close({ name: name.value.trim() || defaultName, widthIn, rotate: rotate.checked });
     };
     overlay.querySelector('[data-act="ok"]')!.addEventListener('click', confirm);
     overlay.querySelector('[data-act="cancel"]')!.addEventListener('click', () => close(null));
