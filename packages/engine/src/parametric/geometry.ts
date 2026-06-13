@@ -309,6 +309,7 @@ function partGeometry(part: Part): THREE.BufferGeometry {
       depth: part.joinery.matingThicknessMm * MM_TO_M,
       pinCount: part.joinery.pinCount,
       toolDiameterM: part.joinery.toolDiameterMm ? part.joinery.toolDiameterMm * MM_TO_M : undefined,
+      edgeTails: part.joinery.edgeTails,
     };
     if (part.joinery.orient === 'case') {
       // Carcass framing: a side panel toothed at its top/bottom ends

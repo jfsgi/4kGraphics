@@ -88,6 +88,8 @@ export interface Part {
     pinCount?: number;
     /** Dovetail bit diameter in mm — the minimum tail opening between pins. */
     toolDiameterMm?: number;
+    /** Drawer convention: half-tails at the top/bottom edges (drops edge pins). */
+    edgeTails?: boolean;
   };
   /**
    * 45° chamfer between the front (+z) face and the listed side faces —
@@ -444,8 +446,13 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   const scoop = spec.scoop
     ? { widthMm: Math.min(142, w * 0.38), depthMm: Math.min(19.05, h * 0.35) }
     : undefined;
-  // Dovetail pin count / cutter diameter (drives layoutJoint).
-  const dt = { pinCount: spec.dovetailPinCount, toolDiameterMm: spec.dovetailToolDiameterMm };
+  // Dovetail pin count / cutter diameter, and the drawer half-tail edge
+  // convention (half-tails top and bottom, pins inboard).
+  const dt = {
+    pinCount: spec.dovetailPinCount,
+    toolDiameterMm: spec.dovetailToolDiameterMm,
+    edgeTails: true,
+  };
 
   for (const sx of [1, -1]) {
     parts.push({
@@ -1013,6 +1020,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
             matingThicknessMm: boxT,
             frontLipMm: BOX_LIP,
             backLipMm: BOX_LIP,
+            edgeTails: true,
           },
         });
       }
@@ -1030,6 +1038,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
             matingThicknessMm: boxT,
             pinsOuterSign: sz as 1 | -1,
             lipMm: BOX_LIP,
+            edgeTails: true,
           },
           // Undermount clearance notches in the back board, under the bottom.
           backNotch: sz < 0 && undermount ? undermountBackNotch() : undefined,

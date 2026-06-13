@@ -26,6 +26,8 @@ export interface JointSpec {
   pinCount?: number;
   /** Dovetail bit diameter (m) — the minimum tail opening between pins. */
   toolDiameterM?: number;
+  /** Drawer convention: half-tails at the top/bottom edges (drops edge pins). */
+  edgeTails?: boolean;
 }
 
 export interface ScoopSpec {
@@ -106,31 +108,40 @@ interface JointLayout {
   flare: number;
   /** Tail center heights, measured from board bottom (m). */
   tailCenters: number[];
+  /**
+   * Half-tails at the top and bottom edges (drawer convention): the edge pins
+   * are dropped so the first/last tails run to the board edges. The default
+   * (false) keeps half-pins at the edges (carcass convention).
+   */
+  edgeTails: boolean;
 }
 
 function layoutJoint(height: number, spec: JointSpec): JointLayout | null {
+  const edgeTails = !!spec.edgeTails;
   const flare = spec.type === 'dovetail' ? spec.depth * 0.17 : 0;
   const pinTip = Math.min(Math.max(spec.depth * 0.6, 0.006), 0.014);
   // The tail opening between pins can't be narrower than the cutter; that sets
   // both the minimum tail and how many pins can fit.
   const minTail = Math.max(spec.toolDiameterM ?? 0, pinTip * 1.2, 2 * flare + 0.004);
-  // Requested pin count (pins = tails + 1) or the automatic ~45 mm pitch.
+  // With edge tails, the two edge pins are dropped, so visible pins = tails − 1;
+  // otherwise pins = tails + 1. Map the requested pin count accordingly.
+  const floor = edgeTails ? 2 : 1;
   let tailCount =
     spec.pinCount && spec.pinCount >= 2
-      ? spec.pinCount - 1
-      : Math.max(1, Math.floor(height / 0.045));
+      ? spec.pinCount + (edgeTails ? 1 : -1)
+      : Math.max(floor, Math.floor(height / 0.045));
   let tailWide = 0;
-  while (tailCount >= 1) {
+  while (tailCount >= floor) {
     tailWide = (height - (tailCount + 1) * pinTip) / tailCount;
     if (tailWide >= minTail) break;
     tailCount -= 1; // too tight for the tool — drop a pin
   }
-  if (tailCount < 1) return null; // board too small — caller falls back to a plain box
+  if (tailCount < floor) return null; // board too small — caller falls back to a plain box
   const tailCenters: number[] = [];
   for (let k = 0; k < tailCount; k++) {
     tailCenters.push(pinTip + tailWide / 2 + k * (pinTip + tailWide));
   }
-  return { pinTip, tailWide, flare, tailCenters };
+  return { pinTip, tailWide, flare, tailCenters, edgeTails };
 }
 
 /**
@@ -153,40 +164,47 @@ export function tailsBoardGeometry(
 ): THREE.BufferGeometry | null {
   const joint = layoutJoint(height, spec);
   if (!joint) return null;
-  const { flare, tailWide, tailCenters } = joint;
+  const { flare, tailWide, tailCenters, edgeTails } = joint;
   const zo = length / 2;
   const ziFront = zo - (frontDepth ?? spec.depth);
   const ziBack = zo - (backDepth ?? spec.depth);
   const yBottom = -height / 2;
+  const yTop = height / 2;
+  const last = tailCenters.length - 1;
+
+  // Each tail's [bottom, top] at the tips; edge tails run to the board edge
+  // (half-tails) with no flare on the clamped side.
+  const tailSpan = (i: number) => {
+    const cy = yBottom + tailCenters[i];
+    const atBottom = edgeTails && i === 0;
+    const atTop = edgeTails && i === last;
+    return {
+      y0: atBottom ? yBottom : cy - tailWide / 2,
+      y1: atTop ? yTop : cy + tailWide / 2,
+      f0: atBottom ? 0 : flare,
+      f1: atTop ? 0 : flare,
+    };
+  };
 
   const points: Array<[number, number]> = [];
-  // Bottom edge between the two baselines.
-  points.push([-ziBack, yBottom], [ziFront, yBottom]);
+  // Bottom edge: a baseline (pin) unless the first tail runs to the edge.
+  points.push([-ziBack, yBottom]);
+  if (!(edgeTails && tailCenters.length)) points.push([ziFront, yBottom]);
   // Front (+z) toothed end, bottom to top.
-  for (const c of tailCenters) {
-    const cy = yBottom + c;
-    points.push(
-      [ziFront, cy - tailWide / 2 + flare],
-      [zo, cy - tailWide / 2],
-      [zo, cy + tailWide / 2],
-      [ziFront, cy + tailWide / 2 - flare],
-    );
+  for (let i = 0; i < tailCenters.length; i++) {
+    const { y0, y1, f0, f1 } = tailSpan(i);
+    points.push([ziFront, y0 + f0], [zo, y0], [zo, y1], [ziFront, y1 - f1]);
   }
-  points.push([ziFront, height / 2]);
+  if (!(edgeTails && tailCenters.length)) points.push([ziFront, yTop]);
   // Top edge.
-  points.push([-ziBack, height / 2]);
+  points.push([-ziBack, yTop]);
   // Back toothed end, top to bottom (mirror of the front end). A zero
   // backDepth leaves that end square (a case side that only joins at one
   // end, like an end table's floor-running sides).
   if (zo - ziBack > 1e-9) {
-    for (const c of [...tailCenters].reverse()) {
-      const cy = yBottom + c;
-      points.push(
-        [-ziBack, cy + tailWide / 2 - flare],
-        [-zo, cy + tailWide / 2],
-        [-zo, cy - tailWide / 2],
-        [-ziBack, cy - tailWide / 2 + flare],
-      );
+    for (let i = last; i >= 0; i--) {
+      const { y0, y1, f0, f1 } = tailSpan(i);
+      points.push([-ziBack, y1 - f1], [-zo, y1], [-zo, y0], [-ziBack, y0 + f0]);
     }
   }
 
@@ -299,7 +317,7 @@ export function pinsBoardGeometry(
 ): THREE.BufferGeometry | null {
   const joint = layoutJoint(height, spec);
   if (!joint) return null;
-  const { tailWide, flare, tailCenters } = joint;
+  const { tailWide, flare, tailCenters, edgeTails } = joint;
   const yBottom = -height / 2;
   const zOuter = (thickness / 2) * outerSign;
   const zTip = zOuter - lip * outerSign;
@@ -355,13 +373,26 @@ export function pinsBoardGeometry(
   // (z, y) plane — pin tips at the outer face, flaring at the inner face,
   // except along the board edges (half pins stay flush).
   const gaps: Array<[number, number, boolean, boolean]> = [];
-  let cursor = yBottom;
-  for (const c of tailCenters) {
-    const tailBottom = yBottom + c - tailWide / 2;
-    gaps.push([cursor, tailBottom, cursor === yBottom, false]);
-    cursor = yBottom + c + tailWide / 2;
+  if (edgeTails) {
+    // Half-tails at the edges: pins only between consecutive tails (no edge
+    // pins), so the first/last tails run to the board edges.
+    for (let i = 0; i < tailCenters.length - 1; i++) {
+      gaps.push([
+        yBottom + tailCenters[i] + tailWide / 2,
+        yBottom + tailCenters[i + 1] - tailWide / 2,
+        false,
+        false,
+      ]);
+    }
+  } else {
+    let cursor = yBottom;
+    for (const c of tailCenters) {
+      const tailBottom = yBottom + c - tailWide / 2;
+      gaps.push([cursor, tailBottom, cursor === yBottom, false]);
+      cursor = yBottom + c + tailWide / 2;
+    }
+    gaps.push([cursor, height / 2, false, true]);
   }
-  gaps.push([cursor, height / 2, false, true]);
 
   for (const [g0, g1, atBottom, atTop] of gaps) {
     const f0 = atBottom ? 0 : flare;
