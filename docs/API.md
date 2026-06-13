@@ -153,7 +153,9 @@ data URL), `normalMapUrl?`, `roughnessMapUrl?`, `widthM`, `heightM`,
 `plySpacingMm?`. Use `mirror` for raw, un-tiled photos so boundaries don't show
 a hard seam (`repeat`, the default, suits images already made seamless). The
 demo's "Drop a wood photo" zone uses this path: it derives a normal map in the
-browser and registers the photo with `tiling: 'mirror'`.
+browser and registers the photo with `tiling: 'mirror'`. The drop path also isolates the board from a plain
+background and straightens it (grain horizontal) before processing, so a casual
+angled photo on a white sweep still yields a clean, square-on wood texture.
 
 Set `plywood: true` (optionally `plySpacingMm`, default 2 mm) to render the
 stacked-veneer laminations of sheet goods on a part's end-grain **edges** while
