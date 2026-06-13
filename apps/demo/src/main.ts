@@ -1,12 +1,26 @@
 import {
   FurnitureEngine,
   defaultSpec,
+  detectFormat,
   formatInches,
   type BuildPlan,
   type FurnitureKind,
   type FurnitureSpec,
   type LightingPresetId,
 } from '@4kgraphics/engine';
+import {
+  deleteModel,
+  deleteStoredMaterial,
+  listModels,
+  listStoredMaterials,
+  newModelId,
+  putModel,
+  putStoredMaterial,
+  type ModelPrefs,
+  type SavedModel,
+  type StoredMaterial,
+} from './savedModels.js';
+import { processMaterialPhoto } from './materialPhoto.js';
 
 declare const __BUILD_ID__: string;
 
@@ -19,6 +33,22 @@ document.getElementById('build-tag')!.textContent =
 
 let spec: FurnitureSpec = defaultSpec('table');
 let showingImport = false;
+/** Display name for the current import (catalog pieces use their spec name). */
+let importName: string | null = null;
+
+/** Live render/material preferences, mirrored into the active saved model. */
+const DEFAULT_PREFS: ModelPrefs = {
+  material: 'oak',
+  stain: null,
+  panelMaterial: 'birchply',
+  lighting: 'studio',
+  background: 'studio',
+};
+let prefs: ModelPrefs = { ...DEFAULT_PREFS };
+/** The saved model currently on screen, if any — edits write back to it. */
+let activeSaved: SavedModel | null = null;
+/** Material ids the user added from photos (deletable from the library). */
+const userMaterialIds = new Set<string>();
 let rebuildTimer = 0;
 
 // ---------------------------------------------------------------- catalog
@@ -43,11 +73,15 @@ function buildCatalog() {
     button.onclick = () => {
       spec = defaultSpec(entry.kind);
       showingImport = false;
+      activeSaved = null;
+      prefs = { ...DEFAULT_PREFS };
       engine.showFurniture(spec);
+      applyPrefs(prefs);
       buildControls();
       refreshPartSelect();
       updateStatus();
       markActive(host, button);
+      refreshSavedActive();
     };
     host.appendChild(button);
   }
@@ -456,17 +490,47 @@ function buildMaterialPanel() {
     const button = document.createElement('button');
     button.className = 'swatch';
     button.title = info.label;
+    button.dataset.id = info.id;
     button.innerHTML = `<span class="chip" style="background:${info.swatch}"></span><span>${info.label}</span>`;
     button.onclick = () => {
       const part = (document.getElementById('part-select') as HTMLSelectElement).value;
       busy(`Applying ${info.label}…`, () => {
         engine.setMaterial(info.id, part === '*' ? undefined : part);
         markActive(host, button);
+        if (part === '*') {
+          prefs.material = info.id;
+          persistActive();
+        }
       });
     };
+    // User-added photo materials carry a delete handle.
+    if (userMaterialIds.has(info.id)) {
+      button.classList.add('swatch-user');
+      const del = document.createElement('span');
+      del.className = 'swatch-del';
+      del.textContent = '×';
+      del.title = 'Remove this material';
+      del.onclick = async (event) => {
+        event.stopPropagation();
+        await deleteStoredMaterial(info.id);
+        userMaterialIds.delete(info.id);
+        engine.unregisterScannedMaterial(info.id);
+        if (prefs.material === info.id) {
+          prefs.material = 'oak';
+          engine.setMaterial('oak');
+          persistActive();
+        }
+        buildMaterialPanel();
+      };
+      button.appendChild(del);
+    }
     host.appendChild(button);
   }
-  markActive(host, host.firstElementChild as HTMLElement);
+  // Reflect the active whole-piece material.
+  const activeSwatch =
+    (host.querySelector(`.swatch[data-id="${prefs.material}"]`) as HTMLElement | null) ??
+    (host.firstElementChild as HTMLElement);
+  markActive(host, activeSwatch);
 
   // Sheet-goods stock: drawer bottoms and back panels render in this
   // material instead of the primary wood.
@@ -475,14 +539,17 @@ function buildMaterialPanel() {
   row.id = 'panel-stock-row';
   row.innerHTML = '<span>Bottoms & backs</span>';
   const select = document.createElement('select');
+  select.id = 'panel-stock-select';
   for (const info of engine.listMaterials()) {
     const option = document.createElement('option');
     option.value = info.id;
     option.textContent = info.label;
-    if (info.id === 'birchply') option.selected = true;
+    if (info.id === (prefs.panelMaterial ?? 'birchply')) option.selected = true;
     select.appendChild(option);
   }
   select.onchange = () => {
+    prefs.panelMaterial = select.value;
+    persistActive();
     busy('Applying panel stock…', () => engine.setPanelMaterial(select.value));
   };
   row.appendChild(select);
@@ -495,6 +562,7 @@ function buildMaterialPanel() {
   stainRow.id = 'stain-row';
   stainRow.innerHTML = '<span>Stain / finish</span>';
   const stainSelect = document.createElement('select');
+  stainSelect.id = 'stain-select';
   const natural = document.createElement('option');
   natural.value = '';
   natural.textContent = 'Natural (no stain)';
@@ -503,9 +571,12 @@ function buildMaterialPanel() {
     const option = document.createElement('option');
     option.value = stain.id;
     option.textContent = stain.label;
+    if (stain.id === prefs.stain) option.selected = true;
     stainSelect.appendChild(option);
   }
   stainSelect.onchange = () => {
+    prefs.stain = stainSelect.value || null;
+    persistActive();
     busy('Applying stain…', () => engine.setStain(stainSelect.value || null));
   };
   stainRow.appendChild(stainSelect);
@@ -533,18 +604,28 @@ function buildLightingPanel() {
   for (const preset of engine.listLightingPresets()) {
     const button = document.createElement('button');
     button.textContent = preset.label;
+    button.dataset.id = preset.id;
     button.onclick = () => {
       engine.setLighting(preset.id as LightingPresetId);
       markActive(host, button);
+      prefs.lighting = preset.id;
+      persistActive();
     };
     host.appendChild(button);
   }
-  markActive(host, host.firstElementChild as HTMLElement);
+  const activeLight =
+    (host.querySelector(`button[data-id="${prefs.lighting}"]`) as HTMLElement | null) ??
+    (host.firstElementChild as HTMLElement);
+  markActive(host, activeLight);
 }
 
 function wireScenePanel() {
   const bg = document.getElementById('bg-color') as HTMLInputElement;
-  bg.oninput = () => engine.setBackground(bg.value);
+  bg.oninput = () => {
+    prefs.background = bg.value;
+    persistActive();
+    engine.setBackground(bg.value);
+  };
 
   const ultra = document.getElementById('ultra-toggle') as HTMLInputElement;
   ultra.onchange = () => {
@@ -575,22 +656,392 @@ function wireImport() {
     event.preventDefault();
     viewport.classList.remove('dragging');
     const file = event.dataTransfer?.files?.[0];
-    if (file) importFile(file);
+    if (!file) return;
+    // A photo dropped on the viewport joins the material library; a model file
+    // is imported.
+    if (file.type.startsWith('image/')) void addMaterialPhoto(file);
+    else void importFile(file);
   });
 }
 
 async function importFile(file: File) {
+  // Naming step: pre-fill with the filename (sans extension), let the user
+  // confirm or rename. Cancelling aborts the import.
+  const fallback = file.name.replace(/\.[^./\\]+$/, '') || file.name;
+  const name = await askModelName(fallback, 'Import');
+  if (name === null) {
+    toast('Import cancelled');
+    return;
+  }
   toast(`Loading ${file.name}…`, 0);
   try {
     await engine.loadModel(file);
     showingImport = true;
+    importName = name;
+    // Imports start neutral (no wood applied) but keep panel/scene defaults.
+    prefs = { stain: null, panelMaterial: 'birchply', lighting: 'studio', background: 'studio' };
+    applyPrefs(prefs);
     buildControls();
     refreshPartSelect();
-    updateStatus(file.name);
-    toast(`Loaded ${file.name}`);
+    // Save it as a model with its preferences, like the catalog pieces.
+    await saveImport(file, name);
+    updateStatus();
+    markActive(document.getElementById('catalog')!, null);
+    toast(`Saved “${name}”`);
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
   }
+}
+
+/**
+ * Modal naming step for imports. Resolves to the entered name (falling back to
+ * the default if left blank) or null if cancelled. Reused by the header
+ * rename affordance.
+ */
+function askModelName(defaultName: string, confirmLabel = 'Save'): Promise<string | null> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'name-dialog';
+    overlay.innerHTML = `
+      <div class="name-card">
+        <h2>Name this model</h2>
+        <p class="muted">Shown in the header and used for the render filename.</p>
+        <input type="text" class="name-input" maxlength="80" />
+        <div class="name-actions">
+          <button class="ghost" data-act="cancel">Cancel</button>
+          <button class="primary" data-act="ok">${confirmLabel}</button>
+        </div>
+      </div>`;
+    const input = overlay.querySelector('.name-input') as HTMLInputElement;
+    input.value = defaultName;
+    document.body.appendChild(overlay);
+
+    const close = (value: string | null) => {
+      overlay.remove();
+      resolve(value);
+    };
+    const confirm = () => close(input.value.trim() || defaultName);
+    overlay.querySelector('[data-act="ok"]')!.addEventListener('click', confirm);
+    overlay.querySelector('[data-act="cancel"]')!.addEventListener('click', () => close(null));
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) close(null);
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') confirm();
+      else if (event.key === 'Escape') close(null);
+    });
+    input.focus();
+    input.select();
+  });
+}
+
+/** Slugifies a model name for use as a download filename. */
+function nameToFilename(name: string): string {
+  return name.trim().replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'model';
+}
+
+// ----------------------------------------------------------- saved models
+
+/** Applies render/material preferences to the engine and syncs the controls. */
+function applyPrefs(p: ModelPrefs): void {
+  if (p.stain !== undefined) engine.setStain(p.stain ?? null);
+  if (p.material) engine.setMaterial(p.material);
+  if (p.panelMaterial) engine.setPanelMaterial(p.panelMaterial);
+  if (p.lighting) engine.setLighting(p.lighting as LightingPresetId);
+  if (p.background) {
+    engine.setBackground(p.background);
+    const bg = document.getElementById('bg-color') as HTMLInputElement | null;
+    if (bg && p.background.startsWith('#')) bg.value = p.background;
+  }
+  syncMaterialUI();
+  syncLightingUI();
+}
+
+function syncMaterialUI(): void {
+  const host = document.getElementById('materials');
+  if (host && prefs.material) {
+    const swatch = host.querySelector(`.swatch[data-id="${prefs.material}"]`) as HTMLElement | null;
+    if (swatch) markActive(host, swatch);
+  }
+  const panel = document.getElementById('panel-stock-select') as HTMLSelectElement | null;
+  if (panel && prefs.panelMaterial) panel.value = prefs.panelMaterial;
+  const stain = document.getElementById('stain-select') as HTMLSelectElement | null;
+  if (stain) stain.value = prefs.stain ?? '';
+}
+
+function syncLightingUI(): void {
+  const host = document.getElementById('lighting');
+  if (!host) return;
+  const button = host.querySelector(`button[data-id="${prefs.lighting}"]`) as HTMLElement | null;
+  if (button) markActive(host, button);
+}
+
+/** Mirrors the live preferences into the active saved model, if any. */
+function persistActive(): void {
+  if (!activeSaved) return;
+  activeSaved.prefs = { ...prefs };
+  void putModel(activeSaved);
+}
+
+/** Stores the just-imported file (bytes and all) as a saved model. */
+async function saveImport(file: File, name: string): Promise<void> {
+  const bytes = await file.arrayBuffer();
+  activeSaved = {
+    id: newModelId(),
+    name,
+    kind: 'import',
+    savedAt: Date.now(),
+    prefs: { ...prefs },
+    fileName: file.name,
+    format: detectFormat(file.name) ?? undefined,
+    bytes,
+  };
+  await putModel(activeSaved);
+  await buildSavedPanel();
+}
+
+/** Saves whatever is on screen (configured catalog piece or import). */
+async function saveCurrent(): Promise<void> {
+  if (showingImport) {
+    if (activeSaved) {
+      persistActive();
+      await buildSavedPanel();
+      toast('Saved');
+    } else {
+      toast('Re-import the file to save it.');
+    }
+    return;
+  }
+  const name = await askModelName(spec.name ?? 'My model', 'Save');
+  if (name === null) return;
+  activeSaved = {
+    id: newModelId(),
+    name,
+    kind: 'catalog',
+    savedAt: Date.now(),
+    prefs: { ...prefs },
+    spec: structuredClone(spec),
+  };
+  await putModel(activeSaved);
+  await buildSavedPanel();
+  toast(`Saved “${name}”`);
+}
+
+/** Restores a saved model: geometry, then its preferences. */
+async function loadSaved(model: SavedModel): Promise<void> {
+  toast(`Loading “${model.name}”…`, 0);
+  try {
+    if (model.kind === 'import' && model.bytes) {
+      const file = new File([model.bytes], model.fileName ?? `${model.name}.stl`);
+      await engine.loadModel(file, model.format ? { format: model.format } : undefined);
+      showingImport = true;
+      importName = model.name;
+      buildControls();
+      refreshPartSelect();
+    } else if (model.kind === 'catalog' && model.spec) {
+      spec = structuredClone(model.spec);
+      showingImport = false;
+      importName = null;
+      engine.showFurniture(spec);
+      buildControls();
+      refreshPartSelect();
+    } else {
+      toast('Saved model is missing its data.');
+      return;
+    }
+    activeSaved = model;
+    prefs = { ...DEFAULT_PREFS, ...model.prefs };
+    applyPrefs(prefs);
+    updateStatus();
+    markActive(document.getElementById('catalog')!, null);
+    refreshSavedActive();
+    toast(`Loaded “${model.name}”`);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function buildSavedPanel(): Promise<void> {
+  const section = document.getElementById('saved-section')!;
+  const host = document.getElementById('saved')!;
+  section.hidden = false;
+  host.innerHTML = '';
+
+  const save = document.createElement('button');
+  save.className = 'saved-save';
+  save.textContent = '＋ Save current view';
+  save.onclick = () => void saveCurrent();
+  host.appendChild(save);
+
+  const models = await listModels();
+  if (!models.length) {
+    const hint = document.createElement('p');
+    hint.className = 'section-hint';
+    hint.textContent = 'Imports are saved here with their finish and lighting, and persist across refreshes.';
+    host.appendChild(hint);
+    return;
+  }
+  for (const model of models) {
+    const row = document.createElement('div');
+    row.className = 'saved-row' + (activeSaved?.id === model.id ? ' active' : '');
+    row.dataset.id = model.id;
+
+    const open = document.createElement('button');
+    open.className = 'saved-open';
+    open.textContent = model.name;
+    const subtitle = model.kind === 'import' ? model.fileName ?? 'import' : model.spec?.kind ?? 'piece';
+    open.title = `${subtitle} · saved ${new Date(model.savedAt).toLocaleString()}`;
+    open.onclick = () => void loadSaved(model);
+
+    const del = document.createElement('button');
+    del.className = 'saved-del ghost';
+    del.textContent = '×';
+    del.title = 'Delete saved model';
+    del.onclick = async (event) => {
+      event.stopPropagation();
+      await deleteModel(model.id);
+      if (activeSaved?.id === model.id) activeSaved = null;
+      await buildSavedPanel();
+    };
+
+    row.append(open, del);
+    host.appendChild(row);
+  }
+}
+
+function refreshSavedActive(): void {
+  const host = document.getElementById('saved');
+  if (!host) return;
+  for (const row of host.querySelectorAll('.saved-row')) {
+    (row as HTMLElement).classList.toggle('active', (row as HTMLElement).dataset.id === activeSaved?.id);
+  }
+}
+
+// ------------------------------------------------------- material photos
+
+/** Registers user-added photo materials saved in a previous session. */
+async function registerStoredMaterials(): Promise<void> {
+  for (const m of await listStoredMaterials()) {
+    engine.registerScannedMaterial({
+      id: m.id,
+      label: m.label,
+      swatch: m.swatch,
+      mapUrl: m.mapUrl,
+      normalMapUrl: m.normalMapUrl,
+      widthM: m.widthM,
+      heightM: m.heightM,
+      tiling: 'mirror',
+    });
+    userMaterialIds.add(m.id);
+  }
+}
+
+/** Drop/choose a photo → process it → add it to the material library. */
+async function addMaterialPhoto(file: File): Promise<void> {
+  if (!file.type.startsWith('image/')) {
+    toast('Please drop an image file.');
+    return;
+  }
+  const meta = await askMaterialMeta(file.name.replace(/\.[^./\\]+$/, '') || 'Custom wood');
+  if (!meta) return;
+  toast(`Processing ${meta.name}…`, 0);
+  try {
+    const processed = await processMaterialPhoto(file);
+    const widthM = meta.widthIn * 0.0254;
+    const material: StoredMaterial = {
+      id: 'photo_' + newModelId(),
+      label: meta.name,
+      swatch: processed.swatch,
+      mapUrl: processed.mapUrl,
+      normalMapUrl: processed.normalMapUrl,
+      widthM,
+      heightM: widthM / processed.aspect,
+      savedAt: Date.now(),
+    };
+    await putStoredMaterial(material);
+    engine.registerScannedMaterial({
+      id: material.id,
+      label: material.label,
+      swatch: material.swatch,
+      mapUrl: material.mapUrl,
+      normalMapUrl: material.normalMapUrl,
+      widthM: material.widthM,
+      heightM: material.heightM,
+      tiling: 'mirror',
+    });
+    userMaterialIds.add(material.id);
+    buildMaterialPanel();
+    toast(`Added “${meta.name}” to the library`);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** Name + photographed board width (inches) for a dropped material photo. */
+function askMaterialMeta(defaultName: string): Promise<{ name: string; widthIn: number } | null> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'name-dialog';
+    overlay.innerHTML = `
+      <div class="name-card">
+        <h2>Add material from photo</h2>
+        <p class="muted">The board width sets the grain scale on the model.</p>
+        <input type="text" class="name-input" maxlength="80" placeholder="Material name" />
+        <label class="meta-row"><span>Photo width</span>
+          <input type="number" class="width-input" min="1" max="120" step="0.5" /> in
+        </label>
+        <div class="name-actions">
+          <button class="ghost" data-act="cancel">Cancel</button>
+          <button class="primary" data-act="ok">Add material</button>
+        </div>
+      </div>`;
+    const name = overlay.querySelector('.name-input') as HTMLInputElement;
+    const width = overlay.querySelector('.width-input') as HTMLInputElement;
+    name.value = defaultName;
+    width.value = '6';
+    document.body.appendChild(overlay);
+    const close = (value: { name: string; widthIn: number } | null) => {
+      overlay.remove();
+      resolve(value);
+    };
+    const confirm = () => {
+      const widthIn = Math.min(120, Math.max(1, parseFloat(width.value) || 6));
+      close({ name: name.value.trim() || defaultName, widthIn });
+    };
+    overlay.querySelector('[data-act="ok"]')!.addEventListener('click', confirm);
+    overlay.querySelector('[data-act="cancel"]')!.addEventListener('click', () => close(null));
+    overlay.addEventListener('click', (event) => {
+      if (event.target === overlay) close(null);
+    });
+    for (const input of [name, width]) {
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') confirm();
+        else if (event.key === 'Escape') close(null);
+      });
+    }
+    name.focus();
+    name.select();
+  });
+}
+
+function wireMaterialDrop(): void {
+  const drop = document.getElementById('material-drop')!;
+  const input = document.getElementById('material-input') as HTMLInputElement;
+  input.onchange = () => {
+    if (input.files?.[0]) void addMaterialPhoto(input.files[0]);
+    input.value = '';
+  };
+  drop.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    drop.classList.add('drag');
+  });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+  drop.addEventListener('drop', (event) => {
+    event.preventDefault();
+    drop.classList.remove('drag');
+    const file = event.dataTransfer?.files?.[0];
+    if (file) void addMaterialPhoto(file);
+  });
 }
 
 // --------------------------------------------------------------- snapshot
@@ -608,7 +1059,8 @@ function wireSnapshot() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `furniture-4k-${Date.now()}.png`;
+      const base = showingImport && importName ? nameToFilename(importName) : 'furniture-4k';
+      link.download = `${base}-${Date.now()}.png`;
       link.click();
       URL.revokeObjectURL(url);
       toast(`4K render saved (${(blob.size / 1024 / 1024).toFixed(1)} MB)`);
@@ -693,13 +1145,32 @@ function renderPlanHtml(plan: BuildPlan): string {
 
 // ------------------------------------------------------------------ shared
 
-function updateStatus(importName?: string) {
+function updateStatus() {
   const layout = engine.getLayout();
   if (layout) {
     const [w, h, d] = layout.overallMm;
     statusLine.textContent = `${layout.spec.name} · ${Math.round(w)}×${Math.round(d)}×${Math.round(h)}mm · ${layout.parts.length} parts · ${engine.materials.resolution}px textures`;
+    statusLine.classList.remove('renamable');
+    statusLine.onclick = null;
   } else {
-    statusLine.textContent = `${importName ?? 'Imported model'} · ${engine.materials.resolution}px textures`;
+    const name = importName ?? 'Imported model';
+    statusLine.textContent = `${name} · ${engine.materials.resolution}px textures`;
+    // Click the name to rename an import.
+    statusLine.classList.add('renamable');
+    statusLine.title = 'Click to rename';
+    statusLine.onclick = async () => {
+      const next = await askModelName(importName ?? 'Imported model');
+      if (next !== null) {
+        importName = next;
+        if (activeSaved) {
+          activeSaved.name = next;
+          activeSaved.prefs = { ...prefs };
+          await putModel(activeSaved);
+          await buildSavedPanel();
+        }
+        updateStatus();
+      }
+    };
   }
 }
 
@@ -755,8 +1226,12 @@ buildMaterialPanel();
 void registerScannedMaterials().then((added) => {
   if (added) buildMaterialPanel();
 });
+// Re-register photo materials the user added in a previous session.
+void registerStoredMaterials().then(() => buildMaterialPanel());
 buildLightingPanel();
 wireScenePanel();
 wireImport();
 wireSnapshot();
 wireBuildPlan();
+wireMaterialDrop();
+void buildSavedPanel();

@@ -408,6 +408,176 @@ select#part-select {
   }
 }
 
+/* Naming step dialog (import + rename) */
+.name-dialog {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 11, 13, 0.6);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+}
+.name-card {
+  width: min(420px, 92vw);
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  border-radius: 14px;
+  padding: 22px 24px;
+}
+.name-card h2 {
+  font-size: 16px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+.name-card .muted {
+  font-size: 12px;
+  margin: 0 0 14px;
+}
+.name-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--panel-edge);
+  border-radius: 9px;
+  outline: none;
+}
+.name-input:focus {
+  border-color: var(--accent);
+}
+.name-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+.renamable {
+  cursor: pointer;
+}
+.renamable:hover {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.width-input {
+  width: 70px;
+  padding: 7px 9px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--panel-edge);
+  border-radius: 8px;
+  outline: none;
+}
+
+/* Drop a photo to add a material */
+.material-drop {
+  display: block;
+  margin-top: 10px;
+  padding: 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px dashed var(--panel-edge);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.material-drop:hover,
+.material-drop.drag {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* Delete handle on user-added material swatches */
+.swatch-user {
+  position: relative;
+}
+.swatch-del {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 16px;
+  height: 16px;
+  line-height: 14px;
+  text-align: center;
+  font-size: 13px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.swatch-user:hover .swatch-del {
+  opacity: 1;
+}
+.swatch-del:hover {
+  color: #e06a5a;
+  border-color: #e06a5a;
+}
+
+/* Saved models list */
+.saved-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.saved-save {
+  align-self: flex-start;
+  font-size: 12px;
+  padding: 5px 10px;
+}
+.saved-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  border: 1px solid var(--panel-edge);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.saved-row.active {
+  border-color: var(--accent);
+}
+.saved-open {
+  flex: 1;
+  text-align: left;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 8px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.saved-row.active .saved-open {
+  color: var(--accent);
+  font-weight: 600;
+}
+.saved-del {
+  border: none;
+  border-radius: 0;
+  padding: 0 10px;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--muted);
+}
+.saved-del:hover {
+  color: #e06a5a;
+}
+
 #controls h2 {
   margin-top: 18px;
 }

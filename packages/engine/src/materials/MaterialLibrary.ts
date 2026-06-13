@@ -275,6 +275,12 @@ export interface ScannedMaterialDef {
   widthM: number;
   heightM: number;
   clearcoat?: number;
+  /**
+   * Wrap mode across tile boundaries. `repeat` (default) suits images already
+   * made seamless (see process-texture.py); `mirror` flips at each boundary so
+   * raw, un-tiled photos don't show a hard seam.
+   */
+  tiling?: 'repeat' | 'mirror';
 }
 
 /** Geometry box-UVs put one tile across this many meters (see geometry.ts). */
@@ -315,14 +321,22 @@ export class MaterialLibrary {
     this.cache.delete(def.id);
   }
 
+  /** Removes a previously registered scanned material. */
+  removeScanned(id: string): void {
+    this.scanned.delete(id);
+    this.cache.get(id)?.dispose();
+    this.cache.delete(id);
+  }
+
   private buildScanned(def: ScannedMaterialDef): THREE.MeshPhysicalMaterial {
     const loader = new THREE.TextureLoader();
+    const wrap = def.tiling === 'mirror' ? THREE.MirroredRepeatWrapping : THREE.RepeatWrapping;
     const load = (url: string, srgb: boolean) => {
       let done: () => void = () => undefined;
       this.pendingLoads.push(new Promise<void>((resolve) => (done = resolve)));
       const texture = loader.load(url, done, undefined, () => done());
-      texture.wrapS = THREE.RepeatWrapping;
-      texture.wrapT = THREE.RepeatWrapping;
+      texture.wrapS = wrap;
+      texture.wrapT = wrap;
       texture.anisotropy = 16;
       if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
       // Repeat so the scan covers its true physical size within the tile.

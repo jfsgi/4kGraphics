@@ -28,6 +28,10 @@
           <h2>Catalog</h2>
           <div id="catalog" class="button-row"></div>
         </section>
+        <section id="saved-section" hidden>
+          <h2>Saved Models</h2>
+          <div id="saved" class="saved-list"></div>
+        </section>
         <section>
           <div id="controls"></div>
         </section>
@@ -47,6 +51,10 @@
           <h2>Material</h2>
           <select id="part-select"></select>
           <div id="materials" class="swatch-grid"></div>
+          <label class="material-drop" id="material-drop">
+            <input type="file" id="material-input" accept="image/*" hidden />
+            ＋ Drop a wood photo here to add a material
+          </label>
         </section>
         <section>
           <h2>Lighting</h2>

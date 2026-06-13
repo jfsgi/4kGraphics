@@ -24,6 +24,7 @@ wheel to zoom) and follows container resizes automatically.
 | `setPanelMaterial(materialId)` | `void` | Sheet-goods stock (drawer bottoms, back panels) — defaults to `birchply` |
 | `setStain(stainId \| null)` | `void` | Stain finish over every wood on the piece (`null` = natural) — see Stain finishes |
 | `registerScannedMaterial(def)` | `void` | Adds a photo-scanned material (see Scanned materials below) |
+| `unregisterScannedMaterial(id)` | `void` | Removes a scanned material added with `registerScannedMaterial` |
 | `setLighting(presetId)` | `void` | Swap light rig |
 | `setBackground(color \| 'studio' \| 'transparent')` | `void` | `'studio'` = graded photo backdrop |
 | `setTextureResolution(size)` | `void` | Regenerate textures (e.g. `4096`) and reapply |
@@ -136,6 +137,14 @@ and render service register every entry automatically; in your own app call
 `engine.registerScannedMaterial(def)` with the manifest entry. Pass
 `--width-mm/--height-mm` (the photographed area) so grain renders at true
 scale.
+
+`def` fields: `id`, `label`, `swatch`, `mapUrl` (any of these URLs may be a
+data URL), `normalMapUrl?`, `roughnessMapUrl?`, `widthM`, `heightM`,
+`clearcoat?`, and `tiling?: 'repeat' | 'mirror'`. Use `mirror` for raw,
+un-tiled photos so boundaries don't show a hard seam (`repeat`, the default,
+suits images already made seamless). The demo's "Drop a wood photo" zone uses
+this path: it derives a normal map in the browser and registers the photo with
+`tiling: 'mirror'`.
 
 ### Material ids
 

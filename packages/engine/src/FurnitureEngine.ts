@@ -124,6 +124,11 @@ export class FurnitureEngine {
     this.materials.addScanned(def);
   }
 
+  /** Removes a scanned material previously added with registerScannedMaterial. */
+  unregisterScannedMaterial(id: string): void {
+    this.materials.removeScanned(id);
+  }
+
   listLightingPresets() {
     return LIGHTING_PRESETS;
   }
