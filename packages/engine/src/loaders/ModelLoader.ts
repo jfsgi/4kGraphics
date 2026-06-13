@@ -3,6 +3,10 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
+import { applyBoxUVs } from '../materials/uv.js';
+
+/** One texture tile spans this many meters (matches the parametric pipeline). */
+const TEXTURE_TILE_M = 2.4;
 
 export type ModelFormat = 'gltf' | 'glb' | 'obj' | 'fbx' | 'stl';
 
@@ -78,10 +82,35 @@ export async function loadModel(
     if (options.normalize ?? true) {
       normalizeToFurnitureScale(group);
     }
+    applyGrainUVs(group);
     return group;
   } finally {
     if (revoke) URL.revokeObjectURL(url);
   }
+}
+
+/**
+ * Imported meshes (STL especially) carry no texture coordinates, so a wood
+ * material has nothing to map against — the grain renders flat or arbitrary.
+ * We project world-scale box UVs with the grain on the vertical (Y) axis, the
+ * way stock is normally oriented (uprights grain-up, surfaces grain-along), so
+ * library materials read correctly. Meshes that already have UVs (e.g. glTF)
+ * keep them.
+ */
+function applyGrainUVs(group: THREE.Group): void {
+  group.updateMatrixWorld(true);
+  const scale = new THREE.Vector3();
+  group.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const geometry = child.geometry as THREE.BufferGeometry;
+    if (geometry.getAttribute('uv') || !geometry.getAttribute('position')) return;
+    child.matrixWorld.decompose(new THREE.Vector3(), new THREE.Quaternion(), scale);
+    const worldScale = (Math.abs(scale.x) + Math.abs(scale.y) + Math.abs(scale.z)) / 3 || 1;
+    // UVs come from local coordinates; dividing the tile by the world scale
+    // makes one tile span TEXTURE_TILE_M in world meters. No end-grain tint —
+    // a single imported mesh mixes face and end grain across its faces.
+    applyBoxUVs(geometry, TEXTURE_TILE_M / worldScale, 'y', 0, 0, undefined, false);
+  });
 }
 
 async function loadByFormat(url: string, format: ModelFormat): Promise<THREE.Group> {

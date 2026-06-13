@@ -19,6 +19,8 @@ export function applyBoxUVs(
   offsetV = 0,
   /** Optional baked ambient-occlusion factor per local position, 0..1. */
   ao?: (x: number, y: number, z: number) => number,
+  /** Darken end-grain faces. Off for imported meshes (one mesh, mixed faces). */
+  tintEndGrain = true,
 ): void {
   const position = geometry.attributes.position;
   const normal = geometry.attributes.normal;
@@ -45,7 +47,7 @@ export function applyBoxUVs(
     uvs[i * 2 + 1] = coord[vAxis] / tileSizeM + offsetV;
 
     // End grain: face normal parallel to the grain — darker and warmer.
-    const endGrain = dominant === grainAxis;
+    const endGrain = tintEndGrain && dominant === grainAxis;
     const occlusion = ao ? ao(coord.x, coord.y, coord.z) : 1;
     // Finished end grain reads darker and warmer than face grain, but
     // nowhere near black — too strong and joints look like open gaps.
