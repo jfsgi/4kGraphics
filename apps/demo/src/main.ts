@@ -11,7 +11,6 @@ import {
 import {
   deleteModel,
   deleteStoredMaterial,
-  getStoredMaterial,
   listModels,
   listStoredMaterials,
   newModelId,
@@ -21,7 +20,7 @@ import {
   type SavedModel,
   type StoredMaterial,
 } from './savedModels.js';
-import { processMaterialPhoto } from './materialPhoto.js';
+import { buildMaterialMaps, readPhotoMeta, type PhotoMeta } from './materialPhoto.js';
 
 declare const __BUILD_ID__: string;
 
@@ -504,19 +503,19 @@ function buildMaterialPanel() {
         }
       });
     };
-    // User-added photo materials carry rename and delete handles.
+    // Every material can be renamed; only user photos can be removed.
+    const rename = document.createElement('span');
+    rename.className = 'swatch-edit';
+    rename.textContent = '✎';
+    rename.title = 'Rename this material';
+    rename.onclick = (event) => {
+      event.stopPropagation();
+      void renameMaterial(info.id, info.label);
+    };
+    button.appendChild(rename);
+
     if (userMaterialIds.has(info.id)) {
       button.classList.add('swatch-user');
-
-      const rename = document.createElement('span');
-      rename.className = 'swatch-edit';
-      rename.textContent = '✎';
-      rename.title = 'Rename this material';
-      rename.onclick = (event) => {
-        event.stopPropagation();
-        void renameMaterialPhoto(info.id, info.label);
-      };
-
       const del = document.createElement('span');
       del.className = 'swatch-del';
       del.textContent = '×';
@@ -526,6 +525,7 @@ function buildMaterialPanel() {
         await deleteStoredMaterial(info.id);
         userMaterialIds.delete(info.id);
         engine.unregisterScannedMaterial(info.id);
+        clearLabelOverride(info.id);
         if (prefs.material === info.id) {
           prefs.material = 'oak';
           engine.setMaterial('oak');
@@ -533,7 +533,7 @@ function buildMaterialPanel() {
         }
         buildMaterialPanel();
       };
-      button.append(rename, del);
+      button.appendChild(del);
     }
     host.appendChild(button);
   }
@@ -953,11 +953,21 @@ async function addMaterialPhoto(file: File): Promise<void> {
     toast('Please drop an image file.');
     return;
   }
-  const meta = await askMaterialMeta(file.name.replace(/\.[^./\\]+$/, '') || 'Custom wood');
+  toast(`Reading ${file.name}…`, 0);
+  let photo: PhotoMeta;
+  try {
+    photo = await readPhotoMeta(file);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : String(error));
+    return;
+  }
+  // DPI (when present) gives the real photographed width; otherwise default.
+  const detectedWidthIn = photo.dpi ? photo.width / photo.dpi : null;
+  const meta = await askMaterialMeta(file.name.replace(/\.[^./\\]+$/, '') || 'Custom wood', photo, detectedWidthIn);
   if (!meta) return;
   toast(`Processing ${meta.name}…`, 0);
   try {
-    const processed = await processMaterialPhoto(file);
+    const processed = buildMaterialMaps(photo);
     const widthM = meta.widthIn * 0.0254;
     const material: StoredMaterial = {
       id: 'photo_' + newModelId(),
@@ -988,23 +998,55 @@ async function addMaterialPhoto(file: File): Promise<void> {
   }
 }
 
-/** Renames a user-added photo material in place. */
-async function renameMaterialPhoto(id: string, currentLabel: string): Promise<void> {
+const LABELS_KEY = 'fourk-material-labels';
+
+function loadLabelOverrides(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(LABELS_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
+}
+
+function saveLabelOverride(id: string, label: string): void {
+  const map = loadLabelOverrides();
+  map[id] = label;
+  localStorage.setItem(LABELS_KEY, JSON.stringify(map));
+}
+
+function clearLabelOverride(id: string): void {
+  const map = loadLabelOverrides();
+  delete map[id];
+  localStorage.setItem(LABELS_KEY, JSON.stringify(map));
+}
+
+/** Re-applies persisted label overrides to the engine's material library. */
+function applyLabelOverrides(): void {
+  for (const [id, label] of Object.entries(loadLabelOverrides())) {
+    engine.setMaterialLabel(id, label);
+  }
+}
+
+/** Renames any material — built-in or user-added — and persists the label. */
+async function renameMaterial(id: string, currentLabel: string): Promise<void> {
   const next = await askModelName(currentLabel, 'Rename');
   if (next === null || next === currentLabel) return;
-  const material = await getStoredMaterial(id);
-  if (!material) return;
-  material.label = next;
-  await putStoredMaterial(material);
-  // Label-only update keeps the in-use texture intact.
-  engine.renameScannedMaterial(id, next);
+  engine.setMaterialLabel(id, next);
+  saveLabelOverride(id, next);
   buildMaterialPanel();
   toast(`Renamed to “${next}”`);
 }
 
 /** Name + photographed board width (inches) for a dropped material photo. */
-function askMaterialMeta(defaultName: string): Promise<{ name: string; widthIn: number } | null> {
+function askMaterialMeta(
+  defaultName: string,
+  photo: PhotoMeta,
+  detectedWidthIn: number | null,
+): Promise<{ name: string; widthIn: number } | null> {
   return new Promise((resolve) => {
+    const detected = photo.dpi
+      ? `Detected ${photo.width}×${photo.height}px · ${photo.dpi} DPI → ${detectedWidthIn!.toFixed(1)}″ wide`
+      : `Detected ${photo.width}×${photo.height}px · no DPI in file — set the real board width`;
     const overlay = document.createElement('div');
     overlay.className = 'name-dialog';
     overlay.innerHTML = `
@@ -1013,8 +1055,9 @@ function askMaterialMeta(defaultName: string): Promise<{ name: string; widthIn: 
         <p class="muted">The board width sets the grain scale on the model.</p>
         <input type="text" class="name-input" maxlength="80" placeholder="Material name" />
         <label class="meta-row"><span>Photo width</span>
-          <input type="number" class="width-input" min="1" max="120" step="0.5" /> in
+          <input type="number" class="width-input" min="1" max="120" step="0.25" /> in
         </label>
+        <p class="muted detected-line">${detected}</p>
         <div class="name-actions">
           <button class="ghost" data-act="cancel">Cancel</button>
           <button class="primary" data-act="ok">Add material</button>
@@ -1023,7 +1066,7 @@ function askMaterialMeta(defaultName: string): Promise<{ name: string; widthIn: 
     const name = overlay.querySelector('.name-input') as HTMLInputElement;
     const width = overlay.querySelector('.width-input') as HTMLInputElement;
     name.value = defaultName;
-    width.value = '6';
+    width.value = (detectedWidthIn ?? 6).toFixed(2).replace(/\.?0+$/, '');
     document.body.appendChild(overlay);
     const close = (value: { name: string; widthIn: number } | null) => {
       overlay.remove();
@@ -1251,8 +1294,13 @@ buildMaterialPanel();
 void registerScannedMaterials().then((added) => {
   if (added) buildMaterialPanel();
 });
-// Re-register photo materials the user added in a previous session.
-void registerStoredMaterials().then(() => buildMaterialPanel());
+// Re-register photo materials the user added in a previous session, then
+// re-apply any custom material labels.
+void registerStoredMaterials().then(() => {
+  applyLabelOverrides();
+  buildMaterialPanel();
+});
+applyLabelOverrides();
 buildLightingPanel();
 wireScenePanel();
 wireImport();

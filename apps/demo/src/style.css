@@ -471,6 +471,10 @@ select#part-select {
   font-size: 13px;
   color: var(--muted);
 }
+.detected-line {
+  margin: 10px 0 0;
+  font-size: 11px;
+}
 .width-input {
   width: 70px;
   padding: 7px 9px;
@@ -500,8 +504,8 @@ select#part-select {
   color: var(--text);
 }
 
-/* Delete handle on user-added material swatches */
-.swatch-user {
+/* Rename (all materials) and delete (user photos) handles on swatches */
+.swatch {
   position: relative;
 }
 .swatch-del,
@@ -519,6 +523,7 @@ select#part-select {
   color: var(--muted);
   opacity: 0;
   transition: opacity 0.12s;
+  z-index: 1;
 }
 .swatch-del {
   right: -6px;
@@ -527,8 +532,8 @@ select#part-select {
 .swatch-edit {
   left: -6px;
 }
-.swatch-user:hover .swatch-del,
-.swatch-user:hover .swatch-edit {
+.swatch:hover .swatch-edit,
+.swatch-user:hover .swatch-del {
   opacity: 1;
 }
 .swatch-del:hover {

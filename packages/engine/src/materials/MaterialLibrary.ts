@@ -290,19 +290,27 @@ export class MaterialLibrary {
   private cache = new Map<string, THREE.MeshPhysicalMaterial>();
   private scanned = new Map<string, ScannedMaterialDef>();
   private pendingLoads: Promise<unknown>[] = [];
+  /** Display-label overrides (any material id → custom label). */
+  private labels = new Map<string, string>();
 
   constructor(private textureSize = 2048) {}
 
   list(): MaterialInfo[] {
+    const label = (id: string, base: string) => this.labels.get(id) ?? base;
     return [
-      ...PRESETS.map((p) => p.info),
+      ...PRESETS.map((p) => ({ ...p.info, label: label(p.info.id, p.info.label) })),
       ...[...this.scanned.values()].map((s) => ({
         id: s.id,
-        label: s.label,
+        label: label(s.id, s.label),
         category: 'scanned' as const,
         swatch: s.swatch,
       })),
     ];
+  }
+
+  /** Overrides any material's display label (presets and scanned alike). */
+  setLabel(id: string, label: string): void {
+    this.labels.set(id, label);
   }
 
   has(id: string): boolean {

@@ -25,6 +25,7 @@ wheel to zoom) and follows container resizes automatically.
 | `setStain(stainId \| null)` | `void` | Stain finish over every wood on the piece (`null` = natural) — see Stain finishes |
 | `registerScannedMaterial(def)` | `void` | Adds a photo-scanned material (see Scanned materials below) |
 | `unregisterScannedMaterial(id)` | `void` | Removes a scanned material added with `registerScannedMaterial` |
+| `setMaterialLabel(id, label)` | `void` | Overrides any material's display label (built-in presets included) |
 | `setLighting(presetId)` | `void` | Swap light rig |
 | `setBackground(color \| 'studio' \| 'transparent')` | `void` | `'studio'` = graded photo backdrop |
 | `setTextureResolution(size)` | `void` | Regenerate textures (e.g. `4096`) and reapply |

@@ -134,6 +134,11 @@ export class FurnitureEngine {
     this.materials.renameScanned(id, label);
   }
 
+  /** Overrides any material's display label (built-in presets included). */
+  setMaterialLabel(id: string, label: string): void {
+    this.materials.setLabel(id, label);
+  }
+
   listLightingPresets() {
     return LIGHTING_PRESETS;
   }
