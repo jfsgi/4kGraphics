@@ -292,10 +292,10 @@ export function pinsBoardGeometry(
    */
   frontBevel = 0,
   /**
-   * Undermount clearance slots through the body: one near each end, sitting
-   * `bottom` above the board's lower edge (so they clear the bottom panel).
+   * Undermount clearance notches cut up from the board's bottom edge, one near
+   * each end (the slide hardware runs under the bottom panel there).
    */
-  notch?: { length: number; height: number; bottom: number },
+  notch?: { length: number; height: number },
 ): THREE.BufferGeometry | null {
   const joint = layoutJoint(height, spec);
   if (!joint) return null;
@@ -328,30 +328,22 @@ export function pinsBoardGeometry(
     body.rotateY(Math.PI / 2);
     body.translate(-bodyLength / 2, 0, 0);
   } else if (notch) {
-    // Board face in XY with two rectangular slots cut near the ends, sitting
-    // above the bottom edge; extruded through the thickness in Z.
+    // Board face in XY with a notch cut up from the bottom edge near each end,
+    // extruded through the thickness in Z (undermount clearance under the box).
     const hb = bodyLength / 2;
+    const nh = Math.min(notch.height, height - 0.004);
+    const nl = Math.min(notch.length, hb - 0.004);
+    const yN = yBottom + nh;
     const shape = new THREE.Shape();
-    shape.moveTo(-hb, yBottom);
-    shape.lineTo(hb, yBottom);
-    shape.lineTo(hb, height / 2);
-    shape.lineTo(-hb, height / 2);
+    shape.moveTo(-hb, height / 2); // top-left
+    shape.lineTo(-hb, yN); // down the left edge to the notch top
+    shape.lineTo(-hb + nl, yN); // across the left notch
+    shape.lineTo(-hb + nl, yBottom); // down to the bottom edge
+    shape.lineTo(hb - nl, yBottom); // along the bottom between notches
+    shape.lineTo(hb - nl, yN); // up the right notch
+    shape.lineTo(hb, yN); // across to the right edge
+    shape.lineTo(hb, height / 2); // up the right edge
     shape.closePath();
-    const ny0 = yBottom + notch.bottom;
-    const ny1 = Math.min(ny0 + notch.height, height / 2 - 0.002);
-    const slotLen = Math.min(notch.length, hb - 0.004);
-    for (const sign of [1, -1]) {
-      const xOuter = sign * (hb - 0.002);
-      const xa = Math.min(xOuter, xOuter - sign * slotLen);
-      const xb = Math.max(xOuter, xOuter - sign * slotLen);
-      const hole = new THREE.Path();
-      hole.moveTo(xa, ny0);
-      hole.lineTo(xb, ny0);
-      hole.lineTo(xb, ny1);
-      hole.lineTo(xa, ny1);
-      hole.closePath();
-      shape.holes.push(hole);
-    }
     body = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
     body.translate(0, 0, -thickness / 2);
   } else {

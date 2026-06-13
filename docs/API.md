@@ -71,11 +71,11 @@ the visible viewport size is irrelevant.
                        // halfblind (default): 1/16" laps at BOTH show faces;
                        // 'dovetail' = through, tails visible front and back
   scoop?: boolean,                               // finger-scoop front
-  undermountNotches?: boolean,                   // clearance slots in the drawer
-                       // BACK board for undermount slide hardware (sit above the
-                       // bottom panel; drawer units add them automatically when
-                       // slideType is 'undermount')
-  undermountNotchLengthMm?: number,              // slot length: 1-3/8" (34.925, default) or 2" (50.8); 1/2" tall
+  undermountNotches?: boolean,                   // clearance notches cut up from
+                       // the bottom edge of the drawer BACK board (under the
+                       // bottom panel) for undermount slide hardware; drawer
+                       // units add them automatically when slideType='undermount'
+  undermountNotchLengthMm?: number,              // notch length: 1-3/8" (34.925, default) or 2" (50.8); 1/2" tall
   dovetailPinCount?: number,                     // pins per corner (≥2); auto-spaced when unset
   dovetailToolDiameterMm?: number }              // dovetail bit Ø = min tail opening
                        // (1/2"=12.7, 5/8"=15.875, 3/4"=19.05); caps the pin count

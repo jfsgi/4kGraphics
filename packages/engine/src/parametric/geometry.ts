@@ -377,7 +377,6 @@ function partGeometry(part: Part): THREE.BufferGeometry {
               ? {
                   length: part.backNotch.lengthMm * MM_TO_M,
                   height: part.backNotch.heightMm * MM_TO_M,
-                  bottom: part.backNotch.bottomOffsetMm * MM_TO_M,
                 }
               : undefined,
           );
