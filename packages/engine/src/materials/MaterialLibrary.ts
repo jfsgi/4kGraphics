@@ -328,6 +328,12 @@ export class MaterialLibrary {
     this.cache.delete(id);
   }
 
+  /** Updates a scanned material's display label without rebuilding textures. */
+  renameScanned(id: string, label: string): void {
+    const def = this.scanned.get(id);
+    if (def) def.label = label;
+  }
+
   private buildScanned(def: ScannedMaterialDef): THREE.MeshPhysicalMaterial {
     const loader = new THREE.TextureLoader();
     const wrap = def.tiling === 'mirror' ? THREE.MirroredRepeatWrapping : THREE.RepeatWrapping;

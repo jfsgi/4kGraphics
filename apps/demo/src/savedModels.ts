@@ -108,6 +108,10 @@ export function deleteStoredMaterial(id: string): Promise<unknown> {
   return run(MATERIALS, 'readwrite', (store) => store.delete(id));
 }
 
+export function getStoredMaterial(id: string): Promise<StoredMaterial | undefined> {
+  return run<StoredMaterial | undefined>(MATERIALS, 'readonly', (store) => store.get(id));
+}
+
 /** User-added materials, newest first. */
 export function listStoredMaterials(): Promise<StoredMaterial[]> {
   return run<StoredMaterial[]>(MATERIALS, 'readonly', (store) => store.getAll()).then((all) =>

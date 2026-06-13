@@ -504,15 +504,15 @@ select#part-select {
 .swatch-user {
   position: relative;
 }
-.swatch-del {
+.swatch-del,
+.swatch-edit {
   position: absolute;
   top: -6px;
-  right: -6px;
   width: 16px;
   height: 16px;
   line-height: 14px;
   text-align: center;
-  font-size: 13px;
+  font-size: 11px;
   border-radius: 50%;
   background: var(--panel);
   border: 1px solid var(--panel-edge);
@@ -520,12 +520,24 @@ select#part-select {
   opacity: 0;
   transition: opacity 0.12s;
 }
-.swatch-user:hover .swatch-del {
+.swatch-del {
+  right: -6px;
+  font-size: 13px;
+}
+.swatch-edit {
+  left: -6px;
+}
+.swatch-user:hover .swatch-del,
+.swatch-user:hover .swatch-edit {
   opacity: 1;
 }
 .swatch-del:hover {
   color: #e06a5a;
   border-color: #e06a5a;
+}
+.swatch-edit:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 /* Saved models list */

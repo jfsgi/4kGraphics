@@ -129,6 +129,11 @@ export class FurnitureEngine {
     this.materials.removeScanned(id);
   }
 
+  /** Renames a registered scanned material (label only — textures are kept). */
+  renameScannedMaterial(id: string, label: string): void {
+    this.materials.renameScanned(id, label);
+  }
+
   listLightingPresets() {
     return LIGHTING_PRESETS;
   }

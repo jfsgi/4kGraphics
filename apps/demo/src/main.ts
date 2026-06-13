@@ -11,6 +11,7 @@ import {
 import {
   deleteModel,
   deleteStoredMaterial,
+  getStoredMaterial,
   listModels,
   listStoredMaterials,
   newModelId,
@@ -503,9 +504,19 @@ function buildMaterialPanel() {
         }
       });
     };
-    // User-added photo materials carry a delete handle.
+    // User-added photo materials carry rename and delete handles.
     if (userMaterialIds.has(info.id)) {
       button.classList.add('swatch-user');
+
+      const rename = document.createElement('span');
+      rename.className = 'swatch-edit';
+      rename.textContent = '✎';
+      rename.title = 'Rename this material';
+      rename.onclick = (event) => {
+        event.stopPropagation();
+        void renameMaterialPhoto(info.id, info.label);
+      };
+
       const del = document.createElement('span');
       del.className = 'swatch-del';
       del.textContent = '×';
@@ -522,7 +533,7 @@ function buildMaterialPanel() {
         }
         buildMaterialPanel();
       };
-      button.appendChild(del);
+      button.append(rename, del);
     }
     host.appendChild(button);
   }
@@ -975,6 +986,20 @@ async function addMaterialPhoto(file: File): Promise<void> {
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
   }
+}
+
+/** Renames a user-added photo material in place. */
+async function renameMaterialPhoto(id: string, currentLabel: string): Promise<void> {
+  const next = await askModelName(currentLabel, 'Rename');
+  if (next === null || next === currentLabel) return;
+  const material = await getStoredMaterial(id);
+  if (!material) return;
+  material.label = next;
+  await putStoredMaterial(material);
+  // Label-only update keeps the in-use texture intact.
+  engine.renameScannedMaterial(id, next);
+  buildMaterialPanel();
+  toast(`Renamed to “${next}”`);
 }
 
 /** Name + photographed board width (inches) for a dropped material photo. */
