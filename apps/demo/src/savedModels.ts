@@ -38,6 +38,8 @@ export interface StoredMaterial {
   normalMapUrl?: string;
   widthM: number;
   heightM: number;
+  /** Render the laminated-edge look of sheet goods. */
+  plywood?: boolean;
   savedAt: number;
 }
 

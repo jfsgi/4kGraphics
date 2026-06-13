@@ -258,7 +258,7 @@ export function generateWoodMaps(size: number, params: WoodParams): PbrMaps {
 
       // Glue-line: a very faint seam at each board boundary.
       const edge = Math.min(uIn, plankW - uIn);
-      const seam = edge < 0.006 ? 1 : 0;
+      const seam = edge < 0.005 ? 1 : 0;
 
       // Cathedral rings are sparse dark contour lines, so their amplitude
       // must be strong to read; sharper (thinner) lines get more weight.
@@ -278,14 +278,15 @@ export function generateWoodMaps(size: number, params: WoodParams): PbrMaps {
               ribbon * 0.3 +
               (pore - 0.5) * 0.06 +
               (h1 - 0.5) * 0.12 +
-              knotDark * 0.5) +
-          seam * 0.08 * c,
+              knotDark * 0.5) -
+          // A glue line is a thin, slightly darker seam — never a light streak.
+          seam * 0.05 * c,
       );
       tone[i] = t;
       height[i] = clamp01(
         0.55 -
           c * (hair * 0.2 + fine * 0.07 + late * (cathedral ? 0.2 : 0.08) + knotDark * 0.25) -
-          seam * 0.2,
+          seam * 0.06,
       );
       // Ribbon bands also flip the sheen — the chatoyance of interlocked grain.
       rough[i] = clamp01(

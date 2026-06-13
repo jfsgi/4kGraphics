@@ -61,6 +61,7 @@ export function buildGroup(layout: FurnitureLayout, material: THREE.Material): T
         : (partIndex * 0.618033988749) % 1;
     const offsetV = (partIndex * 0.754877666247) % 1;
     applyBoxUVs(geometry, TEXTURE_TILE_M, part.grainAxis, offsetU, offsetV, recessAO(part));
+    bakePlyEdges(geometry, sizes);
     partIndex += 1;
     const mesh = new THREE.Mesh(geometry, part.role === 'glass' ? GLASS_MATERIAL : material);
     if (part.role === 'glass') {
@@ -241,6 +242,32 @@ function chamferedFrontPrism(
   geometry.rotateY(Math.PI / 2);
   geometry.translate(-w / 2, 0, 0);
   return geometry;
+}
+
+/**
+ * Bakes the `ply` attribute used by plywood materials: for each vertex,
+ * `ply.x` is its position along the part's thinnest axis (meters) and `ply.y`
+ * is 1.0 on the edge faces (the laminations show there) and 0.0 on the broad
+ * faces. Cheap and harmless for non-plywood materials, which ignore it.
+ */
+function bakePlyEdges(geometry: THREE.BufferGeometry, sizesM: number[]): void {
+  const position = geometry.getAttribute('position');
+  const normal = geometry.getAttribute('normal');
+  if (!position || !normal) return;
+  const thick =
+    sizesM[0] <= sizesM[1] && sizesM[0] <= sizesM[2] ? 0 : sizesM[1] <= sizesM[2] ? 1 : 2;
+  const ply = new Float32Array(position.count * 2);
+  const get = (attr: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, i: number, a: number) =>
+    a === 0 ? attr.getX(i) : a === 1 ? attr.getY(i) : attr.getZ(i);
+  for (let i = 0; i < position.count; i++) {
+    const nx = Math.abs(normal.getX(i));
+    const ny = Math.abs(normal.getY(i));
+    const nz = Math.abs(normal.getZ(i));
+    const dominant = nx >= ny && nx >= nz ? 0 : ny >= nz ? 1 : 2;
+    ply[i * 2] = get(position, i, thick);
+    ply[i * 2 + 1] = dominant === thick ? 0 : 1; // edge faces show the plies
+  }
+  geometry.setAttribute('ply', new THREE.BufferAttribute(ply, 2));
 }
 
 function partGeometry(part: Part): THREE.BufferGeometry {

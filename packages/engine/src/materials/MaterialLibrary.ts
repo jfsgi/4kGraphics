@@ -6,6 +6,7 @@ import {
   generatePaintMaps,
   generateWoodMaps,
 } from './procedural.js';
+import { makePlywood } from './plywood.js';
 
 export interface MaterialInfo {
   id: string;
@@ -27,6 +28,10 @@ interface Preset {
   generate: Generator;
   /** Present on woods so stains can recolor the species and regenerate. */
   woodParams?: WoodParams;
+  /** Renders stacked-veneer laminations on end-grain edges (sheet goods). */
+  plywood?: boolean;
+  /** Lamination spacing in mm (plywood only; default 2). */
+  plySpacingMm?: number;
 }
 
 function hex(rgb: RGB): string {
@@ -36,15 +41,22 @@ function hex(rgb: RGB): string {
 function woodPreset(
   id: string,
   label: string,
-  params: Omit<WoodParams, 'plankCount'> & { plankCount?: number },
+  params: Omit<WoodParams, 'plankCount'> & {
+    plankCount?: number;
+    plywood?: boolean;
+    plySpacingMm?: number;
+  },
 ): Preset {
-  const woodParams: WoodParams = { plankCount: 12, ...params };
+  const { plywood, plySpacingMm, ...wood } = params;
+  const woodParams: WoodParams = { plankCount: 12, ...wood };
   return {
     info: { id, label, category: 'wood', swatch: hex(params.lightColor) },
     metalness: 0,
     clearcoat: 0.22,
     generate: (size) => generateWoodMaps(size, woodParams),
     woodParams,
+    plywood,
+    plySpacingMm,
   };
 }
 
@@ -125,6 +137,8 @@ const PRESETS: Preset[] = [
     figure: 'cathedral',
     ringSharpness: 2,
     plankCount: 1,
+    plywood: true,
+    plySpacingMm: 1.5,
   }),
   woodPreset('oak', 'White Oak', {
     seed: 11,
@@ -281,10 +295,20 @@ export interface ScannedMaterialDef {
    * raw, un-tiled photos don't show a hard seam.
    */
   tiling?: 'repeat' | 'mirror';
+  /** Renders stacked-veneer laminations on end-grain edges (sheet goods). */
+  plywood?: boolean;
+  /** Lamination spacing in mm (plywood only; default 2). */
+  plySpacingMm?: number;
 }
 
 /** Geometry box-UVs put one tile across this many meters (see geometry.ts). */
 const TEXTURE_TILE_M = 2.4;
+
+/** Parses a CSS hex color (#rrggbb) to an RGB triple. */
+function hexToRgb(hex: string): RGB {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [220, 200, 165];
+}
 
 export class MaterialLibrary {
   private cache = new Map<string, THREE.MeshPhysicalMaterial>();
@@ -369,6 +393,12 @@ export class MaterialLibrary {
       vertexColors: true,
     });
     material.name = def.id;
+    if (def.plywood) {
+      makePlywood(material, {
+        veneer: hexToRgb(def.swatch),
+        spacingM: (def.plySpacingMm ?? 2) / 1000,
+      });
+    }
     return material;
   }
 
@@ -418,6 +448,10 @@ export class MaterialLibrary {
       vertexColors: true,
     });
     material.name = key;
+    if (preset.plywood) {
+      const veneer = applied ? applyStain(preset.woodParams!.lightColor, applied) : preset.woodParams!.lightColor;
+      makePlywood(material, { veneer, spacingM: (preset.plySpacingMm ?? 2) / 1000 });
+    }
     this.cache.set(key, material);
     return material;
   }

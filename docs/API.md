@@ -141,11 +141,17 @@ scale.
 
 `def` fields: `id`, `label`, `swatch`, `mapUrl` (any of these URLs may be a
 data URL), `normalMapUrl?`, `roughnessMapUrl?`, `widthM`, `heightM`,
-`clearcoat?`, and `tiling?: 'repeat' | 'mirror'`. Use `mirror` for raw,
-un-tiled photos so boundaries don't show a hard seam (`repeat`, the default,
-suits images already made seamless). The demo's "Drop a wood photo" zone uses
-this path: it derives a normal map in the browser and registers the photo with
-`tiling: 'mirror'`.
+`clearcoat?`, `tiling?: 'repeat' | 'mirror'`, and `plywood?` /
+`plySpacingMm?`. Use `mirror` for raw, un-tiled photos so boundaries don't show
+a hard seam (`repeat`, the default, suits images already made seamless). The
+demo's "Drop a wood photo" zone uses this path: it derives a normal map in the
+browser and registers the photo with `tiling: 'mirror'`.
+
+Set `plywood: true` (optionally `plySpacingMm`, default 2 mm) to render the
+stacked-veneer laminations of sheet goods on a part's end-grain **edges** while
+the broad faces keep the face-veneer look — the built-in `birchply` uses this.
+It applies to parametric box parts (which bake the needed edge data); imported
+meshes show the face veneer only.
 
 ### Material ids
 
