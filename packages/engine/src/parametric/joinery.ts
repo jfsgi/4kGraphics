@@ -139,7 +139,13 @@ function layoutJoint(height: number, spec: JointSpec): JointLayout | null {
     // tail (so pins = P, full tails = P − 1).
     const edgeHalf = Math.min(EDGE_HALF_TAIL_M, height * 0.22);
     const mid = height - 2 * edgeHalf;
-    let pins = spec.pinCount && spec.pinCount >= 1 ? spec.pinCount : Math.max(2, Math.round(height / 0.08));
+    // Auto count gives even full tails ≈ twice the 3/8" half-tail (≈ 3/4"), the
+    // traditional drawer layout; otherwise honour the requested pin count.
+    const fullTailTarget = 2 * edgeHalf;
+    let pins =
+      spec.pinCount && spec.pinCount >= 1
+        ? spec.pinCount
+        : Math.max(2, Math.round((mid + fullTailTarget) / (pinTip + fullTailTarget)));
     let fullTail = pins > 1 ? (mid - pins * pinTip) / (pins - 1) : mid - pinTip;
     while (pins > 1 && fullTail < minTail) {
       pins -= 1; // tails too tight for the tool — drop a pin
