@@ -316,6 +316,8 @@ export class MaterialLibrary {
   private pendingLoads: Promise<unknown>[] = [];
   /** Display-label overrides (any material id → custom label). */
   private labels = new Map<string, string>();
+  /** Plywood on/off overrides (any material id → boolean). */
+  private plywoodOverride = new Map<string, boolean>();
 
   constructor(private textureSize = 2048) {}
 
@@ -366,6 +368,50 @@ export class MaterialLibrary {
     if (def) def.label = label;
   }
 
+  /** Whether a material currently renders plywood (laminated) edges. */
+  isPlywood(id: string): boolean {
+    const override = this.plywoodOverride.get(id);
+    if (override !== undefined) return override;
+    const preset = PRESETS.find((p) => p.info.id === id);
+    if (preset) return !!preset.plywood;
+    return !!this.scanned.get(id)?.plywood;
+  }
+
+  private veneerFor(id: string): RGB {
+    const preset = PRESETS.find((p) => p.info.id === id);
+    if (preset?.woodParams) return preset.woodParams.lightColor;
+    const def = this.scanned.get(id);
+    return def ? hexToRgb(def.swatch) : [220, 200, 165];
+  }
+
+  private plySpacingMmFor(id: string): number {
+    const preset = PRESETS.find((p) => p.info.id === id);
+    if (preset) return preset.plySpacingMm ?? 2;
+    return this.scanned.get(id)?.plySpacingMm ?? 2;
+  }
+
+  /**
+   * Toggles plywood (laminated-edge) rendering for a material. The change is
+   * applied to any already-built material instance in place — meshes using it
+   * update on the next frame without regenerating textures.
+   */
+  setPlywood(id: string, value: boolean): void {
+    this.plywoodOverride.set(id, value);
+    for (const [key, material] of this.cache) {
+      if (key !== id && !key.startsWith(`${id}@`)) continue;
+      if (value) {
+        makePlywood(material, {
+          veneer: this.veneerFor(id),
+          spacingM: this.plySpacingMmFor(id) / 1000,
+        });
+      } else {
+        material.onBeforeCompile = () => undefined;
+        material.customProgramCacheKey = () => `${id}:flat`;
+      }
+      material.needsUpdate = true;
+    }
+  }
+
   private buildScanned(def: ScannedMaterialDef): THREE.MeshPhysicalMaterial {
     const loader = new THREE.TextureLoader();
     const wrap = def.tiling === 'mirror' ? THREE.MirroredRepeatWrapping : THREE.RepeatWrapping;
@@ -393,7 +439,7 @@ export class MaterialLibrary {
       vertexColors: true,
     });
     material.name = def.id;
-    if (def.plywood) {
+    if (this.plywoodOverride.get(def.id) ?? def.plywood) {
       makePlywood(material, {
         veneer: hexToRgb(def.swatch),
         spacingM: (def.plySpacingMm ?? 2) / 1000,
@@ -448,8 +494,8 @@ export class MaterialLibrary {
       vertexColors: true,
     });
     material.name = key;
-    if (preset.plywood) {
-      const veneer = applied ? applyStain(preset.woodParams!.lightColor, applied) : preset.woodParams!.lightColor;
+    if ((this.plywoodOverride.get(id) ?? preset.plywood) && preset.woodParams) {
+      const veneer = applied ? applyStain(preset.woodParams.lightColor, applied) : preset.woodParams.lightColor;
       makePlywood(material, { veneer, spacingM: (preset.plySpacingMm ?? 2) / 1000 });
     }
     this.cache.set(key, material);

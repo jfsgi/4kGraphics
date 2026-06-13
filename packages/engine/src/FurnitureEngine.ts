@@ -139,6 +139,19 @@ export class FurnitureEngine {
     this.materials.setLabel(id, label);
   }
 
+  /** Whether a material currently renders plywood (laminated) edges. */
+  isMaterialPlywood(id: string): boolean {
+    return this.materials.isPlywood(id);
+  }
+
+  /**
+   * Toggles plywood (laminated-edge) rendering for a material. Live material
+   * instances update in place, so meshes already using it refresh at once.
+   */
+  setMaterialPlywood(id: string, value: boolean): void {
+    this.materials.setPlywood(id, value);
+  }
+
   listLightingPresets() {
     return LIGHTING_PRESETS;
   }

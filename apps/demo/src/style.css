@@ -542,6 +542,33 @@ select#part-select {
 .swatch-user:hover .swatch-del {
   opacity: 1;
 }
+.swatch-ply {
+  position: absolute;
+  bottom: -6px;
+  left: -6px;
+  padding: 0 4px;
+  height: 14px;
+  line-height: 13px;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border-radius: 7px;
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.12s;
+  z-index: 1;
+}
+.swatch:hover .swatch-ply {
+  opacity: 1;
+}
+.swatch-ply.on {
+  opacity: 1;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
 .swatch-del:hover {
   color: #e06a5a;
   border-color: #e06a5a;

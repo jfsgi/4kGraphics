@@ -70,7 +70,10 @@ the visible viewport size is irrelevant.
   joinery: 'dovetail' | 'halfblind' | 'boxjoint' | 'dado',
                        // halfblind (default): 1/16" laps at BOTH show faces;
                        // 'dovetail' = through, tails visible front and back
-  scoop?: boolean }                              // finger-scoop front
+  scoop?: boolean,                               // finger-scoop front
+  undermountNotches?: boolean }                  // notches in the bottom's back
+                       // corners for undermount slide hardware (drawer units
+                       // add these automatically when slideType is 'undermount')
 
 // kind: 'door' — slab, five-piece shaker, raised panel, or glass panel
 { kind, widthMm, heightMm, thicknessMm,

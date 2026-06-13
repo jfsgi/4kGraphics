@@ -103,6 +103,8 @@ export interface Part {
   };
   /** Finger-scoop cutout on a board's top edge (drawer-box fronts). */
   scoop?: { widthMm: number; depthMm: number };
+  /** Undermount-slide notches cut into the two back corners of a bottom panel. */
+  notch?: { widthMm: number; depthMm: number };
   /**
    * Finger-pull channel routed along the board's top edge (handle-less
    * slab fronts). The cut list keeps the part's nominal dimensions.
@@ -411,6 +413,9 @@ function cabinetLayout(spec: CabinetSpec): FurnitureLayout {
   return { spec, parts, overallMm: [w + 2 * topOverhang, h + t, d + topOverhang] };
 }
 
+/** Undermount slide notch in each back corner of the drawer bottom (~5/8"). */
+const UNDERMOUNT_NOTCH = { widthMm: 16, depthMm: 11 };
+
 function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   const parts: Part[] = [];
   const { widthMm: w, depthMm: d, heightMm: h, stockThicknessMm: t } = spec;
@@ -480,6 +485,7 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
     positionMm: [0, 12 + spec.bottomThicknessMm / 2, 0],
     role: 'panel',
     grainAxis: 'x',
+    notch: spec.undermountNotches ? UNDERMOUNT_NOTCH : undefined,
   });
 
   return { spec, parts, overallMm: [w, h, d] };
@@ -1013,6 +1019,8 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
         positionMm: [colCenter, boxY0 + 12 + 3, boxZ],
         role: 'panel',
         grainAxis: 'x',
+        // Undermount slides need clearance notches in the bottom's back corners.
+        notch: undermount ? UNDERMOUNT_NOTCH : undefined,
       });
     }
   }

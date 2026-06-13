@@ -274,6 +274,10 @@ function buildControls() {
       if (spec.kind === 'drawerbox') spec.scoop = v;
       scheduleRebuild();
     });
+    addCheck(host, 'Undermount notches (bottom back corners)', spec.undermountNotches ?? false, (v) => {
+      if (spec.kind === 'drawerbox') spec.undermountNotches = v;
+      scheduleRebuild();
+    });
   }
 
   if (spec.kind === 'door' || spec.kind === 'drawerfront') {
@@ -513,6 +517,20 @@ function buildMaterialPanel() {
       void renameMaterial(info.id, info.label);
     };
     button.appendChild(rename);
+
+    // Plywood (laminated-edge) toggle — woods and photo materials only.
+    if (info.category === 'wood' || info.category === 'scanned') {
+      const ply = document.createElement('span');
+      const on = engine.isMaterialPlywood(info.id);
+      ply.className = 'swatch-ply' + (on ? ' on' : '');
+      ply.textContent = 'PLY';
+      ply.title = on ? 'Plywood edges: on' : 'Plywood edges: off';
+      ply.onclick = (event) => {
+        event.stopPropagation();
+        togglePlywood(info.id);
+      };
+      button.appendChild(ply);
+    }
 
     if (userMaterialIds.has(info.id)) {
       button.classList.add('swatch-user');
@@ -1029,6 +1047,38 @@ function applyLabelOverrides(): void {
   }
 }
 
+const PLYWOOD_KEY = 'fourk-plywood';
+
+function loadPlywoodOverrides(): Record<string, boolean> {
+  try {
+    return JSON.parse(localStorage.getItem(PLYWOOD_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
+}
+
+function savePlywoodOverride(id: string, value: boolean): void {
+  const map = loadPlywoodOverrides();
+  map[id] = value;
+  localStorage.setItem(PLYWOOD_KEY, JSON.stringify(map));
+}
+
+/** Re-applies persisted plywood toggles to the engine. */
+function applyPlywoodOverrides(): void {
+  for (const [id, value] of Object.entries(loadPlywoodOverrides())) {
+    if (engine.listMaterials().some((m) => m.id === id)) engine.setMaterialPlywood(id, value);
+  }
+}
+
+/** Flips a material's plywood (laminated-edge) rendering and persists it. */
+function togglePlywood(id: string): void {
+  const next = !engine.isMaterialPlywood(id);
+  engine.setMaterialPlywood(id, next);
+  savePlywoodOverride(id, next);
+  buildMaterialPanel();
+  toast(next ? 'Plywood edges on' : 'Plywood edges off');
+}
+
 /** Renames any material — built-in or user-added — and persists the label. */
 async function renameMaterial(id: string, currentLabel: string): Promise<void> {
   const next = await askModelName(currentLabel, 'Rename');
@@ -1316,12 +1366,14 @@ void registerScannedMaterials().then((added) => {
   if (added) buildMaterialPanel();
 });
 // Re-register photo materials the user added in a previous session, then
-// re-apply any custom material labels.
+// re-apply any custom material labels and plywood toggles.
 void registerStoredMaterials().then(() => {
   applyLabelOverrides();
+  applyPlywoodOverrides();
   buildMaterialPanel();
 });
 applyLabelOverrides();
+applyPlywoodOverrides();
 buildLightingPanel();
 wireScenePanel();
 wireImport();

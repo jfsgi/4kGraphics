@@ -90,6 +90,8 @@ export interface DrawerBoxSpec {
   joinery: DrawerJoinery;
   /** Finger-scoop cutout on the front's top edge. */
   scoop?: boolean;
+  /** Notches in the back corners of the bottom for undermount slide hardware. */
+  undermountNotches?: boolean;
 }
 
 /** A cabinet door: slab, or five-piece shaker with a floating panel. */
