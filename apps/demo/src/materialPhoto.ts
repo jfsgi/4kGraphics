@@ -312,6 +312,92 @@ function deriveNormalMap(data: ImageData, w: number, h: number, strength = 1.1):
 }
 
 /**
+ * Evens out large-scale colour/brightness variation (a board's sap/heartwood
+ * blocks, lighting falloff) by dividing each pixel by a heavily blurred copy
+ * and renormalising to the mean. The fine grain survives; the big blotches that
+ * tile into ugly repeats do not. Returns flattened ImageData.
+ */
+function flattenIllumination(source: CanvasImageSource, w: number, h: number, strength = 0.85): ImageData {
+  const full = document.createElement('canvas');
+  full.width = w;
+  full.height = h;
+  const fctx = full.getContext('2d')!;
+  fctx.drawImage(source, 0, 0, w, h);
+  const data = fctx.getImageData(0, 0, w, h);
+
+  // Large-radius blur via downscale → upscale (cheap and smooth).
+  const bw = Math.max(2, Math.round(w / 22));
+  const bh = Math.max(2, Math.round(h / 22));
+  const small = document.createElement('canvas');
+  small.width = bw;
+  small.height = bh;
+  const sctx = small.getContext('2d')!;
+  sctx.imageSmoothingEnabled = true;
+  sctx.drawImage(full, 0, 0, bw, bh);
+  const up = document.createElement('canvas');
+  up.width = w;
+  up.height = h;
+  const uctx = up.getContext('2d')!;
+  uctx.imageSmoothingEnabled = true;
+  uctx.drawImage(small, 0, 0, bw, bh, 0, 0, w, h);
+  const blur = uctx.getImageData(0, 0, w, h).data;
+
+  const d = data.data;
+  const n = w * h;
+  const mean = [0, 0, 0];
+  for (let i = 0; i < n; i++) for (let c = 0; c < 3; c++) mean[c] += blur[i * 4 + c];
+  for (let c = 0; c < 3; c++) mean[c] /= n;
+  for (let i = 0; i < n; i++) {
+    for (let c = 0; c < 3; c++) {
+      const b = Math.max(8, blur[i * 4 + c]);
+      const factor = Math.pow(mean[c] / b, strength);
+      d[i * 4 + c] = Math.max(0, Math.min(255, d[i * 4 + c] * factor));
+    }
+  }
+  return data;
+}
+
+/**
+ * Makes ImageData tile seamlessly under plain repeat by wrap-blending a margin
+ * on each pair of opposite edges, so the left edge meets the right (and top the
+ * bottom) without a hard seam — no mirroring, so no kaleidoscope symmetry.
+ */
+function makeTileable(data: ImageData, w: number, h: number): void {
+  const d = data.data;
+  const src = new Uint8ClampedArray(d);
+  const m = Math.max(2, Math.floor(Math.min(w, h) * 0.12));
+  // Left/right edges.
+  for (let y = 0; y < h; y++) {
+    for (let i = 0; i < m; i++) {
+      const t = 0.5 * (1 - i / m); // 0.5 at the very edge → average; 0 inward
+      const li = (y * w + i) * 4;
+      const ri = (y * w + (w - 1 - i)) * 4;
+      for (let c = 0; c < 3; c++) {
+        const l = src[li + c];
+        const r = src[ri + c];
+        d[li + c] = l * (1 - t) + r * t;
+        d[ri + c] = r * (1 - t) + l * t;
+      }
+    }
+  }
+  const src2 = new Uint8ClampedArray(d);
+  // Top/bottom edges.
+  for (let x = 0; x < w; x++) {
+    for (let i = 0; i < m; i++) {
+      const t = 0.5 * (1 - i / m);
+      const ti = (i * w + x) * 4;
+      const bi = ((h - 1 - i) * w + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        const tp = src2[ti + c];
+        const bt = src2[bi + c];
+        d[ti + c] = tp * (1 - t) + bt * t;
+        d[bi + c] = bt * (1 - t) + tp * t;
+      }
+    }
+  }
+}
+
+/**
  * Builds the PBR maps from an already-loaded image. Keeps the source aspect
  * ratio and resolution, only downsampling when a side exceeds MAX_DIM (never
  * upscales). When `rotate` is set the image is turned 90° so its grain runs
@@ -326,23 +412,32 @@ export function buildMaterialMaps(meta: PhotoMeta, originalWidthM: number, rotat
   const h = Math.max(1, Math.round(meta.height * scale));
   const originalHeightM = (originalWidthM * h) / w;
 
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d')!;
+  // Lay the board out level at the working size, evening illumination as we go.
+  const oriented = document.createElement('canvas');
+  const octx = oriented.getContext('2d')!;
   if (rotate) {
-    canvas.width = h;
-    canvas.height = w;
-    ctx.translate(h, 0);
-    ctx.rotate(Math.PI / 2);
-    ctx.drawImage(meta.source, 0, 0, w, h);
+    oriented.width = h;
+    oriented.height = w;
+    octx.translate(h, 0);
+    octx.rotate(Math.PI / 2);
+    octx.drawImage(meta.source, 0, 0, w, h);
   } else {
-    canvas.width = w;
-    canvas.height = h;
-    ctx.drawImage(meta.source, 0, 0, w, h);
+    oriented.width = w;
+    oriented.height = h;
+    octx.drawImage(meta.source, 0, 0, w, h);
   }
-  const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const cw = oriented.width;
+  const ch = oriented.height;
+  const data = flattenIllumination(oriented, cw, ch);
+  makeTileable(data, cw, ch);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = cw;
+  canvas.height = ch;
+  canvas.getContext('2d')!.putImageData(data, 0, 0);
   return {
     mapUrl: canvas.toDataURL('image/jpeg', 0.92),
-    normalMapUrl: deriveNormalMap(data, canvas.width, canvas.height),
+    normalMapUrl: deriveNormalMap(data, cw, ch),
     swatch: averageHex(data),
     // After a 90° turn the U/V physical extents swap.
     widthM: rotate ? originalHeightM : originalWidthM,

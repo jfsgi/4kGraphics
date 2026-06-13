@@ -987,7 +987,7 @@ async function registerStoredMaterials(): Promise<void> {
       normalMapUrl: m.normalMapUrl,
       widthM: m.widthM,
       heightM: m.heightM,
-      tiling: 'mirror',
+      tiling: 'repeat',
       plywood: m.plywood,
     });
     userMaterialIds.add(m.id);
@@ -1035,7 +1035,7 @@ async function addMaterialPhoto(file: File): Promise<void> {
       normalMapUrl: material.normalMapUrl,
       widthM: material.widthM,
       heightM: material.heightM,
-      tiling: 'mirror',
+      tiling: 'repeat',
       plywood: material.plywood,
     });
     userMaterialIds.add(material.id);
