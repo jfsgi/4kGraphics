@@ -47,6 +47,8 @@ export {
   loadModel,
   detectFormat,
   normalizeToFurnitureScale,
+  parseStlGeometry,
+  isBinaryStl,
   type ModelFormat,
   type LoadModelOptions,
 } from './loaders/ModelLoader.js';

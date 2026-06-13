@@ -96,7 +96,8 @@ async function loadByFormat(url: string, format: ModelFormat): Promise<THREE.Gro
     case 'fbx':
       return await new FBXLoader().loadAsync(url);
     case 'stl': {
-      const geometry = await new STLLoader().loadAsync(url);
+      const buffer = await (await fetch(url)).arrayBuffer();
+      const geometry = parseStlGeometry(buffer);
       geometry.computeVertexNormals();
       const mesh = new THREE.Mesh(
         geometry,
@@ -107,6 +108,48 @@ async function loadByFormat(url: string, format: ModelFormat): Promise<THREE.Gro
       return group;
     }
   }
+}
+
+/**
+ * Detects whether STL bytes are binary. A binary STL is defined exactly by
+ * `84 + 50·faceCount === byteLength`; when that holds it is unambiguous. When
+ * it doesn't (padded or slightly-off exports), we sniff the payload: ASCII
+ * STLs are printable text end to end, binary STLs are mostly non-text float
+ * bytes.
+ */
+export function isBinaryStl(buffer: ArrayBuffer): boolean {
+  if (buffer.byteLength < 84) return false;
+  const view = new DataView(buffer);
+  const faces = view.getUint32(80, true);
+  if (84 + faces * 50 === buffer.byteLength) return true;
+  const sample = new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 2048));
+  let nonText = 0;
+  for (let i = 0; i < sample.length; i++) {
+    const b = sample[i];
+    if (b === 9 || b === 10 || b === 13) continue; // tab, LF, CR
+    if (b < 32 || b > 126) nonText++;
+  }
+  return nonText > sample.length * 0.05;
+}
+
+/**
+ * Parses an STL ArrayBuffer into geometry, working around a gap in three.js's
+ * binary/ASCII auto-detection: it misreads a binary file as ASCII whenever the
+ * 80-byte header text begins with "solid" (which several CAD exporters, the
+ * SketchUp family included, write) and the file size isn't an exact face-count
+ * match. We decide the encoding ourselves and steer the loader to the right
+ * parser — binary buffers get their header's leading bytes neutralized so the
+ * loader's own heuristic agrees; ASCII buffers are handed in as decoded text,
+ * which forces the ASCII path regardless of byte patterns.
+ */
+export function parseStlGeometry(buffer: ArrayBuffer): THREE.BufferGeometry {
+  const loader = new STLLoader();
+  if (isBinaryStl(buffer)) {
+    const bytes = new Uint8Array(buffer.slice(0));
+    bytes.fill(0, 0, 5); // erase a "solid" header prefix the heuristic trips on
+    return loader.parse(bytes.buffer);
+  }
+  return loader.parse(new TextDecoder().decode(new Uint8Array(buffer)));
 }
 
 /**
