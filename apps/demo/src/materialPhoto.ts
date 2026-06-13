@@ -265,14 +265,25 @@ function averageHex(data: ImageData): string {
 }
 
 /** Sobel height-from-luminance into a tangent-space normal map. */
-function deriveNormalMap(data: ImageData, w: number, h: number, strength = 2.2): string {
+function deriveNormalMap(data: ImageData, w: number, h: number, strength = 1.1): string {
   const d = data.data;
-  const lum = new Float32Array(w * h);
+  const raw = new Float32Array(w * h);
   for (let i = 0; i < w * h; i++) {
-    lum[i] = (0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]) / 255;
+    raw[i] = (0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]) / 255;
   }
-  const at = (x: number, y: number) =>
-    lum[Math.min(h - 1, Math.max(0, y)) * w + Math.min(w - 1, Math.max(0, x))];
+  // Low-pass the height first so fine pores/fibres and sensor noise don't read
+  // as raised grain — a sanded surface only has the broad grain undulation.
+  const lum = new Float32Array(w * h);
+  const idx = (x: number, y: number) =>
+    Math.min(h - 1, Math.max(0, y)) * w + Math.min(w - 1, Math.max(0, x));
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let s = 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) s += raw[idx(x + dx, y + dy)];
+      lum[y * w + x] = s / 9;
+    }
+  }
+  const at = (x: number, y: number) => lum[idx(x, y)];
   const out = new ImageData(w, h);
   const o = out.data;
   for (let y = 0; y < h; y++) {
