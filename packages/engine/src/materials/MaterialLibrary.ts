@@ -432,13 +432,13 @@ export class MaterialLibrary {
       normalMap: def.normalMapUrl ? load(def.normalMapUrl, false) : null,
       roughnessMap: def.roughnessMapUrl ? load(def.roughnessMapUrl, false) : null,
       // Sanded, lightly finished wood: a smooth surface with a soft sheen, not
-      // a fully matte raised-grain one. Keep the photo's relief subtle so the
-      // grain reads as colour, not bumps.
-      roughness: def.roughnessMapUrl ? 1 : 0.58,
+      // a fully matte raised-grain one. The grain reads as colour; surface
+      // relief is barely there.
+      roughness: def.roughnessMapUrl ? 1 : 0.5,
       metalness: 0,
-      clearcoat: def.clearcoat ?? 0.25,
+      clearcoat: def.clearcoat ?? 0.3,
       clearcoatRoughness: 0.3,
-      normalScale: new THREE.Vector2(0.28, 0.28),
+      normalScale: new THREE.Vector2(0.08, 0.08),
       vertexColors: true,
     });
     material.name = def.id;
@@ -492,8 +492,9 @@ export class MaterialLibrary {
       metalness: preset.metalness,
       clearcoat: preset.clearcoat,
       clearcoatRoughness: 0.28,
-      // Gentle relief — a sanded surface, not raised grain.
-      normalScale: new THREE.Vector2(0.42, 0.42),
+      // A sanded surface is nearly flat — barely-there relief so the grain
+      // reads as colour, not raised texture.
+      normalScale: new THREE.Vector2(0.16, 0.16),
       // End-grain darkening rides in vertex colors (see applyBoxUVs).
       vertexColors: true,
     });
