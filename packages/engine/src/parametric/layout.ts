@@ -444,18 +444,25 @@ function undermountBackNotch(lengthMm?: number) {
 function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   const parts: Part[] = [];
   const { widthMm: w, depthMm: d, heightMm: h, stockThicknessMm: t } = spec;
-  // Scooped (letter-tray) boxes are through-dovetailed: a low front, sides
-  // sloping up to the full-height back. They never carry a half-blind lap.
+  // Front board height (its own variable): full height by default, or lower for
+  // a low-front box. Scooped boxes default the front to ~42% of the height.
   const scoopedSides = spec.scoopedSides === true;
-  const frontH = scoopedSides
-    ? Math.max(t + 20, Math.min(h - 1, spec.scoopFrontHeightMm ?? Math.round(h * 0.42)))
-    : h;
-  // Length of the ogee sweep on the sides, measured back from the front.
-  // Defaults to ~45% of the inner depth: a short scoop near the front with the
-  // back half staying full height (a letter-tray profile).
-  const scoopRun = scoopedSides
-    ? (spec.scoopLengthMm ?? Math.round((d - 2 * t) * 0.45))
-    : undefined;
+  const frontH =
+    spec.frontHeightMm != null
+      ? Math.max(t + 20, Math.min(h, spec.frontHeightMm))
+      : scoopedSides
+        ? Math.max(t + 20, Math.round(h * 0.42))
+        : h;
+  // A low front slopes the sides (scooped, ogee) or keeps them straight and
+  // full height (low-front box). `scoopRun` is the ogee sweep length; 0 keeps
+  // the side tops flat with a vertical rise at the front.
+  const lowFront = frontH < h - 0.01;
+  const scoopRun = !lowFront
+    ? undefined
+    : scoopedSides
+      ? (spec.scoopLengthMm ?? Math.round((d - 2 * t) * 0.45))
+      : 0;
+  // Scooped boxes are always through-dovetailed (no half-blind lap).
   const halfblind = !scoopedSides && spec.joinery === 'halfblind';
   const through = scoopedSides || spec.joinery === 'dovetail' || spec.joinery === 'boxjoint';
   // Half-blind tails stop 1/16" short of the front face (clean show face);
@@ -467,7 +474,7 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   // pull, so the two never combine.
   const scoop =
     spec.scoop && !scoopedSides
-      ? { widthMm: Math.min(142, w * 0.38), depthMm: Math.min(19.05, h * 0.35) }
+      ? { widthMm: Math.min(142, w * 0.38), depthMm: Math.min(19.05, frontH * 0.35) }
       : undefined;
   // Dovetail pin count / cutter diameter, and the MEJA drawer edge convention:
   // a 3/8" half-pin (narrow piece) at the top and bottom edges, tails inboard.
@@ -505,7 +512,7 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
               ...dt,
             }
           : undefined,
-      slopedTop: scoopedSides
+      slopedTop: lowFront
         ? { frontHeightMm: frontH, backHeightMm: h, scoopLengthMm: scoopRun }
         : undefined,
     });

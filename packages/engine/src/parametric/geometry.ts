@@ -374,7 +374,9 @@ function partGeometry(part: Part): THREE.BufferGeometry {
           part.slopedTop.backHeightMm * MM_TO_M,
           thk,
           joint,
-          part.slopedTop.scoopLengthMm ? part.slopedTop.scoopLengthMm * MM_TO_M : undefined,
+          part.slopedTop.scoopLengthMm != null
+            ? part.slopedTop.scoopLengthMm * MM_TO_M
+            : undefined,
         );
         if (sloped) {
           if (lenX) sloped.rotateY(Math.PI / 2); // native length Z → world X

@@ -88,18 +88,23 @@ export interface DrawerBoxSpec {
   stockThicknessMm: number;
   bottomThicknessMm: number;
   joinery: DrawerJoinery;
-  /** Finger-scoop cutout on the front's top edge. */
+  /** Finger-pull scoop cutout on the front's top edge. */
   scoop?: boolean;
   /**
-   * Letter-tray profile: a low front with the sides sloping up to a
-   * full-height back. Always through-dovetailed; overrides half-blind.
+   * Front board height. Defaults to heightMm (front as tall as the sides).
+   * Set lower for a low-front box: straight full-height sides normally, or
+   * sloped sides when scoopedSides is on. Defaults to ≈ 42% of heightMm when
+   * scoopedSides is on and this is unset.
+   */
+  frontHeightMm?: number;
+  /**
+   * Letter-tray profile: the sides slope up from the low front to a full-height
+   * back. Always through-dovetailed; overrides half-blind.
    */
   scoopedSides?: boolean;
-  /** Low-front height for scoopedSides (default ≈ 42% of heightMm). */
-  scoopFrontHeightMm?: number;
   /**
    * Length of the ogee sweep on the sides, measured back from the front
-   * (scoopedSides). Defaults to the full inner depth — the whole side curves.
+   * (scoopedSides). Defaults to ≈ 45% of the inner depth.
    */
   scoopLengthMm?: number;
   /** Notches in the back corners of the bottom for undermount slide hardware. */
@@ -452,12 +457,12 @@ export function validateSpec(spec: FurnitureSpec): void {
       if (spec.heightMm < 40) {
         throw new Error('drawerbox: heightMm must be at least 40mm');
       }
-      if (spec.scoopedSides && spec.scoopFrontHeightMm !== undefined) {
-        if (spec.scoopFrontHeightMm < spec.stockThicknessMm + 18) {
-          throw new Error('drawerbox: scoopFrontHeightMm too low to hold the bottom panel');
+      if (spec.frontHeightMm !== undefined) {
+        if (spec.frontHeightMm < spec.stockThicknessMm + 18) {
+          throw new Error('drawerbox: frontHeightMm too low to hold the bottom panel');
         }
-        if (spec.scoopFrontHeightMm >= spec.heightMm) {
-          throw new Error('drawerbox: scoopFrontHeightMm must be less than heightMm');
+        if (spec.frontHeightMm > spec.heightMm) {
+          throw new Error('drawerbox: frontHeightMm must not exceed heightMm');
         }
       }
       if (spec.scoopedSides && spec.scoopLengthMm !== undefined && spec.scoopLengthMm <= 0) {

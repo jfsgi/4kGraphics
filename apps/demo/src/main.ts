@@ -309,47 +309,47 @@ function buildControls() {
     addSection(
       host,
       'Profile',
-      'A scooped (letter-tray) box: a low front with the sides sloping up to the full-height back. Always through-dovetailed.',
+      'Front board height (lower it for a low-front box), and an optional scooped letter-tray profile where the sides slope up to the full-height back.',
     );
-    addCheck(host, 'Scooped sides (low front, sloped to the back)', spec.scoopedSides ?? false, (v) => {
+    const disp = (v: number) => `${v} · ${formatInches(v)}`;
+    const slider = (
+      label: string,
+      value: number,
+      min: number,
+      max: number,
+      set: (v: number) => void,
+    ) => {
+      const row = document.createElement('label');
+      row.className = 'slider-row';
+      row.innerHTML = `<span>${label}</span><output>${disp(value)}</output>`;
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = String(min);
+      input.max = String(max);
+      input.step = '5';
+      input.value = String(value);
+      input.oninput = () => {
+        set(Number(input.value));
+        row.querySelector('output')!.textContent = disp(Number(input.value));
+        scheduleRebuild();
+      };
+      row.appendChild(input);
+      host.appendChild(row);
+    };
+    slider(
+      'Front height (mm)',
+      spec.frontHeightMm ?? (spec.scoopedSides ? Math.round(spec.heightMm * 0.42) : spec.heightMm),
+      Math.max(20, spec.stockThicknessMm + 18),
+      spec.heightMm,
+      (v) => {
+        if (spec.kind === 'drawerbox') spec.frontHeightMm = v >= spec.heightMm ? undefined : v;
+      },
+    );
+    addCheck(host, 'Scooped sides (sloped to the back)', spec.scoopedSides ?? false, (v) => {
       if (spec.kind === 'drawerbox') spec.scoopedSides = v;
       scheduleRebuild();
     });
     if (spec.scoopedSides) {
-      const disp = (v: number) => `${v} · ${formatInches(v)}`;
-      const slider = (
-        label: string,
-        value: number,
-        min: number,
-        max: number,
-        set: (v: number) => void,
-      ) => {
-        const row = document.createElement('label');
-        row.className = 'slider-row';
-        row.innerHTML = `<span>${label}</span><output>${disp(value)}</output>`;
-        const input = document.createElement('input');
-        input.type = 'range';
-        input.min = String(min);
-        input.max = String(max);
-        input.step = '5';
-        input.value = String(value);
-        input.oninput = () => {
-          set(Number(input.value));
-          row.querySelector('output')!.textContent = disp(Number(input.value));
-          scheduleRebuild();
-        };
-        row.appendChild(input);
-        host.appendChild(row);
-      };
-      slider(
-        'Front height (mm)',
-        spec.scoopFrontHeightMm ?? Math.round(spec.heightMm * 0.42),
-        Math.max(20, spec.stockThicknessMm + 18),
-        spec.heightMm - 5,
-        (v) => {
-          if (spec.kind === 'drawerbox') spec.scoopFrontHeightMm = v;
-        },
-      );
       slider(
         'Scoop length from front (mm)',
         spec.scoopLengthMm ?? Math.round((spec.depthMm - 2 * spec.stockThicknessMm) * 0.45),

@@ -137,7 +137,7 @@ describe('drawer box layout', () => {
       joinery: 'halfblind' as const,
       heightMm: 150,
       scoopedSides: true,
-      scoopFrontHeightMm: 60,
+      frontHeightMm: 60,
     };
     const layout = buildLayout(spec);
     const front = layout.parts.find((p) => p.name === 'Drawer front (box)')!;
@@ -161,6 +161,26 @@ describe('drawer box layout', () => {
     expect(side.sizeMm[2]).toBe(spec.depthMm);
     expect(front.joinery?.role).toBe('pins');
     expect(front.joinery?.lipMm).toBeUndefined();
+  });
+
+  it('lowers the front with straight full-height sides (frontHeightMm, no scoop)', () => {
+    const spec = { ...defaultDrawerBoxSpec(), joinery: 'dovetail' as const, heightMm: 150, frontHeightMm: 100 };
+    const layout = buildLayout(spec);
+    const front = layout.parts.find((p) => p.name === 'Drawer front (box)')!;
+    const back = layout.parts.find((p) => p.name === 'Drawer back (box)')!;
+    const side = layout.parts.find((p) => p.name === 'Drawer side')!;
+    expect(front.sizeMm[1]).toBe(100); // front lowered
+    expect(back.sizeMm[1]).toBe(150); // back full
+    expect(side.sizeMm[1]).toBe(150); // sides full height
+    // Sides carry a low-front joint with a flat top (scoopLengthMm 0 = no slope).
+    expect(side.slopedTop?.frontHeightMm).toBe(100);
+    expect(side.slopedTop?.scoopLengthMm).toBe(0);
+  });
+
+  it('keeps a full-height front by default (no slopedTop)', () => {
+    const layout = buildLayout({ ...defaultDrawerBoxSpec(), joinery: 'dovetail' as const });
+    const side = layout.parts.find((p) => p.name === 'Drawer side')!;
+    expect(side.slopedTop).toBeUndefined();
   });
 
   it('renders a sloped drawer side (tails) with teeth at both ends', () => {

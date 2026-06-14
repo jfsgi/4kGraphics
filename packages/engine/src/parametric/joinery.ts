@@ -706,16 +706,21 @@ export function slopedDrawerSideGeometry(
   if (!(frontSegs.length && frontSegs[frontSegs.length - 1].y1 >= topFront - eps)) {
     points.push([zi, topFront]);
   }
-  // Top edge: ogee sweep from the low front up to the full back.
-  const run = Math.min(Math.max(scoopRun ?? 2 * zi, 2 * zi * 0.15), 2 * zi);
-  const curveStartX = zi - run; // x where the sweep reaches full back height
-  const nSeg = 24;
-  for (let i = 1; i <= nSeg; i++) {
-    const u = i / nSeg; // 0 at the front, 1 at the back of the sweep
-    const s = u * u * (3 - 2 * u); // smoothstep → ogee with flat tangents
-    points.push([zi - run * u, topFront + (topBack - topFront) * s]);
+  // Top edge: either a vertical rise + flat top (run = 0, a straight low-front
+  // box) or an ogee sweep from the low front up to the full back.
+  const run = scoopRun != null ? Math.min(Math.max(scoopRun, 0), 2 * zi) : 2 * zi;
+  if (run < eps) {
+    points.push([zi, topBack], [-zi, topBack]); // vertical front rise, flat top
+  } else {
+    const curveStartX = zi - run; // x where the sweep reaches full back height
+    const nSeg = 24;
+    for (let i = 1; i <= nSeg; i++) {
+      const u = i / nSeg; // 0 at the front, 1 at the back of the sweep
+      const s = u * u * (3 - 2 * u); // smoothstep → ogee with flat tangents
+      points.push([zi - run * u, topFront + (topBack - topFront) * s]);
+    }
+    if (curveStartX > -zi + eps) points.push([-zi, topBack]);
   }
-  if (curveStartX > -zi + eps) points.push([-zi, topBack]);
   // Back (−z) toothed end, sized to the full height, descending.
   for (let i = backSegs.length - 1; i >= 0; i--) {
     const { y0, y1, f0, f1 } = backSegs[i];
