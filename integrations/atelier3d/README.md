@@ -81,17 +81,33 @@ browser request is allowed.
 ## Migrating Atelier3D off the vendored engine
 
 Once `@4kgraphics/engine` is published (see `docs/PUBLISHING.md`), Atelier3D can
-drop its vendored copy and share one engine — including one joinery:
+drop its vendored copy (`src/studio/engine/`) and share one engine — including
+one joinery. `migrate.sh` (in this folder) does it; run it from the Atelier3D
+repo root:
 
-1. Add an `.npmrc` (see `.npmrc.example`) and a `read:packages` token, then
-   `npm install @4kgraphics/engine`.
-2. Delete `src/studio/engine/` (the vendored copy) and repoint imports at
-   `@4kgraphics/engine`.
-3. In `src/viewport/jointBoards.ts`, import `pinsBoardGeometry` /
-   `tailsBoardGeometry` from `@4kgraphics/engine` (now exported) instead of the
-   vendored path. The engine carries the **groove/sockets** extension upstreamed
-   from Atelier3D, so the `jointedBoard` groove/socket calls keep working.
-   - Heads-up: the engine's edge-pin proportion is **3/8"** (the newer MEJA
-     convention), not the vendored 1/16". Drawer pins will render at 3/8".
-4. Optional: replace the design-bridge's local `showObject` group with a direct
-   push to the render service (`pushToRenderService` above) for 4K output.
+```bash
+bash migrate.sh          # repoints imports, adds the dep + .npmrc, deletes the vendored copy
+export NODE_AUTH_TOKEN=ghp_…   # a GitHub PAT with read:packages
+npm install && npm run build
+```
+
+It repoints the six imports onto `@4kgraphics/engine`, which exports everything
+Atelier3D used from the vendored copy:
+
+| Atelier3D import | now from |
+| --- | --- |
+| `applyBoxUVs` (Viewport, bridge) | `@4kgraphics/engine` |
+| `pinsBoardGeometry` / `tailsBoardGeometry` (jointBoards) | `@4kgraphics/engine` |
+| `MaterialLibrary` (bridge) | `@4kgraphics/engine` |
+| `FurnitureEngine`, `LIGHTING_PRESETS`, `LightingPresetId`, `MaterialInfo` (StudioView) | `@4kgraphics/engine` |
+
+The engine now also carries the pieces Atelier3D added on top of its vendored
+copy — `FurnitureEngine.showObject()` / `clearMaterialOverrides()`, the
+`paint-black` material, and the **groove/sockets** joinery — so the Studio's
+`showObject(buildStudioGroup(...))` bridge and the `jointedBoard` groove/socket
+calls keep working unchanged.
+
+> Heads-up: the engine's edge-pin proportion is **3/8"** (the newer MEJA
+> convention), not the vendored 1/16" — drawer pins will render at 3/8".
+> Optionally, swap the local `showObject` preview for a `pushToRenderService`
+> call (above) to get 4K output from the render service.

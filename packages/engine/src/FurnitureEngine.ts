@@ -133,6 +133,22 @@ export class FurnitureEngine {
     this.reapplyAssignments();
   }
 
+  /**
+   * Displays an externally built object (e.g. a host app's own group) instead of
+   * a parametric piece, scene, or loaded model. The caller owns mesh naming and
+   * base materials; `setMaterial` overrides are re-applied across rebuilds.
+   */
+  showObject(object: THREE.Object3D, options?: { frame?: boolean }): void {
+    this.swapObject(object, options?.frame ?? true);
+    this.currentLayout = null;
+    this.reapplyAssignments();
+  }
+
+  /** Drops every base / per-part material override set via setMaterial. */
+  clearMaterialOverrides(): void {
+    this.assignments.clear();
+  }
+
   listMaterials(): MaterialInfo[] {
     return this.materials.list();
   }
