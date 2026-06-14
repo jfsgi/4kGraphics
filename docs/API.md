@@ -72,9 +72,20 @@ the visible viewport size is irrelevant.
 // kind: 'drawerbox' — the box itself, outer dimensions
 { kind, widthMm, depthMm, heightMm, stockThicknessMm, bottomThicknessMm,
   joinery: 'dovetail' | 'halfblind' | 'boxjoint' | 'dado',
-                       // halfblind (default): 1/16" laps at BOTH show faces;
-                       // 'dovetail' = through, tails visible front and back
-  scoop?: boolean,                               // finger-scoop front
+                       // halfblind (default): 1/16" laps on the show faces;
+                       // 'dovetail' = through dovetails. SIDES carry the wide
+                       // tails, FRONT/BACK the narrow pins; the joint starts and
+                       // ends with a 3/8" half-pin at the top & bottom edges
+  frontHeightMm?: number,                        // front board height (default =
+                       // heightMm). Lower it for a low-front box: sides stay full
+                       // height & straight, or slope to the back when scoopedSides
+  scoop?: boolean,                               // finger-pull cutout in the
+                       // front's top edge, at whatever front height it is
+  scoopedSides?: boolean,                        // letter-tray profile: sides
+                       // slope up from the low front to the full-height back;
+                       // always through-dovetailed (overrides half-blind)
+  scoopLengthMm?: number,                        // ogee sweep length from the
+                       // front (scoopedSides); default ≈ 45% of the inner depth
   undermountNotches?: boolean,                   // clearance notches cut up from
                        // the bottom edge of the drawer BACK board (under the
                        // bottom panel) for undermount slide hardware; drawer
