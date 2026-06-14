@@ -1,21 +1,21 @@
 # Render service (packages/server): Express + headless Chromium (Puppeteer).
-# Build context = repo ROOT. Deploy on any container host — Railway, Render,
-# Fly.io, a VM. See docs/DEPLOY-SERVER.md.
+# Uses the official Puppeteer image so Chromium + every system library it needs
+# are pre-installed and version-matched (no apt step that can break). Build
+# context = repo ROOT. See docs/DEPLOY-SERVER.md.
 
-FROM node:20-bookworm-slim
+FROM ghcr.io/puppeteer/puppeteer:23.11.1
 
-# Chromium runtime libraries (the service renders headless with SwiftShader).
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates fonts-liberation libasound2 libatk-bridge2.0-0 libatk1.0-0 \
-      libcairo2 libcups2 libdbus-1-3 libdrm2 libexpat1 libfontconfig1 libgbm1 \
-      libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libx11-6 libxcb1 \
-      libxcomposite1 libxdamage1 libxext6 libxfixes3 libxkbcommon0 libxrandr2 \
-    && rm -rf /var/lib/apt/lists/*
-
+# Run as root so the mounted /data volume and the build are writable; Chromium
+# launches with --no-sandbox (set in renderer.ts), which is required as root.
+USER root
 WORKDIR /app
 
-# Install workspace deps first (better layer caching). Puppeteer downloads its
-# matched Chromium during this step — do NOT set PUPPETEER_SKIP_DOWNLOAD here.
+# Chromium is already in the image — don't let npm re-download it. Point
+# Puppeteer at the image's pre-installed browser cache.
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV PUPPETEER_CACHE_DIR=/home/pptruser/.cache/puppeteer
+
+# Install workspace deps first (better layer caching).
 COPY package.json package-lock.json ./
 COPY packages/engine/package.json packages/engine/package.json
 COPY packages/server/package.json packages/server/package.json
@@ -31,7 +31,6 @@ ENV NODE_ENV=production
 # catalog + AR files — mount a volume there to persist them.
 ENV PORT=8787
 ENV DATA_DIR=/data
-VOLUME ["/data"]
 EXPOSE 8787
 
 CMD ["node", "packages/server/dist/index.js"]
