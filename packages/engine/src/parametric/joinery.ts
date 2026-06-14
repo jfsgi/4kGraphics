@@ -662,8 +662,10 @@ export function pinsBoardGeometry(
  * rotates it exactly like tailsBoardGeometry. The tails at each end size to
  * that end's height, mating the low front and the full back independently.
  * `scoopRun` is the length of the curved sweep measured back from the front;
- * beyond it the top edge runs flat at the full back height. Through-dovetailed
- * (no lip). Returns null when the board is too small.
+ * beyond it the top edge runs flat at the full back height. `lip` > 0 makes the
+ * corners half-blind: the tails engage `depth − lip`, so they stop short of the
+ * show faces (the caller shortens the board length by 2·lip to match). Returns
+ * null when the board is too small.
  */
 export function slopedDrawerSideGeometry(
   length: number,
@@ -672,6 +674,7 @@ export function slopedDrawerSideGeometry(
   thickness: number,
   spec: JointSpec,
   scoopRun?: number,
+  lip = 0,
 ): THREE.BufferGeometry | null {
   const frontJoint = layoutJoint(frontHeight, spec);
   const backJoint = layoutJoint(backHeight, spec);
@@ -679,7 +682,7 @@ export function slopedDrawerSideGeometry(
   const fullH = Math.max(frontHeight, backHeight);
   const yBottom = -fullH / 2;
   const zo = length / 2;
-  const zi = zo - spec.depth; // through dovetails — engagement to the baseline
+  const zi = zo - (spec.depth - lip); // engagement to the joint baseline (less with a half-blind lap)
   const eps = 1e-6;
   const segsOf = (j: JointLayout, height: number) =>
     (

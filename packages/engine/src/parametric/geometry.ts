@@ -377,6 +377,8 @@ function partGeometry(part: Part): THREE.BufferGeometry {
           part.slopedTop.scoopLengthMm != null
             ? part.slopedTop.scoopLengthMm * MM_TO_M
             : undefined,
+          // Half-blind: tails stop short of the show faces by the lip.
+          part.joinery.frontLipMm ? part.joinery.frontLipMm * MM_TO_M : 0,
         );
         if (sloped) {
           if (lenX) sloped.rotateY(Math.PI / 2); // native length Z → world X

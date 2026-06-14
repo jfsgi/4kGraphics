@@ -131,10 +131,10 @@ describe('drawer box layout', () => {
     expect(back.scoop).toBeUndefined();
   });
 
-  it('builds a scooped tray: low front, sides sloping up to a full back', () => {
+  it('builds a scooped tray (through): low front, sides sloping up to a full back', () => {
     const spec = {
       ...defaultDrawerBoxSpec(),
-      joinery: 'halfblind' as const,
+      joinery: 'dovetail' as const,
       heightMm: 150,
       scoopedSides: true,
       frontHeightMm: 60,
@@ -155,12 +155,33 @@ describe('drawer box layout', () => {
     expect(side.slopedTop?.scoopLengthMm).toBe(
       Math.round((spec.depthMm - 2 * spec.stockThicknessMm) * 0.45),
     );
-    // Scooped trays are through-dovetailed (no half-blind lap); sides tails.
+    // Through: sides tails, no lap; full-length sides.
     expect(side.joinery?.role).toBe('tails');
     expect(side.joinery?.frontLipMm).toBeUndefined();
     expect(side.sizeMm[2]).toBe(spec.depthMm);
     expect(front.joinery?.role).toBe('pins');
     expect(front.joinery?.lipMm).toBeUndefined();
+  });
+
+  it('honours half-blind on a scooped tray (lap on the sloped sides and front)', () => {
+    const spec = {
+      ...defaultDrawerBoxSpec(),
+      joinery: 'halfblind' as const,
+      heightMm: 150,
+      scoopedSides: true,
+      frontHeightMm: 60,
+    };
+    const lip = 1.5875;
+    const layout = buildLayout(spec);
+    const side = layout.parts.find((p) => p.name === 'Drawer side')!;
+    const front = layout.parts.find((p) => p.name === 'Drawer front (box)')!;
+    // Half-blind still slopes the sides, and now laps them at the show faces.
+    expect(side.slopedTop?.frontHeightMm).toBe(60);
+    expect(side.joinery?.role).toBe('tails');
+    expect(side.joinery?.frontLipMm).toBeCloseTo(lip);
+    expect(side.sizeMm[2]).toBeCloseTo(spec.depthMm - 2 * lip);
+    expect(front.joinery?.role).toBe('pins');
+    expect(front.joinery?.lipMm).toBeCloseTo(lip);
   });
 
   it('lowers the front with straight full-height sides (frontHeightMm, no scoop)', () => {

@@ -462,9 +462,10 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
     : scoopedSides
       ? (spec.scoopLengthMm ?? Math.round((d - 2 * t) * 0.45))
       : 0;
-  // Scooped boxes are always through-dovetailed (no half-blind lap).
-  const halfblind = !scoopedSides && spec.joinery === 'halfblind';
-  const through = scoopedSides || spec.joinery === 'dovetail' || spec.joinery === 'boxjoint';
+  // Joinery applies whether or not the tray is scooped: through dovetails show
+  // on the front, half-blind stops 1/16" shy of it for a clean show face.
+  const halfblind = spec.joinery === 'halfblind';
+  const through = spec.joinery === 'dovetail' || spec.joinery === 'boxjoint';
   // Half-blind tails stop 1/16" short of the front face (clean show face);
   // from the side, the joint pattern ends at the lap line. The back corners
   // stay through-dovetailed, as jigs cut them.
@@ -483,9 +484,9 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
     edgePins: true,
   };
 
-  // Through-jointed and scooped boxes use a plain 'dovetail'/'boxjoint' type;
-  // half-blind boxes are always dovetailed.
-  const jointType = (scoopedSides ? 'dovetail' : spec.joinery) as 'dovetail' | 'boxjoint';
+  // Through-jointed boxes use a plain 'dovetail'/'boxjoint' type; half-blind
+  // and dado fall back to a dovetail pattern in the through branch.
+  const jointType = (through ? spec.joinery : 'dovetail') as 'dovetail' | 'boxjoint';
 
   // MEJA drawers use the standard convention: the SIDES carry the wide tails
   // (with a half-tail at the top and bottom edges), the FRONT & BACK carry the
