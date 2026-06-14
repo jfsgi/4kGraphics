@@ -19,7 +19,7 @@ wheel to zoom) and follows container resizes automatically.
 | Method | Returns | |
 | --- | --- | --- |
 | `showFurniture(spec, { frame? })` | `FurnitureLayout` | Display a parametric piece; `frame: false` keeps the camera |
-| `loadModel(urlOrFile, { format?, normalize? })` | `Promise<void>` | Import glTF/GLB/OBJ/FBX/STL |
+| `loadModel(urlOrFile, { format?, normalize?, upAxis?, flip?, spinDeg? })` | `Promise<void>` | Import glTF/GLB/OBJ/FBX/STL — see Import orientation |
 | `setMaterial(materialId, partName?)` | `void` | Apply to whole piece, or to all parts named e.g. `'Leg'` |
 | `setPanelMaterial(materialId)` | `void` | Sheet-goods stock (drawer bottoms, back panels) — defaults to `birchply` |
 | `setStain(stainId \| null)` | `void` | Stain finish over every wood on the piece (`null` = natural) — see Stain finishes |
@@ -54,6 +54,23 @@ demo it shows in the header (`v0.13.x · build …`) and as `window.__4kg_versio
 
 Snapshots render in a dedicated offscreen WebGL context at full resolution —
 the visible viewport size is irrelevant.
+
+### Import orientation
+
+CAD STL exports disagree on which way is up (many are Z-up) and never record
+which side is the front, so `loadModel` stands the model upright on import and
+exposes manual overrides for the cases it can't infer:
+
+| Option | Default | |
+| --- | --- | --- |
+| `upAxis` | `'auto'` | Which model axis points up: `'auto'` guesses from the flat faces, or force `'x' \| 'y' \| 'z'`. `'y'` keeps the file as-is |
+| `flip` | `false` | Turn the model the other way up when it lands upside down |
+| `spinDeg` | `0` | Spin about the vertical axis (degrees, typically `90`/`180`/`270`) to turn a back-facing part to the front |
+
+Re-orienting a Z-up file to Y-up can't tell front from back, so a part may
+import facing away — use `spinDeg: 180` to turn it around. These only apply when
+`normalize` is on (the default). On STL the upright parts are also split and
+named (`Top`, `Side`, `Back`, …) so `setMaterial` can target them individually.
 
 ### Furniture specs (all dimensions in **millimeters**)
 

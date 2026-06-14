@@ -41,6 +41,7 @@ let importName: string | null = null;
 let currentImportFile: File | null = null;
 let currentUpAxis: 'auto' | 'y' | 'z' | 'x' = 'auto';
 let currentFlip = false;
+let currentSpin = 0;
 
 /** Live render/material preferences, mirrored into the active saved model. */
 const DEFAULT_PREFS: ModelPrefs = {
@@ -254,7 +255,7 @@ function buildControls() {
     const reorient = () => {
       if (!currentImportFile) return;
       void engine
-        .loadModel(currentImportFile, { upAxis: currentUpAxis, flip: currentFlip })
+        .loadModel(currentImportFile, { upAxis: currentUpAxis, flip: currentFlip, spinDeg: currentSpin })
         .then(() => applyPrefs(prefs))
         .catch((e) => toast(e instanceof Error ? e.message : String(e)));
     };
@@ -265,6 +266,12 @@ function buildControls() {
     });
     addCheck(host, 'Flip upside down', currentFlip, (v) => {
       currentFlip = v;
+      reorient();
+    });
+    const spins: Record<string, number> = { '0°': 0, '90°': 90, '180°': 180, '270°': 270 };
+    const spinCur = Object.keys(spins).find((k) => spins[k] === currentSpin) ?? '0°';
+    addSelect(host, 'Rotate (turn around)', spinCur, Object.keys(spins), (value) => {
+      currentSpin = spins[value];
       reorient();
     });
     return;
@@ -820,6 +827,7 @@ async function importFile(file: File) {
     currentImportFile = file;
     currentUpAxis = 'auto';
     currentFlip = false;
+    currentSpin = 0;
     await engine.loadModel(file, { upAxis: currentUpAxis });
     showingImport = true;
     importName = name;
@@ -981,6 +989,7 @@ async function loadSaved(model: SavedModel): Promise<void> {
       currentImportFile = file;
       currentUpAxis = 'auto';
       currentFlip = false;
+      currentSpin = 0;
       await engine.loadModel(file, { ...(model.format ? { format: model.format } : {}), upAxis: 'auto' });
       showingImport = true;
       importName = model.name;

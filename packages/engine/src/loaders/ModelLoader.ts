@@ -27,6 +27,12 @@ export interface LoadModelOptions {
   upAxis?: 'auto' | 'x' | 'y' | 'z';
   /** Turn the model the other way up — for when the orientation lands upside down. */
   flip?: boolean;
+  /**
+   * Spin the model about the vertical (Y) axis in degrees. Re-orienting a Z-up
+   * export to Y-up can't tell front from back, so a part may face away; this
+   * turns it back around. Typically 0/90/180/270. Only applied when normalize is on.
+   */
+  spinDeg?: number;
 }
 
 const EXTENSIONS: Record<string, ModelFormat> = {
@@ -89,7 +95,7 @@ export async function loadModel(
       }
     });
     if (options.normalize ?? true) {
-      orientToYUp(group, options.upAxis ?? 'auto', options.flip ?? false);
+      orientToYUp(group, options.upAxis ?? 'auto', options.flip ?? false, options.spinDeg ?? 0);
       normalizeToFurnitureScale(group);
       // Name the split STL boards by their (now upright) geometry so the
       // material system can target Top / Shelf / Back / Side, etc.
@@ -439,6 +445,7 @@ export function orientToYUp(
   group: THREE.Group,
   upAxis: 'auto' | 'x' | 'y' | 'z',
   flip = false,
+  spinDeg = 0,
 ): void {
   // Pick the up axis from the geometry (or honour the override) but keep the
   // file's own up direction: which end is "up" can't be told reliably from a
@@ -448,6 +455,9 @@ export function orientToYUp(
   if (axis === 2) group.rotateX(-Math.PI / 2); // Z-up -> Y-up
   else if (axis === 0) group.rotateZ(Math.PI / 2); // X-up -> Y-up
   if (flip) group.rotateX(Math.PI); // user override: turn it the other way up
+  // Mapping a Z-up file to Y-up can't tell front from back, so let the user
+  // spin it around the (world) vertical to face the camera.
+  if (spinDeg) group.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), (spinDeg * Math.PI) / 180);
 }
 
 /**

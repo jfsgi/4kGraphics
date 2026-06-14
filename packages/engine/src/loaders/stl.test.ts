@@ -151,4 +151,18 @@ describe('STL parsing', () => {
     group.add(new THREE.Mesh(g));
     expect(guessUpAxis(group).axis).toBe(1); // Y
   });
+
+  it('spins a model around vertical to turn it around', () => {
+    const g = parseStlGeometry(binaryStl(faces, 'CAD export'));
+    const group = new THREE.Group();
+    group.add(new THREE.Mesh(g));
+    const front = new THREE.Vector3(0, 0, 1);
+    orientToYUp(group, 'y', false, 180);
+    group.updateMatrixWorld(true);
+    front.applyMatrix4(group.matrixWorld);
+    // A 180° spin turns what faced +Z to face -Z (and keeps it upright).
+    expect(front.x).toBeCloseTo(0, 4);
+    expect(front.y).toBeCloseTo(0, 4);
+    expect(front.z).toBeCloseTo(-1, 4);
+  });
 });

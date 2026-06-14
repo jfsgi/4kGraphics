@@ -1,7 +1,7 @@
 {
   "name": "@4kgraphics/demo",
   "private": true,
-  "version": "0.13.32",
+  "version": "0.13.33",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@4kgraphics/engine": "0.13.32"
+    "@4kgraphics/engine": "0.13.33"
   },
   "devDependencies": {
     "typescript": "^5.6.0",
