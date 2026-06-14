@@ -27,6 +27,17 @@ export {
 export { buildLayout, type FurnitureLayout, type Part } from './parametric/layout.js';
 export { buildGroup } from './parametric/geometry.js';
 export {
+  tailsBoardGeometry,
+  pinsBoardGeometry,
+  scoopedBoardGeometry,
+  slopedDrawerSideGeometry,
+  caseSideTailsGeometry,
+  type JointSpec,
+  type ScoopSpec,
+  type GrooveSpec,
+  type SocketSpec,
+} from './parametric/joinery.js';
+export {
   generateBuildPlan,
   type BuildPlan,
   type BuildStep,

@@ -13,8 +13,14 @@ to the design view. Sources:
 
 Only import paths were repointed (`./woodTexture` → `./grain.js`, core/types →
 `./types.js`, the joinery import → `./joinery.js`). **Do not refactor** these to
-share `parametric/joinery.ts`: that file has diverged (it now uses 3/8" edge
-pins and adds sloped sides), so unifying would change how pushed boards look.
+share `parametric/joinery.ts`: that file has diverged (it uses 3/8" edge pins
+and adds sloped sides), so unifying would change how pushed boards look.
+
+The **groove/sockets** extension has since been upstreamed into
+`parametric/joinery.ts` (and is exported), so the divergence is now narrower —
+mainly the edge-pin proportion. Once Atelier3D depends on the published engine,
+its `jointBoards.ts` can import the engine's joinery directly and this frozen
+`joinery.ts` can go.
 
 `SceneBuilder.ts` and `types.ts` are engine-native — they wire these builders to
 the engine's materials/frame and define the wire contract.

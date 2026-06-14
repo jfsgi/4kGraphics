@@ -44,6 +44,133 @@ export interface ScoopSpec {
 }
 
 /**
+ * Bottom-panel groove (dado) plowed along the board's length on one face.
+ * `center` is the slot's mid-height in board-local height (0 = mid-height, m);
+ * `width` is its size along the height; `depth` is how far it cuts into the
+ * thickness. (Atelier3D extension, upstreamed.)
+ */
+export interface GrooveSpec {
+  center: number;
+  width: number;
+  depth: number;
+}
+
+interface Pocket {
+  x0: number;
+  x1: number;
+  y0: number;
+  y1: number;
+  depth: number;
+}
+
+/**
+ * Three stacked boxes forming a length of board with a groove cut along one
+ * face: a full-thickness band below the slot, a reduced-thickness band across
+ * the slot (set back from the inner face), and a full-thickness band above.
+ * Built in the native board frame (length → X, height → Y, thickness → Z),
+ * non-indexed so it merges with the extruded joint pieces.
+ */
+function grooveBoxes(
+  lenX: number,
+  centerX: number,
+  height: number,
+  thickness: number,
+  groove: GrooveSpec,
+  /** Native-Z sign of the inner face the slot opens on. */
+  innerSign: 1 | -1,
+  /** Skip the band above the slot (the caller supplies a scooped top). */
+  skipAbove = false,
+): THREE.BufferGeometry[] {
+  const yBottom = -height / 2;
+  const yTop = height / 2;
+  const half = groove.width / 2;
+  const gY0 = groove.center - half;
+  const gY1 = groove.center + half;
+  const depth = Math.min(groove.depth, thickness * 0.6);
+  const boxes: THREE.BufferGeometry[] = [];
+  const band = (h: number, cy: number, t: number, cz: number) => {
+    const b = new THREE.BoxGeometry(lenX, h, t).toNonIndexed();
+    b.translate(centerX, cy, cz);
+    boxes.push(b);
+  };
+  const belowH = gY0 - yBottom;
+  if (belowH > 1e-6) band(belowH, (yBottom + gY0) / 2, thickness, 0);
+  const slotH = gY1 - gY0;
+  if (slotH > 1e-6) band(slotH, (gY0 + gY1) / 2, thickness - depth, -innerSign * (depth / 2));
+  if (!skipAbove) {
+    const aboveH = yTop - gY1;
+    if (aboveH > 1e-6) band(aboveH, (gY1 + yTop) / 2, thickness, 0);
+  }
+  return boxes;
+}
+
+/** Whether a groove sits clear of both board edges (wood above and below). */
+function grooveFits(height: number, groove: GrooveSpec): boolean {
+  return (
+    groove.center - groove.width / 2 > -height / 2 + 1e-6 &&
+    groove.center + groove.width / 2 < height / 2 - 1e-6
+  );
+}
+
+/**
+ * Middle slab carved with arbitrary rectangular inner-face pockets — a
+ * lengthwise groove and/or transverse sockets, which may touch the slab edges
+ * (open grooves / sliding-dovetail mouths) where a Shape hole couldn't. Built
+ * as a full outer (floor) layer plus a grid of solid inner-layer cells,
+ * skipping any cell inside a pocket. Native frame: length → X, height → Y,
+ * thickness → Z.
+ */
+function pocketedSlab(
+  x0: number,
+  x1: number,
+  height: number,
+  thickness: number,
+  pockets: Pocket[],
+  innerSign: 1 | -1,
+): THREE.BufferGeometry[] {
+  const yB = -height / 2;
+  const yT = height / 2;
+  const maxDepth = Math.min(Math.max(...pockets.map((p) => p.depth)), thickness * 0.8);
+  const pieces: THREE.BufferGeometry[] = [];
+  const box = (w: number, h: number, t: number, cx: number, cy: number, cz: number) => {
+    if (w <= 1e-6 || h <= 1e-6 || t <= 1e-6) return;
+    const b = new THREE.BoxGeometry(w, h, t).toNonIndexed();
+    b.translate(cx, cy, cz);
+    pieces.push(b);
+  };
+  // Outer solid layer (the floor / back wall behind every pocket).
+  box(x1 - x0, height, thickness - maxDepth, (x0 + x1) / 2, 0, -innerSign * (maxDepth / 2));
+  // Inner layer: a grid of solid cells, dropping cells inside any pocket.
+  const cl = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const xs = [...new Set([x0, x1, ...pockets.flatMap((p) => [cl(p.x0, x0, x1), cl(p.x1, x0, x1)])])].sort(
+    (a, b) => a - b,
+  );
+  const ys = [...new Set([yB, yT, ...pockets.flatMap((p) => [cl(p.y0, yB, yT), cl(p.y1, yB, yT)])])].sort(
+    (a, b) => a - b,
+  );
+  const innerCz = innerSign * (thickness / 2 - maxDepth / 2);
+  for (let i = 0; i < xs.length - 1; i++) {
+    for (let j = 0; j < ys.length - 1; j++) {
+      const cx = (xs[i] + xs[i + 1]) / 2;
+      const cy = (ys[j] + ys[j + 1]) / 2;
+      if (pockets.some((p) => cx > p.x0 && cx < p.x1 && cy > p.y0 && cy < p.y1)) continue;
+      box(xs[i + 1] - xs[i], ys[j + 1] - ys[j], maxDepth, cx, cy, innerCz);
+    }
+  }
+  return pieces;
+}
+
+/** Socket cut into a tails board's inner face — a shelf's sliding-dovetail mate. */
+export interface SocketSpec {
+  at: number;
+  width: number;
+  runCenter: number;
+  runLen: number;
+  depth: number;
+  innerSign: 1 | -1;
+}
+
+/**
  * The MEJA finger-pull cutout as a top-edge profile: the points run from
  * the right top corner `(rightX, top)`, down into the centered opening, across
  * its flat bottom, and back up to the left top corner `(leftX, top)`.
@@ -260,6 +387,11 @@ export function tailsBoardGeometry(
   backDepth?: number,
   scoop?: ScoopSpec,
   notch?: { length: number; height: number },
+  /** Bottom-panel groove cut along the inner face between the joint baselines.
+   *  `innerSign` is the native-Z sign of the inner face. */
+  groove?: GrooveSpec & { innerSign: 1 | -1 },
+  /** Transverse sockets cut into the inner face (shelf sliding-dovetail mates). */
+  sockets?: SocketSpec[],
 ): THREE.BufferGeometry | null {
   const joint = layoutJoint(height, spec);
   if (!joint) return null;
@@ -280,6 +412,63 @@ export function tailsBoardGeometry(
       f1: b < height - eps ? flare : 0,
     }),
   );
+
+  // Grooved / socketed board: a toothed end block at each JOINTED end plus a
+  // grooved (or pocketed) middle slab — a single thickness-extrusion can't carry
+  // a lengthwise slot, so the middle is built from boxes. Non-grooved boards
+  // fall through to the silhouette path below, unchanged.
+  const haveGroove = !!groove && grooveFits(height, groove);
+  const haveSockets = !!sockets && sockets.length > 0;
+  if (haveGroove || haveSockets) {
+    const frontToothed = zo - ziFront > 1e-9;
+    const backToothed = zo - ziBack > 1e-9;
+    const pieces: THREE.BufferGeometry[] = [];
+    for (const sign of [1, -1] as const) {
+      const zi = sign > 0 ? ziFront : ziBack;
+      if (zo - zi <= 1e-9) continue; // plain (square) end — no teeth here
+      const pts: Array<[number, number]> = [[sign * zi, yBottom]];
+      for (const { y0, y1, f0, f1 } of segs) {
+        pts.push([sign * zi, y0 + f0], [sign * zo, y0], [sign * zo, y1], [sign * zi, y1 - f1]);
+      }
+      pts.push([sign * zi, yTop]);
+      const endShape = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
+      const block = new THREE.ExtrudeGeometry(endShape, { depth: thickness, bevelEnabled: false });
+      block.translate(0, 0, -thickness / 2);
+      pieces.push(block);
+    }
+    const midX1 = frontToothed ? ziFront : zo;
+    const midX0 = -(backToothed ? ziBack : zo);
+    if (haveSockets) {
+      const innerSign = groove?.innerSign ?? sockets![0].innerSign;
+      const pockets: Pocket[] = [];
+      if (haveGroove) {
+        pockets.push({
+          x0: midX0,
+          x1: midX1,
+          y0: groove!.center - groove!.width / 2,
+          y1: groove!.center + groove!.width / 2,
+          depth: groove!.depth,
+        });
+      }
+      for (const s of sockets!) {
+        pockets.push({
+          x0: s.at - s.width / 2,
+          x1: s.at + s.width / 2,
+          y0: s.runCenter - s.runLen / 2,
+          y1: s.runCenter + s.runLen / 2,
+          depth: s.depth,
+        });
+      }
+      pieces.push(...pocketedSlab(midX0, midX1, height, thickness, pockets, innerSign));
+    } else {
+      pieces.push(...grooveBoxes(midX1 - midX0, (midX0 + midX1) / 2, height, thickness, groove!, groove!.innerSign));
+    }
+    const merged = mergeGeometries(pieces, false);
+    for (const piece of pieces) piece.dispose();
+    if (!merged) return null;
+    merged.rotateY(-Math.PI / 2); // match the silhouette path's frame
+    return merged;
+  }
 
   const points: Array<[number, number]> = [];
   points.push([-ziBack, yBottom]);
@@ -429,6 +618,8 @@ export function pinsBoardGeometry(
    * each end (the slide hardware runs under the bottom panel there).
    */
   notch?: { length: number; height: number },
+  /** Bottom-panel groove plowed along the body's inner face (away from the show face). */
+  groove?: GrooveSpec,
 ): THREE.BufferGeometry | null {
   const joint = layoutJoint(height, spec);
   if (!joint) return null;
@@ -442,7 +633,7 @@ export function pinsBoardGeometry(
   // Non-indexed to match the extruded prisms — mergeGeometries refuses to
   // mix indexed and non-indexed buffers (and returns null, silently
   // degrading the joint to a plain box).
-  let body: THREE.BufferGeometry;
+  let body: THREE.BufferGeometry | null;
   if (scoop) {
     body = scoopedBoardGeometry(bodyLength, height, thickness, scoop);
   } else if (frontBevel > 0) {
@@ -479,10 +670,15 @@ export function pinsBoardGeometry(
     shape.closePath();
     body = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
     body.translate(0, 0, -thickness / 2);
+  } else if (groove && grooveFits(height, groove)) {
+    body = null; // a lengthwise slot can't be a single extrusion — built from boxes below
   } else {
     body = new THREE.BoxGeometry(bodyLength, height, thickness).toNonIndexed();
   }
-  const pieces: THREE.BufferGeometry[] = [body];
+  // The groove opens on the inner face (the show face sits at zOuter).
+  const pieces: THREE.BufferGeometry[] = body
+    ? [body]
+    : grooveBoxes(bodyLength, 0, height, thickness, groove!, -outerSign as 1 | -1);
 
   // Pin regions are the y-gaps between/outside the tails: trapezoids in the
   // (z, y) plane — pin tips at the outer face, flaring at the inner face,
