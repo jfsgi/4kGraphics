@@ -240,6 +240,13 @@ const PRESETS: Preset[] = [
       generatePaintMaps(size, { seed: 43, color: [61, 82, 64], roughness: 0.42 }),
   },
   {
+    info: { id: 'paint-black', label: 'Matte Black Paint', category: 'paint', swatch: '#35322e' },
+    metalness: 0,
+    clearcoat: 0.1,
+    generate: (size) =>
+      generatePaintMaps(size, { seed: 47, color: [53, 50, 46], roughness: 0.5 }),
+  },
+  {
     info: { id: 'steel', label: 'Brushed Steel', category: 'metal', swatch: '#c8cacd' },
     metalness: 1,
     clearcoat: 0,

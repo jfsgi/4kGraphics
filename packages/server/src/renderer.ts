@@ -2,6 +2,8 @@ import puppeteer, { type Browser } from 'puppeteer';
 
 export interface RenderRequest {
   spec?: unknown;
+  /** A pushed Atelier3D scene (evaluated Part/Primitive IR). */
+  scene?: unknown;
   modelUrl?: string;
   material?: string;
   materials?: Record<string, string>;

@@ -20,6 +20,7 @@ wheel to zoom) and follows container resizes automatically.
 | --- | --- | --- |
 | `showFurniture(spec, { frame? })` | `FurnitureLayout` | Display a parametric piece; `frame: false` keeps the camera |
 | `loadModel(urlOrFile, { format?, normalize?, upAxis?, flip?, spinDeg? })` | `Promise<void>` | Import glTF/GLB/OBJ/FBX/STL — see Import orientation |
+| `loadScene(scene, { frame? })` | `void` | Display a pushed Atelier3D scene (Part/Primitive IR) — see Pushed scenes |
 | `setMaterial(materialId, partName?)` | `void` | Apply to whole piece, or to all parts named e.g. `'Leg'` |
 | `setPanelMaterial(materialId)` | `void` | Sheet-goods stock (drawer bottoms, back panels) — defaults to `birchply` |
 | `setStain(stainId \| null)` | `void` | Stain finish over every wood on the piece (`null` = natural) — see Stain finishes |
@@ -71,6 +72,35 @@ Re-orienting a Z-up file to Y-up can't tell front from back, so a part may
 import facing away — use `spinDeg: 180` to turn it around. These only apply when
 `normalize` is on (the default). On STL the upright parts are also split and
 named (`Top`, `Side`, `Back`, …) so `setMaterial` can target them individually.
+
+### Pushed scenes (Atelier3D bridge)
+
+`loadScene(scene)` displays a design pushed from Atelier3D as its evaluated
+**Part/Primitive IR** instead of a mesh — the engine rebuilds the geometry with
+its own 4K materials and lighting, so there's no STL round-trip and nothing to
+re-orient. A `Scene` is a list of `instances` (or a flat `parts` list), each
+part carrying a `name`, a `material` id, and `primitives` in Z-up millimeters:
+
+```ts
+engine.loadScene({
+  name: 'Drawer',
+  parts: [
+    { id: 'p1', name: 'Drawer side', material: 'white-oak',
+      primitives: [{ shape: 'jointedBoard', role: 'tails', length: 450, height: 120,
+        thickness: 12, at: [0, 0, 0], lengthAxis: 'y', thicknessAxis: 'x',
+        joint: 'dovetail', jointDepth: 12 }] },
+  ],
+});
+```
+
+The `Primitive` union (`box`, `taperedBox`, `cylinder`, `roundedSlab`,
+`roundedNotchedSlab`, `mortisedPost`, `frenchDovetail`, `jointedBoard`,
+`archedBoard`) and its builders are vendored verbatim from Atelier3D, so boards
+render identically to the design view. Each part keeps its pushed material as a
+base; `setMaterial(id, partName)` overrides by part name. Material ids map
+automatically (`white-oak → oak`, `baltic-birch → birchply`, …) with an oak
+fallback. `buildSceneGroup(scene, materialLibrary, stainId?)` is exported for
+building the group directly. See `integrations/atelier3d/` for the push client.
 
 ### Furniture specs (all dimensions in **millimeters**)
 
@@ -244,11 +274,14 @@ npm run serve     # listens on PORT (default 8787)
 
 ### `POST /v1/render` → `image/png`
 
-Body (JSON) — everything optional except one of `spec` / `modelUrl`:
+Body (JSON) — everything optional except one of `spec` / `scene` / `modelId` /
+`modelUrl`:
 
 | Field | | |
 | --- | --- | --- |
 | `spec` | object | Parametric furniture spec (see above) |
+| `scene` | object | A pushed Atelier3D scene (Part/Primitive IR) — see Pushed scenes |
+| `modelId` | string | Render a model stored via `POST /v1/models`; request fields override its saved defaults |
 | `modelUrl` | string | URL of a glTF/GLB/OBJ/FBX/STL file the service can reach |
 | `material` | string | Material id for the whole piece |
 | `materials` | object | Per-part overrides, e.g. `{ "Leg": "steel" }` |
@@ -266,6 +299,16 @@ Body (JSON) — everything optional except one of `spec` / `modelUrl`:
 
 The response carries an `X-Render-Ms` header. Errors come back as
 `400 { "error": "..." }`.
+
+### `POST /v1/models` → `application/json`
+
+Body: `{ "scene": { … } }` or `{ "spec": { … } }`, plus an optional `name` and
+`defaults` (render settings applied under a later render's own fields). Stores
+the model and returns `{ id, name, kind, createdAt }` (201). Render it with
+`POST /v1/render { "modelId": id, … }`. This is the **push** target for the
+Atelier3D bridge: a design becomes a stored model on push, re-renderable without
+re-sending geometry. `GET /v1/models/:id` returns the metadata. Storage is
+in-memory (per process) in this first cut.
 
 ### `POST /v1/buildplan` → `application/json`
 

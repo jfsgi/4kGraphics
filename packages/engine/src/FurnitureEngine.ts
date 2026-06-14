@@ -8,6 +8,8 @@ import { buildGroup } from './parametric/geometry.js';
 import { buildLayout, type FurnitureLayout } from './parametric/layout.js';
 import type { FurnitureSpec } from './parametric/spec.js';
 import { renderSnapshot, type SnapshotOptions } from './render/SnapshotRenderer.js';
+import { buildSceneGroup } from './scene/SceneBuilder.js';
+import type { Scene } from './scene/types.js';
 import { VERSION } from './version.js';
 
 export interface FurnitureEngineOptions {
@@ -114,6 +116,19 @@ export class FurnitureEngine {
     const group = await loadModel(source, options);
     this.swapObject(group);
     this.currentLayout = null;
+  }
+
+  /**
+   * Displays a pushed Atelier3D scene — its evaluated Part/Primitive IR. The
+   * engine rebuilds the geometry with its own 4K materials (each part keeps its
+   * pushed material as a base) and stains. Per-part overrides set via
+   * setMaterial are re-applied across rebuilds, as with parametric pieces.
+   */
+  loadScene(scene: Scene, options?: { frame?: boolean }): void {
+    const group = buildSceneGroup(scene, this.materials, this.stainId);
+    this.swapObject(group, options?.frame ?? true);
+    this.currentLayout = null;
+    this.reapplyAssignments();
   }
 
   listMaterials(): MaterialInfo[] {

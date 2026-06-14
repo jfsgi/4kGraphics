@@ -57,6 +57,8 @@ export {
   type ModelFormat,
   type LoadModelOptions,
 } from './loaders/ModelLoader.js';
+export { buildSceneGroup } from './scene/SceneBuilder.js';
+export type { Scene, SceneInstance, ScenePart, Primitive } from './scene/types.js';
 export {
   createLightRig,
   LIGHTING_PRESETS,

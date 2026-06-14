@@ -9,10 +9,12 @@ import {
   defaultSpec,
   type FurnitureSpec,
   type LightingPresetId,
+  type Scene,
 } from '@4kgraphics/engine';
 
 export interface HarnessRenderConfig {
   spec?: FurnitureSpec;
+  scene?: Scene;
   modelUrl?: string;
   material?: string;
   materials?: Record<string, string>;
@@ -37,7 +39,9 @@ async function render(config: HarnessRenderConfig): Promise<string> {
   if (config.lighting) engine.setLighting(config.lighting);
   if (config.background) engine.setBackground(config.background);
 
-  if (config.modelUrl) {
+  if (config.scene) {
+    engine.loadScene(config.scene);
+  } else if (config.modelUrl) {
     await engine.loadModel(config.modelUrl);
   } else {
     engine.showFurniture(config.spec ?? defaultSpec('table'));
