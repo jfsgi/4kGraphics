@@ -451,8 +451,11 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
     ? Math.max(t + 20, Math.min(h - 1, spec.scoopFrontHeightMm ?? Math.round(h * 0.42)))
     : h;
   // Length of the ogee sweep on the sides, measured back from the front.
-  // Defaults to the full inner depth (the curve runs the whole side).
-  const scoopRun = scoopedSides ? (spec.scoopLengthMm ?? d - 2 * t) : undefined;
+  // Defaults to ~45% of the inner depth: a short scoop near the front with the
+  // back half staying full height (a letter-tray profile).
+  const scoopRun = scoopedSides
+    ? (spec.scoopLengthMm ?? Math.round((d - 2 * t) * 0.45))
+    : undefined;
   const halfblind = !scoopedSides && spec.joinery === 'halfblind';
   const through = scoopedSides || spec.joinery === 'dovetail' || spec.joinery === 'boxjoint';
   // Half-blind tails stop 1/16" short of the front face (clean show face);

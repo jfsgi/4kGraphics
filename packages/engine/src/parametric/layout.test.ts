@@ -151,8 +151,10 @@ describe('drawer box layout', () => {
     expect(side.sizeMm[1]).toBe(150);
     expect(side.slopedTop?.frontHeightMm).toBe(60);
     expect(side.slopedTop?.backHeightMm).toBe(150);
-    // The ogee sweep defaults to the full inner depth (depth − 2 × stock).
-    expect(side.slopedTop?.scoopLengthMm).toBe(spec.depthMm - 2 * spec.stockThicknessMm);
+    // The ogee sweep defaults to ~45% of the inner depth (a short front scoop).
+    expect(side.slopedTop?.scoopLengthMm).toBe(
+      Math.round((spec.depthMm - 2 * spec.stockThicknessMm) * 0.45),
+    );
     // Scooped trays are through-dovetailed (no half-blind lap); sides tails.
     expect(side.joinery?.role).toBe('tails');
     expect(side.joinery?.frontLipMm).toBeUndefined();

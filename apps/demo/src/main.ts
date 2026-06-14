@@ -352,7 +352,7 @@ function buildControls() {
       );
       slider(
         'Scoop length from front (mm)',
-        spec.scoopLengthMm ?? spec.depthMm - 2 * spec.stockThicknessMm,
+        spec.scoopLengthMm ?? Math.round((spec.depthMm - 2 * spec.stockThicknessMm) * 0.45),
         Math.round(spec.depthMm * 0.2),
         spec.depthMm - 2 * spec.stockThicknessMm,
         (v) => {
