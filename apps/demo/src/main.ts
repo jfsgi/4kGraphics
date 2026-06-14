@@ -40,6 +40,7 @@ let importName: string | null = null;
 /** The current import's file + up-axis override, for re-orienting on demand. */
 let currentImportFile: File | null = null;
 let currentUpAxis: 'auto' | 'y' | 'z' | 'x' = 'auto';
+let currentFlip = false;
 
 /** Live render/material preferences, mirrored into the active saved model. */
 const DEFAULT_PREFS: ModelPrefs = {
@@ -250,15 +251,21 @@ function buildControls() {
       'Z up': 'z',
       'X up': 'x',
     };
+    const reorient = () => {
+      if (!currentImportFile) return;
+      void engine
+        .loadModel(currentImportFile, { upAxis: currentUpAxis, flip: currentFlip })
+        .then(() => applyPrefs(prefs))
+        .catch((e) => toast(e instanceof Error ? e.message : String(e)));
+    };
     const current = Object.keys(labels).find((k) => labels[k] === currentUpAxis) ?? 'Auto';
     addSelect(host, 'Up axis', current, Object.keys(labels), (value) => {
       currentUpAxis = labels[value];
-      if (currentImportFile) {
-        void engine
-          .loadModel(currentImportFile, { upAxis: currentUpAxis })
-          .then(() => applyPrefs(prefs))
-          .catch((e) => toast(e instanceof Error ? e.message : String(e)));
-      }
+      reorient();
+    });
+    addCheck(host, 'Flip upside down', currentFlip, (v) => {
+      currentFlip = v;
+      reorient();
     });
     return;
   }
@@ -812,6 +819,7 @@ async function importFile(file: File) {
   try {
     currentImportFile = file;
     currentUpAxis = 'auto';
+    currentFlip = false;
     await engine.loadModel(file, { upAxis: currentUpAxis });
     showingImport = true;
     importName = name;
@@ -972,6 +980,7 @@ async function loadSaved(model: SavedModel): Promise<void> {
       const file = new File([model.bytes], model.fileName ?? `${model.name}.stl`);
       currentImportFile = file;
       currentUpAxis = 'auto';
+      currentFlip = false;
       await engine.loadModel(file, { ...(model.format ? { format: model.format } : {}), upAxis: 'auto' });
       showingImport = true;
       importName = model.name;

@@ -25,6 +25,8 @@ export interface LoadModelOptions {
    * model as-is. Only applied when normalize is on.
    */
   upAxis?: 'auto' | 'x' | 'y' | 'z';
+  /** Turn the model the other way up — for when the orientation lands upside down. */
+  flip?: boolean;
 }
 
 const EXTENSIONS: Record<string, ModelFormat> = {
@@ -87,7 +89,7 @@ export async function loadModel(
       }
     });
     if (options.normalize ?? true) {
-      orientToYUp(group, options.upAxis ?? 'auto');
+      orientToYUp(group, options.upAxis ?? 'auto', options.flip ?? false);
       normalizeToFurnitureScale(group);
       // Name the split STL boards by their (now upright) geometry so the
       // material system can target Top / Shelf / Back / Side, etc.
@@ -103,24 +105,27 @@ export async function loadModel(
 /**
  * Imported meshes (STL especially) carry no texture coordinates, so a wood
  * material has nothing to map against — the grain renders flat or arbitrary.
- * We project world-scale box UVs with the grain on the vertical (Y) axis, the
- * way stock is normally oriented (uprights grain-up, surfaces grain-along), so
- * library materials read correctly. Meshes that already have UVs (e.g. glTF)
- * keep them.
+ * We project world-scale box UVs with the grain running along each part's
+ * longest dimension — the way a board's grain runs down its length, so a
+ * tabletop reads across its width and an upright reads vertically. Meshes that
+ * already have UVs (e.g. glTF) keep them.
  */
 function applyGrainUVs(group: THREE.Group): void {
   group.updateMatrixWorld(true);
   const scale = new THREE.Vector3();
+  const size = new THREE.Vector3();
   group.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return;
     const geometry = child.geometry as THREE.BufferGeometry;
     if (geometry.getAttribute('uv') || !geometry.getAttribute('position')) return;
     child.matrixWorld.decompose(new THREE.Vector3(), new THREE.Quaternion(), scale);
     const worldScale = (Math.abs(scale.x) + Math.abs(scale.y) + Math.abs(scale.z)) / 3 || 1;
-    // UVs come from local coordinates; dividing the tile by the world scale
-    // makes one tile span TEXTURE_TILE_M in world meters. No end-grain tint —
-    // a single imported mesh mixes face and end grain across its faces.
-    applyBoxUVs(geometry, TEXTURE_TILE_M / worldScale, 'y', 0, 0, undefined, false);
+    // Grain runs along the board's longest dimension (its length). The UVs are
+    // in local coordinates, so the longest local axis is the grain axis.
+    geometry.computeBoundingBox();
+    geometry.boundingBox!.getSize(size);
+    const grain = size.x >= size.y && size.x >= size.z ? 'x' : size.y >= size.z ? 'y' : 'z';
+    applyBoxUVs(geometry, TEXTURE_TILE_M / worldScale, grain, 0, 0, undefined, false);
   });
 }
 
@@ -425,8 +430,16 @@ export function guessUpAxis(group: THREE.Group): { axis: number; topSign: number
   return { axis, topSign: highArea[axis] >= lowArea[axis] ? 1 : -1 };
 }
 
-/** Rotates a model so the chosen (or auto-detected) up axis points +Y. */
-export function orientToYUp(group: THREE.Group, upAxis: 'auto' | 'x' | 'y' | 'z'): void {
+/**
+ * Rotates a model so the chosen (or auto-detected) up axis points +Y. The
+ * vertical sign is a best guess for symmetric pieces; `flip` turns the model
+ * the other way up when the guess (or a manual axis) lands it upside down.
+ */
+export function orientToYUp(
+  group: THREE.Group,
+  upAxis: 'auto' | 'x' | 'y' | 'z',
+  flip = false,
+): void {
   let axis: number;
   let sign = 1;
   if (upAxis === 'auto') {
@@ -436,10 +449,10 @@ export function orientToYUp(group: THREE.Group, upAxis: 'auto' | 'x' | 'y' | 'z'
   } else {
     axis = upAxis === 'x' ? 0 : upAxis === 'z' ? 2 : 1;
   }
-  if (axis === 1 && sign === 1) return; // already Y-up
   if (axis === 2) group.rotateX(sign > 0 ? -Math.PI / 2 : Math.PI / 2); // Z-up -> Y-up
   else if (axis === 0) group.rotateZ(sign > 0 ? Math.PI / 2 : -Math.PI / 2); // X-up -> Y-up
   else if (sign < 0) group.rotateX(Math.PI); // Y-down -> flip upright
+  if (flip) group.rotateX(Math.PI); // user override: turn it the other way up
 }
 
 /**
