@@ -1,0 +1,10 @@
+# Copy to `.npmrc` in any app that depends on @4kgraphics/engine (Atelier3D, the
+# storefront build, etc.). Maps the @4kgraphics scope to GitHub Packages and
+# reads the auth token from the NODE_AUTH_TOKEN env var (a GitHub PAT with the
+# read:packages scope). Commit this file — it holds no secret, only the
+# placeholder. See docs/PUBLISHING.md.
+#
+# NOTE: this monorepo does NOT use this file — its workspaces resolve the engine
+# locally. It's a template for OTHER repos.
+@4kgraphics:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}

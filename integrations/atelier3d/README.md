@@ -77,3 +77,21 @@ browser request is allowed.
 
 > Storage is **in-memory per process** in this first cut: a pushed model lives
 > until the service restarts. Durable storage is a straightforward follow-up.
+
+## Migrating Atelier3D off the vendored engine
+
+Once `@4kgraphics/engine` is published (see `docs/PUBLISHING.md`), Atelier3D can
+drop its vendored copy and share one engine — including one joinery:
+
+1. Add an `.npmrc` (see `.npmrc.example`) and a `read:packages` token, then
+   `npm install @4kgraphics/engine`.
+2. Delete `src/studio/engine/` (the vendored copy) and repoint imports at
+   `@4kgraphics/engine`.
+3. In `src/viewport/jointBoards.ts`, import `pinsBoardGeometry` /
+   `tailsBoardGeometry` from `@4kgraphics/engine` (now exported) instead of the
+   vendored path. The engine carries the **groove/sockets** extension upstreamed
+   from Atelier3D, so the `jointedBoard` groove/socket calls keep working.
+   - Heads-up: the engine's edge-pin proportion is **3/8"** (the newer MEJA
+     convention), not the vendored 1/16". Drawer pins will render at 3/8".
+4. Optional: replace the design-bridge's local `showObject` group with a direct
+   push to the render service (`pushToRenderService` above) for 4K output.

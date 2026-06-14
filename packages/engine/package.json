@@ -2,6 +2,7 @@
   "name": "@4kgraphics/engine",
   "version": "0.13.37",
   "description": "4K furniture rendering engine: PBR materials, parametric furniture, model import, snapshot rendering, build plans",
+  "license": "UNLICENSED",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -15,8 +16,17 @@
   "files": [
     "dist"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/4kgraphics/4kGraphics.git",
+    "directory": "packages/engine"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepack": "npm run build",
     "test": "vitest run"
   },
   "peerDependencies": {

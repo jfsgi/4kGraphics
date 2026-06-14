@@ -1,0 +1,39 @@
+name: Publish @4kgraphics/engine
+
+# Publishes the engine to GitHub Packages on a version tag (e.g. v0.13.38) or
+# on demand. The repo must be owned by the `4kgraphics` org so the package
+# scope (@4kgraphics) matches the owner — see docs/PUBLISHING.md. Uses the
+# Actions-provided GITHUB_TOKEN; no extra secret is needed to publish.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com
+          scope: '@4kgraphics'
+
+      # Skip the Chromium download — only the engine is built/published here.
+      - run: npm install
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: '1'
+
+      - run: npm run build -w packages/engine
+
+      - run: npm publish -w packages/engine
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
