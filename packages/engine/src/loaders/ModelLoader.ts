@@ -89,6 +89,9 @@ export async function loadModel(
     if (options.normalize ?? true) {
       orientToYUp(group, options.upAxis ?? 'auto');
       normalizeToFurnitureScale(group);
+      // Name the split STL boards by their (now upright) geometry so the
+      // material system can target Top / Shelf / Back / Side, etc.
+      if (format === 'stl') classifyImportedParts(group);
     }
     applyGrainUVs(group);
     return group;
@@ -135,15 +138,145 @@ async function loadByFormat(url: string, format: ModelFormat): Promise<THREE.Gro
     case 'stl': {
       const buffer = await (await fetch(url)).arrayBuffer();
       const geometry = dropOutlierTriangles(parseStlGeometry(buffer));
-      geometry.computeVertexNormals();
-      const mesh = new THREE.Mesh(
-        geometry,
-        new THREE.MeshPhysicalMaterial({ color: 0xb8b2a8, roughness: 0.6 }),
-      );
       const group = new THREE.Group();
-      group.add(mesh);
+      // Split the single mesh into its separate boards (connected solids) so
+      // each becomes its own selectable, material-able part. Falls back to one
+      // mesh when the model is a single welded solid or too fragmented.
+      const parts = splitConnectedComponents(geometry);
+      for (const g of parts) {
+        g.computeVertexNormals();
+        const m = new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ color: 0xb8b2a8, roughness: 0.6 }));
+        m.name = 'Imported part';
+        group.add(m);
+      }
       return group;
     }
+  }
+}
+
+/**
+ * Splits a soup-of-triangles geometry into its separate solids — the distinct
+ * boards of a furniture assembly — by welding coincident vertices and grouping
+ * triangles into connected components. Returns the original single geometry when
+ * the model is one welded solid, or when it shatters into too many fragments
+ * (a sign the export isn't cleanly partitioned).
+ */
+export function splitConnectedComponents(geometry: THREE.BufferGeometry): THREE.BufferGeometry[] {
+  const src = geometry.index ? geometry.toNonIndexed() : geometry;
+  const pos = src.getAttribute('position');
+  if (!pos) return [src];
+  const triCount = Math.floor(pos.count / 3);
+  if (triCount < 2) return [src];
+  src.computeBoundingBox();
+  const size = src.boundingBox!.getSize(new THREE.Vector3());
+  const grid = Math.max(size.x, size.y, size.z) * 1e-4 || 1e-4; // weld tolerance ~0.01% of size
+  const key = (i: number) =>
+    `${Math.round(pos.getX(i) / grid)},${Math.round(pos.getY(i) / grid)},${Math.round(pos.getZ(i) / grid)}`;
+
+  // Union-find over triangles that share a welded vertex.
+  const parent = new Int32Array(triCount);
+  for (let i = 0; i < triCount; i++) parent[i] = i;
+  const find = (x: number): number => {
+    while (parent[x] !== x) {
+      parent[x] = parent[parent[x]];
+      x = parent[x];
+    }
+    return x;
+  };
+  const vertToTri = new Map<string, number>();
+  for (let t = 0; t < triCount; t++) {
+    for (let k = 0; k < 3; k++) {
+      const kk = key(t * 3 + k);
+      const prev = vertToTri.get(kk);
+      if (prev === undefined) vertToTri.set(kk, t);
+      else {
+        const a = find(prev);
+        const b = find(t);
+        if (a !== b) parent[a] = b;
+      }
+    }
+  }
+  const groups = new Map<number, number[]>();
+  for (let t = 0; t < triCount; t++) {
+    const r = find(t);
+    let g = groups.get(r);
+    if (!g) groups.set(r, (g = []));
+    g.push(t);
+  }
+  if (groups.size < 2 || groups.size > 60) return [src]; // one solid, or too noisy
+
+  const out: THREE.BufferGeometry[] = [];
+  for (const tris of groups.values()) {
+    const arr = new Float32Array(tris.length * 9);
+    let o = 0;
+    for (const t of tris) {
+      for (let k = 0; k < 3; k++) {
+        arr[o++] = pos.getX(t * 3 + k);
+        arr[o++] = pos.getY(t * 3 + k);
+        arr[o++] = pos.getZ(t * 3 + k);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    out.push(g);
+  }
+  // Largest part first — stable, useful ordering for the part list.
+  out.sort((a, b) => b.getAttribute('position').count - a.getAttribute('position').count);
+  return out;
+}
+
+/**
+ * Names the meshes of an imported group by their geometry once it's upright and
+ * scaled: flat horizontal panels become Top / Shelf / Bottom, vertical panels
+ * Side or Back, tall narrow pieces Leg, the rest a numbered Part. Lets the
+ * per-part material system target "Back", "Shelf", etc. like a parametric piece.
+ */
+export function classifyImportedParts(group: THREE.Group): void {
+  const meshes: THREE.Mesh[] = [];
+  group.traverse((c) => {
+    if (c instanceof THREE.Mesh && c.geometry.getAttribute('position')) meshes.push(c);
+  });
+  if (meshes.length < 2) {
+    if (meshes[0]) meshes[0].name = 'Imported model';
+    return;
+  }
+  const modelBox = new THREE.Box3().setFromObject(group);
+  const mSize = modelBox.getSize(new THREE.Vector3());
+  const used = new Map<string, number>();
+  const uniq = (base: string) => {
+    const n = (used.get(base) ?? 0) + 1;
+    used.set(base, n);
+    return n === 1 && base !== 'Part' ? base : `${base} ${n}`;
+  };
+  const ranked = meshes
+    .map((m) => {
+      const b = new THREE.Box3().setFromObject(m);
+      return { m, box: b, size: b.getSize(new THREE.Vector3()), center: b.getCenter(new THREE.Vector3()) };
+    })
+    .sort((a, b) => b.size.length() - a.size.length());
+  let partN = 0;
+  for (const { m, size, center } of ranked) {
+    const dims = [size.x, size.y, size.z];
+    const minD = Math.min(...dims);
+    const maxD = Math.max(...dims) || 1;
+    const thin = dims.indexOf(minD);
+    let base: string;
+    if (minD / maxD < 0.25) {
+      if (thin === 1) {
+        const yf = (center.y - modelBox.min.y) / (mSize.y || 1);
+        base = yf > 0.78 ? 'Top' : yf < 0.18 ? 'Bottom' : 'Shelf';
+      } else if (thin === 0) {
+        base = 'Side';
+      } else {
+        const zf = (center.z - modelBox.min.z) / (mSize.z || 1);
+        base = zf < 0.3 ? 'Back' : 'Panel';
+      }
+    } else if (size.y > size.x * 1.4 && size.y > size.z * 1.4) {
+      base = 'Leg';
+    } else {
+      base = 'Part';
+    }
+    m.name = base === 'Part' ? `Part ${++partN}` : uniq(base);
   }
 }
 

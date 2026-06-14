@@ -52,6 +52,8 @@ export {
   dropOutlierTriangles,
   guessUpAxis,
   orientToYUp,
+  splitConnectedComponents,
+  classifyImportedParts,
   type ModelFormat,
   type LoadModelOptions,
 } from './loaders/ModelLoader.js';
