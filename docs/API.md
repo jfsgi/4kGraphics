@@ -331,15 +331,18 @@ The response carries an `X-Render-Ms` header. Errors come back as
 Body: `{ "scene": { … } }` or `{ "spec": { … } }`, plus an optional `name` and
 `defaults` (render settings applied under a later render's own fields). Stores
 the model and returns `{ id, name, kind, createdAt }` (201). Render it with
-`POST /v1/render { "modelId": id, … }`. This is the **push** target for the
-Atelier3D bridge: a design becomes a stored model on push, re-renderable without
-re-sending geometry. `GET /v1/models/:id` returns the metadata. Storage is
-in-memory (per process) in this first cut.
+`POST /v1/render { "modelId": id, … }`. This is the **pull/push** target for the
+Atelier3D bridge: a design becomes a stored model, re-renderable (and AR-able)
+without re-sending geometry. `GET /v1/models` lists all models; `GET
+/v1/models/:id` returns one. Models persist on disk under `DATA_DIR` (default
+`./.data`), so they survive restarts — point `DATA_DIR` at a durable volume in
+production.
 
 ### `POST /v1/ar` → `application/json`
 
-Body: `{ "spec": { … }, "textureSize"? }` (default `1024`). Builds — or reuses,
-keyed on a hash of the spec + texture size — the AR files for one configuration
+Body: one of `{ "modelId" }` (a stored model), `{ "scene" }`, or `{ "spec" }`,
+plus optional `textureSize` (default `1024`). Builds — or reuses, keyed on a
+hash of the resolved design + texture size — the AR files for one configuration
 and returns stable URLs:
 
 ```json
@@ -349,9 +352,10 @@ and returns stable URLs:
   "posterUrl":"<base>/v1/ar/<hash>.png" }
 ```
 
-Invalid specs return `422`. This powers the storefront's `<model-viewer>` AR
-(`src` = GLB, `ios-src` = USDZ, `poster` = the render). Set `PUBLIC_BASE_URL`
-when behind a proxy so the URLs are absolute and stable.
+An invalid design returns `422`. This powers the storefront's `<model-viewer>`
+AR (`src` = GLB, `ios-src` = USDZ, `poster` = the render). Set `PUBLIC_BASE_URL`
+when behind a proxy so the URLs are absolute and stable. So a pulled Atelier3D
+design becomes AR with `POST /v1/ar { "modelId": id }`.
 
 - `GET /v1/ar/:hash.glb` → `model/gltf-binary`
 - `GET /v1/ar/:hash.usdz` → `model/vnd.usdz+zip`
@@ -359,9 +363,9 @@ when behind a proxy so the URLs are absolute and stable.
 
 The file responses are immutable (`Cache-Control: public, max-age=31536000,
 immutable`), `Cross-Origin-Resource-Policy: cross-origin`, and carry CORS
-headers when `CORS_ORIGINS` allows the storefront origin. Storage is in-memory
-(per process). GLB + USDZ are built up front; the poster renders lazily on its
-first GET.
+headers when `CORS_ORIGINS` allows the storefront origin. Files persist on disk
+under `DATA_DIR`, so the URLs survive restarts. GLB + USDZ are built up front;
+the poster renders lazily on its first GET.
 
 ### `POST /v1/buildplan` → `application/json`
 

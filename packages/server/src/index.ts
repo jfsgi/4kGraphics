@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { generateBuildPlan, validateSpec, VERSION, type FurnitureSpec } from '@4kgraphics/engine';
 import { HeadlessRenderer, type RenderRequest } from './renderer.js';
-import { ArStore, ModelStore, validateScene } from './store.js';
+import { ArStore, ModelStore, validateScene, type ArMeta } from './store.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT ?? 8787);
@@ -39,8 +39,12 @@ app.use((req, res, next) => {
 // Scenes carry full geometry, so allow a generous body.
 app.use(express.json({ limit: '32mb' }));
 
-const store = new ModelStore();
-const arStore = new ArStore();
+// Persist models and AR files under DATA_DIR (default ./.data) so pulled
+// designs and their AR files survive restarts. Point DATA_DIR at a durable
+// volume in production.
+const dataDir = path.resolve(process.env.DATA_DIR ?? '.data');
+const store = new ModelStore(path.join(dataDir, 'models'));
+const arStore = new ArStore(path.join(dataDir, 'ar'));
 // Respect X-Forwarded-* so derived absolute URLs are correct behind a proxy.
 app.set('trust proxy', true);
 
@@ -82,6 +86,11 @@ app.post('/v1/models', (req, res) => {
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
   }
+});
+
+/** Lists stored models (metadata only), newest first. */
+app.get('/v1/models', (_req, res) => {
+  res.json({ models: store.list().map((m) => store.summary(m)) });
 });
 
 /** Metadata for a stored model. */
@@ -145,30 +154,49 @@ function baseUrl(req: express.Request): string {
 }
 
 /**
- * Builds (or reuses) per-configuration AR files for a spec and returns stable,
- * CORS-accessible URLs the storefront's <model-viewer> can load. GLB feeds
- * WebXR / Scene Viewer; USDZ feeds iOS Quick Look; the poster is a render.
+ * Builds (or reuses) per-configuration AR files for a stored model (`modelId`),
+ * a pushed scene, or a parametric spec, and returns stable, CORS-accessible
+ * URLs the storefront's <model-viewer> can load. GLB feeds WebXR / Scene
+ * Viewer; USDZ feeds iOS Quick Look; the poster is a render. Files persist on
+ * disk, so the URLs survive restarts.
  */
 app.post('/v1/ar', async (req, res) => {
+  const body = (req.body ?? {}) as { modelId?: string; scene?: unknown; spec?: unknown; textureSize?: number };
+  // AR-appropriate default: 1024 keeps files a few MB; ask for more per product.
+  const textureSize = Number(body.textureSize ?? 1024);
+  let meta: Omit<ArMeta, 'hash' | 'textureSize' | 'createdAt'>;
+  let payload: RenderRequest;
+  // Resolve the design from a stored model, a pushed scene, or a spec.
   try {
-    const spec = req.body?.spec as FurnitureSpec | undefined;
-    // AR-appropriate default: 1024 keeps files a few MB; the storefront can ask
-    // for more detail (e.g. 2048) per product.
-    const textureSize = Number(req.body?.textureSize ?? 1024);
-    if (!spec || typeof spec !== 'object' || !('kind' in spec)) {
-      res.status(422).json({ error: 'Body must be { "spec": { "kind": ..., ... }, "textureSize"? }' });
+    if (body.modelId) {
+      const model = store.get(body.modelId);
+      if (!model) {
+        res.status(404).json({ error: 'No such model' });
+        return;
+      }
+      meta = model.scene ? { kind: 'scene', scene: model.scene } : { kind: 'spec', spec: model.spec };
+      payload = model.scene ? { scene: model.scene, textureSize } : { spec: model.spec, textureSize };
+    } else if (body.scene !== undefined) {
+      const scene = validateScene(body.scene);
+      meta = { kind: 'scene', scene };
+      payload = { scene, textureSize };
+    } else if (body.spec !== undefined) {
+      validateSpec(body.spec as FurnitureSpec);
+      meta = { kind: 'spec', spec: body.spec as FurnitureSpec };
+      payload = { spec: body.spec, textureSize };
+    } else {
+      res.status(422).json({ error: 'Body must include a "modelId", "scene", or "spec"' });
       return;
     }
-    try {
-      validateSpec(spec);
-    } catch (error) {
-      res.status(422).json({ error: error instanceof Error ? error.message : String(error) });
-      return;
-    }
-    const hash = arStore.hash(spec, textureSize);
-    if (!arStore.get(hash)) {
-      const { glb, usdz } = await renderer.exportAR({ spec, textureSize });
-      arStore.set({ hash, spec, textureSize, glb, usdz, createdAt: new Date().toISOString() });
+  } catch (error) {
+    res.status(422).json({ error: error instanceof Error ? error.message : String(error) });
+    return;
+  }
+  try {
+    const hash = arStore.hash({ scene: meta.scene, spec: meta.spec }, textureSize);
+    if (!arStore.has(hash)) {
+      const { glb, usdz } = await renderer.exportAR(payload);
+      arStore.save({ hash, ...meta, textureSize, createdAt: new Date().toISOString() }, glb, usdz);
     }
     const base = baseUrl(req);
     res.json({
@@ -182,30 +210,47 @@ app.post('/v1/ar', async (req, res) => {
   }
 });
 
-/** Serves a cached AR file (or renders the poster on first request). */
+/** Serves a stored AR file from disk (rendering the poster on first request). */
 app.get('/v1/ar/:file', async (req, res) => {
   const match = /^([0-9a-f]+)\.(glb|usdz|png)$/.exec(req.params.file);
   if (!match) {
     res.status(404).json({ error: 'Not found' });
     return;
   }
-  const [, hash, ext] = match;
-  const artifacts = arStore.get(hash);
-  if (!artifacts) {
+  const hash = match[1];
+  const ext = match[2] as 'glb' | 'usdz' | 'png';
+  const meta = arStore.meta(hash);
+  if (!meta) {
     res.status(404).json({ error: 'No such AR model — POST /v1/ar to build it' });
     return;
   }
-  let body: Buffer;
+  let body: Buffer | null;
   try {
-    if (ext === 'glb') body = artifacts.glb;
-    else if (ext === 'usdz') body = artifacts.usdz;
-    else {
+    if (ext === 'png') {
       // Poster: render once on demand (the AR essentials are built up front).
-      artifacts.poster ??= await renderer.render({ spec: artifacts.spec, lighting: 'studio', background: 'studio' });
-      body = artifacts.poster;
+      body = arStore.read(hash, 'png');
+      if (!body) {
+        // A lightweight placeholder shown before the AR model loads — keep it small.
+        body = await renderer.render({
+          scene: meta.scene,
+          spec: meta.spec,
+          lighting: 'studio',
+          background: 'studio',
+          width: 1200,
+          height: 900,
+          supersample: 1,
+        });
+        arStore.savePoster(hash, body);
+      }
+    } else {
+      body = arStore.read(hash, ext);
     }
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    return;
+  }
+  if (!body) {
+    res.status(404).json({ error: 'Not found' });
     return;
   }
   res
@@ -220,8 +265,9 @@ const server = app.listen(port, () => {
   console.log(`4kgraphics render service listening on http://127.0.0.1:${port}`);
   console.log(`  POST /v1/render    → 4K PNG of a scene, spec, modelId, or model URL`);
   console.log(`  POST /v1/models    → store a pushed scene/spec, returns an id`);
-  console.log(`  POST /v1/ar        → per-config GLB + USDZ + poster URLs for AR`);
+  console.log(`  POST /v1/ar        → per-config GLB + USDZ + poster URLs (spec / scene / modelId)`);
   console.log(`  POST /v1/buildplan → cut list, hardware, and assembly steps`);
+  console.log(`  data dir: ${dataDir}`);
   if (corsOrigins.length) console.log(`  CORS: ${allowAllOrigins ? 'any origin' : corsOrigins.join(', ')}`);
 });
 
