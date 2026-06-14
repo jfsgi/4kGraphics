@@ -18,6 +18,13 @@ export interface LoadModelOptions {
    * center the model with its base on the floor. Defaults to true.
    */
   normalize?: boolean;
+  /**
+   * Which model axis points up. CAD STL exports are often Z-up while the
+   * scene is Y-up, so the model imports lying on its side. 'auto' (default)
+   * guesses from the geometry (the axis its flat surfaces face); 'y' keeps the
+   * model as-is. Only applied when normalize is on.
+   */
+  upAxis?: 'auto' | 'x' | 'y' | 'z';
 }
 
 const EXTENSIONS: Record<string, ModelFormat> = {
@@ -80,6 +87,7 @@ export async function loadModel(
       }
     });
     if (options.normalize ?? true) {
+      orientToYUp(group, options.upAxis ?? 'auto');
       normalizeToFurnitureScale(group);
     }
     applyGrainUVs(group);
@@ -231,6 +239,74 @@ export function parseStlGeometry(buffer: ArrayBuffer): THREE.BufferGeometry {
     return loader.parse(bytes.buffer);
   }
   return loader.parse(new TextDecoder().decode(new Uint8Array(buffer)));
+}
+
+/**
+ * The axis a model's flat surfaces face, area-weighted — for furniture this is
+ * the up axis (the seat/top/shelf and the floor contacts are the big flat
+ * faces). Returns 0/1/2 (x/y/z), or 1 (y, no change) when no axis clearly
+ * dominates. `topSign` is +1 when the larger flat surface (the top) sits at
+ * the high end of that axis, −1 when it sits at the low end (model upside down).
+ */
+export function guessUpAxis(group: THREE.Group): { axis: number; topSign: number } {
+  group.updateMatrixWorld(true);
+  const align = [0, 0, 0];
+  const lowArea = [0, 0, 0];
+  const highArea = [0, 0, 0];
+  const box = new THREE.Box3().setFromObject(group);
+  const mid = box.getCenter(new THREE.Vector3());
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const ab = new THREE.Vector3();
+  const ac = new THREE.Vector3();
+  const nrm = new THREE.Vector3();
+  group.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const pos = (child.geometry as THREE.BufferGeometry).getAttribute('position');
+    if (!pos) return;
+    for (let i = 0; i + 2 < pos.count; i += 3) {
+      a.fromBufferAttribute(pos, i).applyMatrix4(child.matrixWorld);
+      b.fromBufferAttribute(pos, i + 1).applyMatrix4(child.matrixWorld);
+      c.fromBufferAttribute(pos, i + 2).applyMatrix4(child.matrixWorld);
+      ab.subVectors(b, a);
+      ac.subVectors(c, a);
+      nrm.crossVectors(ab, ac);
+      const len = nrm.length();
+      if (len < 1e-12) continue;
+      const area = 0.5 * len;
+      const cy = (a.y + b.y + c.y) / 3; // (reused per axis below)
+      for (let ax = 0; ax < 3; ax++) {
+        const comp = (ax === 0 ? nrm.x : ax === 1 ? nrm.y : nrm.z) / len;
+        const w = area * comp * comp;
+        align[ax] += w;
+        const center = ax === 0 ? (a.x + b.x + c.x) / 3 : ax === 1 ? cy : (a.z + b.z + c.z) / 3;
+        if (center > (ax === 0 ? mid.x : ax === 1 ? mid.y : mid.z)) highArea[ax] += w;
+        else lowArea[ax] += w;
+      }
+    }
+  });
+  const axis = align.indexOf(Math.max(...align));
+  const sorted = [...align].sort((x, y) => y - x);
+  if (sorted[0] < sorted[1] * 1.3) return { axis: 1, topSign: 1 }; // no clear up axis
+  return { axis, topSign: highArea[axis] >= lowArea[axis] ? 1 : -1 };
+}
+
+/** Rotates a model so the chosen (or auto-detected) up axis points +Y. */
+export function orientToYUp(group: THREE.Group, upAxis: 'auto' | 'x' | 'y' | 'z'): void {
+  let axis: number;
+  let sign = 1;
+  if (upAxis === 'auto') {
+    const g = guessUpAxis(group);
+    axis = g.axis;
+    sign = g.topSign;
+  } else {
+    axis = upAxis === 'x' ? 0 : upAxis === 'z' ? 2 : 1;
+  }
+  if (axis === 1 && sign === 1) return; // already Y-up
+  if (axis === 2) group.rotateX(sign > 0 ? -Math.PI / 2 : Math.PI / 2); // Z-up -> Y-up
+  else if (axis === 0) group.rotateZ(sign > 0 ? Math.PI / 2 : -Math.PI / 2); // X-up -> Y-up
+  else if (sign < 0) group.rotateX(Math.PI); // Y-down -> flip upright
 }
 
 /**

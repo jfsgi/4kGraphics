@@ -37,6 +37,9 @@ let spec: FurnitureSpec = defaultSpec('table');
 let showingImport = false;
 /** Display name for the current import (catalog pieces use their spec name). */
 let importName: string | null = null;
+/** The current import's file + up-axis override, for re-orienting on demand. */
+let currentImportFile: File | null = null;
+let currentUpAxis: 'auto' | 'y' | 'z' | 'x' = 'auto';
 
 /** Live render/material preferences, mirrored into the active saved model. */
 const DEFAULT_PREFS: ModelPrefs = {
@@ -236,6 +239,27 @@ function buildControls() {
   host.innerHTML = '';
   if (showingImport) {
     host.innerHTML = '<p class="muted">Imported model — dimensions come from the file.</p>';
+    addSection(
+      host,
+      'Orientation',
+      'CAD exports are often Z-up; Auto stands the model upright from its geometry. Override here if it lands on its side.',
+    );
+    const labels: Record<string, 'auto' | 'y' | 'z' | 'x'> = {
+      Auto: 'auto',
+      'Y up': 'y',
+      'Z up': 'z',
+      'X up': 'x',
+    };
+    const current = Object.keys(labels).find((k) => labels[k] === currentUpAxis) ?? 'Auto';
+    addSelect(host, 'Up axis', current, Object.keys(labels), (value) => {
+      currentUpAxis = labels[value];
+      if (currentImportFile) {
+        void engine
+          .loadModel(currentImportFile, { upAxis: currentUpAxis })
+          .then(() => applyPrefs(prefs))
+          .catch((e) => toast(e instanceof Error ? e.message : String(e)));
+      }
+    });
     return;
   }
 
@@ -786,7 +810,9 @@ async function importFile(file: File) {
   }
   toast(`Loading ${file.name}…`, 0);
   try {
-    await engine.loadModel(file);
+    currentImportFile = file;
+    currentUpAxis = 'auto';
+    await engine.loadModel(file, { upAxis: currentUpAxis });
     showingImport = true;
     importName = name;
     // Imports start neutral (no wood applied) but keep panel/scene defaults.
@@ -944,7 +970,9 @@ async function loadSaved(model: SavedModel): Promise<void> {
   try {
     if (model.kind === 'import' && model.bytes) {
       const file = new File([model.bytes], model.fileName ?? `${model.name}.stl`);
-      await engine.loadModel(file, model.format ? { format: model.format } : undefined);
+      currentImportFile = file;
+      currentUpAxis = 'auto';
+      await engine.loadModel(file, { ...(model.format ? { format: model.format } : {}), upAxis: 'auto' });
       showingImport = true;
       importName = model.name;
       buildControls();

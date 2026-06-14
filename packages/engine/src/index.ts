@@ -50,6 +50,8 @@ export {
   parseStlGeometry,
   isBinaryStl,
   dropOutlierTriangles,
+  guessUpAxis,
+  orientToYUp,
   type ModelFormat,
   type LoadModelOptions,
 } from './loaders/ModelLoader.js';
