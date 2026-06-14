@@ -342,7 +342,7 @@ function buildControls() {
       Math.max(20, spec.stockThicknessMm + 18),
       spec.heightMm,
       (v) => {
-        if (spec.kind === 'drawerbox') spec.frontHeightMm = v >= spec.heightMm ? undefined : v;
+        if (spec.kind === 'drawerbox') spec.frontHeightMm = v;
       },
     );
     addCheck(host, 'Scooped sides (sloped to the back)', spec.scoopedSides ?? false, (v) => {

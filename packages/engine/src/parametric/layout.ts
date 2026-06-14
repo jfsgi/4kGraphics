@@ -469,13 +469,12 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   // from the side, the joint pattern ends at the lap line. The back corners
   // stay through-dovetailed, as jigs cut them.
   const lip = 1.5875;
-  // Pull cutout per the shop drawing: 5.59" opening, 3/4" deep on a 15"
-  // front; narrower fronts scale the opening down. A scooped tray is its own
-  // pull, so the two never combine.
-  const scoop =
-    spec.scoop && !scoopedSides
-      ? { widthMm: Math.min(142, w * 0.38), depthMm: Math.min(19.05, frontH * 0.35) }
-      : undefined;
+  // Finger-pull cutout per the shop drawing: 5.59" opening, 3/4" deep on a 15"
+  // front; narrower/shorter fronts scale the opening down. Cuts into the front
+  // at whatever height it is — scooped or not.
+  const scoop = spec.scoop
+    ? { widthMm: Math.min(142, w * 0.38), depthMm: Math.min(19.05, frontH * 0.4) }
+    : undefined;
   // Dovetail pin count / cutter diameter, and the MEJA drawer edge convention:
   // a 3/8" half-pin (narrow piece) at the top and bottom edges, tails inboard.
   const dt = {
