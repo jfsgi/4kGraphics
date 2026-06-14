@@ -54,6 +54,15 @@ const DEFAULT_PREFS: ModelPrefs = {
 let prefs: ModelPrefs = { ...DEFAULT_PREFS };
 /** The saved model currently on screen, if any — edits write back to it. */
 let activeSaved: SavedModel | null = null;
+/** The server-catalog product currently open (its id), for saving the look back. */
+let activeCatalogId: string | null = null;
+/** True while a 4K-catalog product (Atelier3D import) is on screen. */
+let showingCatalogProduct = false;
+/** Render-service base URL; empty = same-origin (the Vite dev proxy / a rewrite). */
+const RENDER_BASE = ((import.meta.env as Record<string, string | undefined>).VITE_RENDER_ENDPOINT ?? '').replace(
+  /\/$/,
+  '',
+);
 /** Material ids the user added from photos (deletable from the library). */
 const userMaterialIds = new Set<string>();
 let rebuildTimer = 0;
@@ -81,6 +90,7 @@ function buildCatalog() {
       spec = defaultSpec(entry.kind);
       showingImport = false;
       activeSaved = null;
+      clearCatalogSelection();
       prefs = { ...DEFAULT_PREFS };
       engine.showFurniture(spec);
       applyPrefs(prefs);
@@ -239,6 +249,11 @@ function renderSliders(host: HTMLElement, defs: FieldDef[]) {
 function buildControls() {
   const host = document.getElementById('controls')!;
   host.innerHTML = '';
+  if (showingCatalogProduct) {
+    host.innerHTML =
+      '<p class="muted">Catalog product from Atelier3D. Refine its finish, lighting &amp; background on the right, then “Save look”.</p>';
+    return;
+  }
   if (showingImport) {
     host.innerHTML = '<p class="muted">Imported model — dimensions come from the file.</p>';
     addSection(
@@ -830,6 +845,7 @@ async function importFile(file: File) {
     currentSpin = 0;
     await engine.loadModel(file, { upAxis: currentUpAxis });
     showingImport = true;
+    clearCatalogSelection();
     importName = name;
     // Imports start neutral (no wood applied) but keep panel/scene defaults.
     prefs = { stain: null, panelMaterial: 'birchply', lighting: 'studio', background: 'studio' };
@@ -1007,6 +1023,7 @@ async function loadSaved(model: SavedModel): Promise<void> {
       return;
     }
     activeSaved = model;
+    clearCatalogSelection();
     prefs = { ...DEFAULT_PREFS, ...model.prefs };
     applyPrefs(prefs);
     updateStatus();
@@ -1072,6 +1089,130 @@ function refreshSavedActive(): void {
   for (const row of host.querySelectorAll('.saved-row')) {
     (row as HTMLElement).classList.toggle('active', (row as HTMLElement).dataset.id === activeSaved?.id);
   }
+}
+
+// ----------------------------------------------------- 4K server catalog
+
+/** Render-service catalog products (Atelier3D imports), listed and openable so
+ * their finish/lighting can be refined and saved back. */
+async function buildServerCatalog(): Promise<void> {
+  const host = document.getElementById('server-catalog');
+  if (!host) return;
+  host.innerHTML = '';
+  let models: Array<{ id: string; name: string; kind: string; createdAt: string }>;
+  try {
+    const res = await fetch(`${RENDER_BASE}/v1/models`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    models = (await res.json()).models ?? [];
+  } catch {
+    const hint = document.createElement('p');
+    hint.className = 'section-hint';
+    hint.textContent = 'Render service not reachable — run it (npm run serve) or set VITE_RENDER_ENDPOINT.';
+    host.appendChild(hint);
+    return;
+  }
+  if (!models.length) {
+    const hint = document.createElement('p');
+    hint.className = 'section-hint';
+    hint.textContent = 'No products yet. Import a design from Atelier3D (POST /v1/models).';
+    host.appendChild(hint);
+    return;
+  }
+  for (const model of models) {
+    const row = document.createElement('div');
+    row.className = 'saved-row' + (activeCatalogId === model.id ? ' active' : '');
+    row.dataset.id = model.id;
+    const open = document.createElement('button');
+    open.className = 'saved-open';
+    open.textContent = model.name;
+    open.title = `${model.kind} · ${new Date(model.createdAt).toLocaleString()}`;
+    open.onclick = () => void openCatalogProduct(model.id);
+    row.appendChild(open);
+    host.appendChild(row);
+  }
+}
+
+function highlightCatalogActive(): void {
+  const host = document.getElementById('server-catalog');
+  if (!host) return;
+  for (const row of host.querySelectorAll('.saved-row')) {
+    (row as HTMLElement).classList.toggle('active', (row as HTMLElement).dataset.id === activeCatalogId);
+  }
+}
+
+/** Opens a catalog product, rebuilding its geometry and applying its saved look. */
+async function openCatalogProduct(id: string): Promise<void> {
+  toast('Loading product…', 0);
+  try {
+    const res = await fetch(`${RENDER_BASE}/v1/models/${id}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const model = (await res.json()) as {
+      id: string;
+      name: string;
+      kind: string;
+      scene?: unknown;
+      spec?: FurnitureSpec;
+      defaults?: ModelPrefs;
+    };
+    if (model.kind === 'scene' && model.scene) {
+      engine.loadScene(model.scene as Parameters<typeof engine.loadScene>[0]);
+    } else if (model.spec) {
+      spec = model.spec;
+      engine.showFurniture(model.spec);
+    } else {
+      throw new Error('Product has no geometry');
+    }
+    showingImport = false;
+    showingCatalogProduct = true;
+    activeSaved = null;
+    activeCatalogId = id;
+    importName = model.name;
+    prefs = { ...DEFAULT_PREFS, ...(model.defaults ?? {}) };
+    applyPrefs(prefs);
+    buildControls();
+    refreshPartSelect();
+    updateStatus();
+    markActive(document.getElementById('catalog')!, null);
+    refreshSavedActive();
+    highlightCatalogActive();
+    const save = document.getElementById('catalog-save') as HTMLButtonElement | null;
+    if (save) save.hidden = false;
+    toast(`Loaded “${model.name}”`);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** Saves the current finish/lighting/background as the product's defaults. */
+async function saveCatalogLook(): Promise<void> {
+  if (!activeCatalogId) return;
+  const defaults = {
+    material: prefs.material,
+    stain: prefs.stain,
+    panelMaterial: prefs.panelMaterial,
+    lighting: prefs.lighting,
+    background: prefs.background,
+  };
+  try {
+    const res = await fetch(`${RENDER_BASE}/v1/models/${activeCatalogId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ defaults }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    toast('Saved look to the catalog');
+  } catch (error) {
+    toast(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** Clears the catalog selection when another piece/import/saved model loads. */
+function clearCatalogSelection(): void {
+  activeCatalogId = null;
+  showingCatalogProduct = false;
+  const save = document.getElementById('catalog-save') as HTMLButtonElement | null;
+  if (save) save.hidden = true;
+  highlightCatalogActive();
 }
 
 // ------------------------------------------------------- material photos
@@ -1509,3 +1650,10 @@ wireSnapshot();
 wireBuildPlan();
 wireMaterialDrop();
 void buildSavedPanel();
+void buildServerCatalog();
+(document.getElementById('catalog-refresh') as HTMLButtonElement | null)?.addEventListener('click', () =>
+  void buildServerCatalog(),
+);
+(document.getElementById('catalog-save') as HTMLButtonElement | null)?.addEventListener('click', () =>
+  void saveCatalogLook(),
+);

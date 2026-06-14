@@ -26,5 +26,11 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Proxy catalog/render calls to the local render service so the demo can
+    // reach the 4K catalog without CORS in dev. Override the target with
+    // VITE_PROXY_TARGET; in production set VITE_RENDER_ENDPOINT to the service.
+    proxy: {
+      '/v1': { target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8787', changeOrigin: true },
+    },
   },
 });

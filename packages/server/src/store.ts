@@ -10,6 +10,7 @@ export interface StoredModel {
   name: string;
   kind: 'scene' | 'spec';
   createdAt: string;
+  updatedAt?: string;
   scene?: Scene;
   spec?: FurnitureSpec;
   /** Default render settings merged under a /v1/render request's own fields. */
@@ -68,6 +69,40 @@ export class ModelStore {
     for (const m of loadJsonDir<StoredModel>(dir)) this.models.set(m.id, m);
   }
 
+  private write(model: StoredModel): void {
+    fs.writeFileSync(path.join(this.dir, `${model.id}.json`), JSON.stringify(model));
+  }
+
+  /**
+   * Creates a catalog product, or — if one with the same name exists — replaces
+   * its geometry in place (same id), keeping its refined `defaults` and
+   * createdAt. So re-importing an updated design from Atelier3D updates the
+   * existing product instead of duplicating it, without losing the look the
+   * user dialed in. Returns the model and whether it was newly created.
+   */
+  upsert(input: CreateModelInput): { model: StoredModel; created: boolean } {
+    const name = input.name ?? 'Untitled';
+    const existing = [...this.models.values()].find((m) => m.name === name);
+    if (existing) {
+      if (input.scene !== undefined) {
+        existing.kind = 'scene';
+        existing.scene = validateScene(input.scene);
+        delete existing.spec;
+      } else if (input.spec !== undefined) {
+        existing.kind = 'spec';
+        existing.spec = input.spec as FurnitureSpec;
+        delete existing.scene;
+      } else {
+        throw new Error('Body must include a "scene" or a "spec"');
+      }
+      existing.updatedAt = new Date().toISOString();
+      if (input.defaults !== undefined) existing.defaults = input.defaults; // else keep the refined look
+      this.write(existing);
+      return { model: existing, created: false };
+    }
+    return { model: this.create(input), created: true };
+  }
+
   create(input: CreateModelInput): StoredModel {
     const id = randomUUID();
     const createdAt = new Date().toISOString();
@@ -81,12 +116,24 @@ export class ModelStore {
       throw new Error('Body must include a "scene" or a "spec"');
     }
     this.models.set(id, model);
-    fs.writeFileSync(path.join(this.dir, `${id}.json`), JSON.stringify(model));
+    this.write(model);
     return model;
   }
 
   get(id: string): StoredModel | undefined {
     return this.models.get(id);
+  }
+
+  /** Updates a catalog entry's name and/or render defaults (the product's
+   * dialed-in look), then persists it. Defaults merge shallowly. */
+  update(id: string, patch: { name?: string; defaults?: Record<string, unknown> }): StoredModel | undefined {
+    const model = this.models.get(id);
+    if (!model) return undefined;
+    if (patch.name !== undefined) model.name = patch.name;
+    if (patch.defaults !== undefined) model.defaults = { ...(model.defaults ?? {}), ...patch.defaults };
+    model.updatedAt = new Date().toISOString();
+    this.write(model);
+    return model;
   }
 
   /** Newest-first list of all stored models. */

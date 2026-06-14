@@ -24,7 +24,7 @@ app.use((req, res, next) => {
   if (origin && (allowAllOrigins || corsOrigins.includes(origin))) {
     res.setHeader('Access-Control-Allow-Origin', allowAllOrigins ? '*' : origin);
     res.setHeader('Vary', 'Origin');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     res.setHeader('Access-Control-Expose-Headers', 'X-Render-Ms, X-Engine-Version');
     res.setHeader('Access-Control-Max-Age', '86400');
@@ -81,7 +81,9 @@ app.post('/v1/models', (req, res) => {
       defaults?: Record<string, unknown>;
     };
     if (spec !== undefined) validateSpec(spec as FurnitureSpec);
-    const model = store.create({ name, scene, spec, defaults });
+    // Upsert by name: re-importing a design updates its catalog product (keeping
+    // any refined look) instead of duplicating it.
+    const { model } = store.upsert({ name, scene, spec, defaults });
     res.status(201).json(store.summary(model));
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
@@ -93,9 +95,22 @@ app.get('/v1/models', (_req, res) => {
   res.json({ models: store.list().map((m) => store.summary(m)) });
 });
 
-/** Metadata for a stored model. */
+/** A stored model with its design + render defaults — the tool loads this to
+ * open and refine a catalog product. */
 app.get('/v1/models/:id', (req, res) => {
   const model = store.get(req.params.id);
+  if (!model) {
+    res.status(404).json({ error: 'No such model' });
+    return;
+  }
+  res.json(model);
+});
+
+/** Updates a catalog product's name and/or render defaults (its dialed-in
+ * look), so refinements made in the tool stick. */
+app.patch('/v1/models/:id', (req, res) => {
+  const { name, defaults } = (req.body ?? {}) as { name?: string; defaults?: Record<string, unknown> };
+  const model = store.update(req.params.id, { name, defaults });
   if (!model) {
     res.status(404).json({ error: 'No such model' });
     return;

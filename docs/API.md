@@ -326,17 +326,29 @@ Body (JSON) — everything optional except one of `spec` / `scene` / `modelId` /
 The response carries an `X-Render-Ms` header. Errors come back as
 `400 { "error": "..." }`.
 
-### `POST /v1/models` → `application/json`
+### `POST /v1/models` → `application/json` (catalog import)
 
 Body: `{ "scene": { … } }` or `{ "spec": { … } }`, plus an optional `name` and
-`defaults` (render settings applied under a later render's own fields). Stores
-the model and returns `{ id, name, kind, createdAt }` (201). Render it with
-`POST /v1/render { "modelId": id, … }`. This is the **pull/push** target for the
-Atelier3D bridge: a design becomes a stored model, re-renderable (and AR-able)
-without re-sending geometry. `GET /v1/models` lists all models; `GET
-/v1/models/:id` returns one. Models persist on disk under `DATA_DIR` (default
-`./.data`), so they survive restarts — point `DATA_DIR` at a durable volume in
-production.
+`defaults` (render settings). Saves the design as a **catalog product** and
+returns `{ id, name, kind, createdAt }` (201). This is the catalog-import target
+for the Atelier3D bridge — distinct from the render path (`POST /v1/render`).
+
+**Upsert by name:** re-importing with the same `name` replaces the existing
+product's geometry in place (same `id`) and **keeps its refined `defaults`**, so
+pulling an updated design from Atelier3D updates the catalog product instead of
+duplicating it, without losing the look you dialed in.
+
+- `GET /v1/models` lists all products (metadata, newest first).
+- `GET /v1/models/:id` returns the full product (geometry + `defaults`) — the
+  tool loads this to open and refine a product.
+- `PATCH /v1/models/:id` with `{ name?, defaults? }` updates a product's name
+  and/or its render `defaults` (material, stain, lighting, background, camera),
+  so refinements made in the tool stick (`defaults` merge shallowly).
+- Render or AR a product by id: `POST /v1/render { "modelId": id, … }` /
+  `POST /v1/ar { "modelId": id }`.
+
+Products persist on disk under `DATA_DIR` (default `./.data`) and survive
+restarts — point `DATA_DIR` at a durable volume in production.
 
 ### `POST /v1/ar` → `application/json`
 
