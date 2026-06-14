@@ -15,6 +15,10 @@ export interface StoredModel {
   spec?: FurnitureSpec;
   /** Default render settings merged under a /v1/render request's own fields. */
   defaults?: Record<string, unknown>;
+  /** Opaque source design metadata (e.g. Atelier3D's ProjectDoc), round-tripped
+   * so a catalog item can be pushed back into the design app and reopened
+   * editable. The render service never interprets it. */
+  source?: unknown;
 }
 
 export interface CreateModelInput {
@@ -22,6 +26,7 @@ export interface CreateModelInput {
   scene?: unknown;
   spec?: unknown;
   defaults?: Record<string, unknown>;
+  source?: unknown;
 }
 
 /** Minimal shape check for a pushed scene: a non-empty parts or instances list,
@@ -97,6 +102,7 @@ export class ModelStore {
       }
       existing.updatedAt = new Date().toISOString();
       if (input.defaults !== undefined) existing.defaults = input.defaults; // else keep the refined look
+      if (input.source !== undefined) existing.source = input.source; // else keep the prior source
       this.write(existing);
       return { model: existing, created: false };
     }
@@ -109,9 +115,9 @@ export class ModelStore {
     const name = input.name ?? 'Untitled';
     let model: StoredModel;
     if (input.scene !== undefined) {
-      model = { id, name, kind: 'scene', createdAt, scene: validateScene(input.scene), defaults: input.defaults };
+      model = { id, name, kind: 'scene', createdAt, scene: validateScene(input.scene), defaults: input.defaults, source: input.source };
     } else if (input.spec !== undefined) {
-      model = { id, name, kind: 'spec', createdAt, spec: input.spec as FurnitureSpec, defaults: input.defaults };
+      model = { id, name, kind: 'spec', createdAt, spec: input.spec as FurnitureSpec, defaults: input.defaults, source: input.source };
     } else {
       throw new Error('Body must include a "scene" or a "spec"');
     }

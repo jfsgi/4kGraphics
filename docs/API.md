@@ -339,8 +339,12 @@ pulling an updated design from Atelier3D updates the catalog product instead of
 duplicating it, without losing the look you dialed in.
 
 - `GET /v1/models` lists all products (metadata, newest first).
-- `GET /v1/models/:id` returns the full product (geometry + `defaults`) — the
-  tool loads this to open and refine a product.
+- `GET /v1/models/:id` returns the full product (geometry + `defaults` +
+  `source`) — the tool loads this to open and refine a product, and it's what a
+  design app fetches to pull a catalog item back (see `integrations/atelier3d`).
+- An optional `source` field on the body (e.g. the design app's editable
+  project) is stored opaquely and round-tripped, so a catalog item can be pushed
+  back into the design app and reopened editable; upsert preserves it.
 - `PATCH /v1/models/:id` with `{ name?, defaults? }` updates a product's name
   and/or its render `defaults` (material, stain, lighting, background, camera),
   so refinements made in the tool stick (`defaults` merge shallowly).

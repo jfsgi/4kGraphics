@@ -74,16 +74,17 @@ app.post('/v1/buildplan', (req, res) => {
  */
 app.post('/v1/models', (req, res) => {
   try {
-    const { name, scene, spec, defaults } = (req.body ?? {}) as {
+    const { name, scene, spec, defaults, source } = (req.body ?? {}) as {
       name?: string;
       scene?: unknown;
       spec?: unknown;
       defaults?: Record<string, unknown>;
+      source?: unknown;
     };
     if (spec !== undefined) validateSpec(spec as FurnitureSpec);
     // Upsert by name: re-importing a design updates its catalog product (keeping
-    // any refined look) instead of duplicating it.
-    const { model } = store.upsert({ name, scene, spec, defaults });
+    // any refined look + source) instead of duplicating it.
+    const { model } = store.upsert({ name, scene, spec, defaults, source });
     res.status(201).json(store.summary(model));
   } catch (error) {
     res.status(400).json({ error: error instanceof Error ? error.message : String(error) });

@@ -65,6 +65,16 @@ const RENDER_BASE = ((import.meta.env as Record<string, string | undefined>).VIT
   /\/$/,
   '',
 );
+/** Absolute render-service URL handed to Atelier3D so it can fetch a pushed item. */
+const RENDER_ABSOLUTE = ((import.meta.env as Record<string, string | undefined>).VITE_RENDER_ENDPOINT ?? '').replace(
+  /\/$/,
+  '',
+);
+/** Atelier3D base URL — when set, enables "Push to Atelier3D". */
+const ATELIER3D_BASE = ((import.meta.env as Record<string, string | undefined>).VITE_ATELIER3D_ENDPOINT ?? '').replace(
+  /\/$/,
+  '',
+);
 /** Material ids the user added from photos (deletable from the library). */
 const userMaterialIds = new Set<string>();
 let rebuildTimer = 0;
@@ -1216,6 +1226,8 @@ async function openCatalogProduct(id: string): Promise<void> {
       const btn = document.getElementById(id) as HTMLButtonElement | null;
       if (btn) btn.hidden = false;
     }
+    const push = document.getElementById('catalog-push') as HTMLButtonElement | null;
+    if (push) push.hidden = !ATELIER3D_BASE; // only when an Atelier3D URL is configured
     toast(`Loaded “${model.name}”`);
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
@@ -1270,12 +1282,22 @@ async function renameCatalogProduct(): Promise<void> {
   }
 }
 
+/** Pushes the open catalog product back into Atelier3D. Deep-links with the
+ * model id + render-service URL so Atelier3D fetches the full record (geometry,
+ * source design, and refined materials) and reopens it. */
+function pushToAtelier3D(): void {
+  if (!activeCatalogId || !ATELIER3D_BASE) return;
+  const url = `${ATELIER3D_BASE}/?from4k=${encodeURIComponent(activeCatalogId)}&svc=${encodeURIComponent(RENDER_ABSOLUTE)}`;
+  window.open(url, '_blank', 'noopener');
+  toast('Opening in Atelier3D…');
+}
+
 /** Clears the catalog selection when another piece/import/saved model loads. */
 function clearCatalogSelection(): void {
   activeCatalogId = null;
   showingCatalogProduct = false;
   partMaterials = {};
-  for (const id of ['catalog-save', 'catalog-rename']) {
+  for (const id of ['catalog-save', 'catalog-rename', 'catalog-push']) {
     const btn = document.getElementById(id) as HTMLButtonElement | null;
     if (btn) btn.hidden = true;
   }
@@ -1726,4 +1748,7 @@ void buildServerCatalog();
 );
 (document.getElementById('catalog-save') as HTMLButtonElement | null)?.addEventListener('click', () =>
   void saveCatalogLook(),
+);
+(document.getElementById('catalog-push') as HTMLButtonElement | null)?.addEventListener('click', () =>
+  pushToAtelier3D(),
 );

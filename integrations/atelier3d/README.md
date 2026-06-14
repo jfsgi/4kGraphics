@@ -111,3 +111,47 @@ calls keep working unchanged.
 > convention), not the vendored 1/16" — drawer pins will render at 3/8".
 > Optionally, swap the local `showObject` preview for a `pushToRenderService`
 > call (above) to get 4K output from the render service.
+
+## Pushing a catalog item back into Atelier3D (4K → Atelier3D)
+
+The 4K tool has a **"Push to Atelier3D"** button on an open catalog product. It
+opens Atelier3D with a deep link and lets Atelier3D pull the full item:
+
+```
+https://<atelier3d>/?from4k=<modelId>&svc=<render-service-url>
+```
+
+(The 4K tool needs `VITE_ATELIER3D_ENDPOINT` set to your Atelier3D URL for the
+button to appear.)
+
+**Atelier3D side — two small additions:**
+
+1. **Send `source` on import.** In `pushToRenderService`/"Send to 4K", include the
+   project's editable design in the POST body so it round-trips:
+   ```ts
+   body: JSON.stringify({ name: doc.name, scene, source: doc })  // doc = the ProjectDoc
+   ```
+   The render service stores `source` opaquely and never interprets it; upsert
+   keeps it across re-imports.
+
+2. **Handle the deep link on load.** If `from4k` is present, fetch the full
+   record and reopen it:
+   ```ts
+   const p = new URLSearchParams(location.search);
+   const id = p.get('from4k');
+   const svc = p.get('svc');
+   if (id && svc) {
+     const m = await fetch(`${svc}/v1/models/${id}`).then((r) => r.json());
+     // m = { id, name, kind, scene?, spec?, source?, defaults? }
+     if (m.source) openProject(m.source as ProjectDoc);   // editable design
+     else importSceneAsReference(m.scene);                // baked geometry fallback
+     applyRefinedMaterials(m.defaults);                   // 4K-chosen finish:
+     //   defaults.material (whole piece), defaults.materials (per-part: { partName: id }),
+     //   defaults.stain / lighting / background
+   }
+   ```
+
+So the round-trip is: Atelier3D design → 4K catalog (refine finish/per-part
+materials) → **Push to Atelier3D** → reopens the editable design carrying the
+4K-refined look. The render service must allow the Atelier3D origin via
+`CORS_ORIGINS` so that fetch succeeds.

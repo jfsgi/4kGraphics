@@ -1,6 +1,6 @@
 {
   "name": "@4kgraphics/server",
-  "version": "0.13.42",
+  "version": "0.13.43",
   "description": "Headless 4K furniture render API: POST a furniture spec, receive a rendered PNG or a build plan",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,7 +9,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@4kgraphics/engine": "0.13.42",
+    "@4kgraphics/engine": "0.13.43",
     "express": "^4.21.0",
     "puppeteer": "^23.10.0"
   },
