@@ -10,6 +10,32 @@ const port = Number(process.env.PORT ?? 8787);
 const harnessDir = path.resolve(here, '../harness-dist');
 
 const app = express();
+
+// CORS: lets a browser app (e.g. Atelier3D) call the API cross-origin.
+// CORS_ORIGINS is a comma-separated allowlist of origins; '*' allows any.
+// Unset → no CORS headers (same-origin or server-to-server only).
+const corsOrigins = (process.env.CORS_ORIGINS ?? '')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+const allowAllOrigins = corsOrigins.includes('*');
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && (allowAllOrigins || corsOrigins.includes(origin))) {
+    res.setHeader('Access-Control-Allow-Origin', allowAllOrigins ? '*' : origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Expose-Headers', 'X-Render-Ms, X-Engine-Version');
+    res.setHeader('Access-Control-Max-Age', '86400');
+  }
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(204); // preflight; browser enforces via the headers above
+    return;
+  }
+  next();
+});
+
 // Scenes carry full geometry, so allow a generous body.
 app.use(express.json({ limit: '32mb' }));
 
@@ -109,6 +135,7 @@ const server = app.listen(port, () => {
   console.log(`  POST /v1/render    → 4K PNG of a scene, spec, modelId, or model URL`);
   console.log(`  POST /v1/models    → store a pushed scene/spec, returns an id`);
   console.log(`  POST /v1/buildplan → cut list, hardware, and assembly steps`);
+  if (corsOrigins.length) console.log(`  CORS: ${allowAllOrigins ? 'any origin' : corsOrigins.join(', ')}`);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

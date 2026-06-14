@@ -266,6 +266,12 @@ stock together. Paint/metal/fabric/scanned materials render unchanged.
 npm run serve     # listens on PORT (default 8787)
 ```
 
+`CORS_ORIGINS` (comma-separated allowlist, or `*` for any) lets a browser app —
+e.g. the Atelier3D bridge deployed on a different origin — call the API directly.
+Unset means no CORS headers (same-origin or server-to-server only); for local
+dev a Vite proxy avoids CORS entirely. Allowed responses expose `X-Render-Ms`
+and `X-Engine-Version` to browser JS.
+
 ### `GET /healthz`
 
 `{ "ok": true, "service": "4kgraphics-render", "version": "0.13.x" }` — the

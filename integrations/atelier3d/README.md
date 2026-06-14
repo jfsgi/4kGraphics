@@ -70,5 +70,10 @@ set, the 4K PNG `Blob`. The stored model can be re-rendered any time with
 `POST /v1/render { "modelId": "…", … }` — change material/camera/size without
 re-pushing geometry.
 
+For local dev, a Vite proxy keeps the call same-origin (no CORS). For a
+**deployed** Atelier3D calling a deployed service, start the service with
+`CORS_ORIGINS=https://your-atelier3d-origin` (comma-separated, or `*`) so the
+browser request is allowed.
+
 > Storage is **in-memory per process** in this first cut: a pushed model lives
 > until the service restarts. Durable storage is a straightforward follow-up.
