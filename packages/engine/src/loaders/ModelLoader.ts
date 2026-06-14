@@ -126,7 +126,7 @@ async function loadByFormat(url: string, format: ModelFormat): Promise<THREE.Gro
       return await new FBXLoader().loadAsync(url);
     case 'stl': {
       const buffer = await (await fetch(url)).arrayBuffer();
-      const geometry = parseStlGeometry(buffer);
+      const geometry = dropOutlierTriangles(parseStlGeometry(buffer));
       geometry.computeVertexNormals();
       const mesh = new THREE.Mesh(
         geometry,
@@ -137,6 +137,58 @@ async function loadByFormat(url: string, format: ModelFormat): Promise<THREE.Gro
       return group;
     }
   }
+}
+
+/**
+ * CAD STL exports often carry a few stray triangles — a construction point at
+ * the world origin, a leftover reference plane, geometry far from the part.
+ * They wreck the import: the bounding box stretches to the outlier, so the
+ * unit-guess shrinks the real model to a sliver and the stray dominates the
+ * view. We drop triangles whose centroid sits well outside the bulk of the
+ * mesh (a robust 1–99th-percentile box expanded by half its largest side),
+ * leaving clean models untouched.
+ */
+export function dropOutlierTriangles(geometry: THREE.BufferGeometry): THREE.BufferGeometry {
+  const indexed = geometry.index ? geometry.toNonIndexed() : geometry;
+  const pos = indexed.getAttribute('position');
+  if (!pos || pos.count < 12) return indexed; // too small to bother
+  const n = pos.count;
+
+  // Robust per-axis bounds from sampled vertices (1st–99th percentile).
+  const axis: number[][] = [[], [], []];
+  const step = Math.max(1, Math.floor(n / 60000));
+  for (let i = 0; i < n; i += step) {
+    axis[0].push(pos.getX(i));
+    axis[1].push(pos.getY(i));
+    axis[2].push(pos.getZ(i));
+  }
+  const lo: number[] = [];
+  const hi: number[] = [];
+  for (let a = 0; a < 3; a++) {
+    const s = axis[a].sort((x, y) => x - y);
+    lo[a] = s[Math.round(0.01 * (s.length - 1))];
+    hi[a] = s[Math.round(0.99 * (s.length - 1))];
+  }
+  const margin = Math.max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) * 0.5;
+  const min = [lo[0] - margin, lo[1] - margin, lo[2] - margin];
+  const max = [hi[0] + margin, hi[1] + margin, hi[2] + margin];
+
+  const kept: number[] = [];
+  for (let t = 0; t + 2 < n; t += 3) {
+    const cx = (pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3;
+    const cy = (pos.getY(t) + pos.getY(t + 1) + pos.getY(t + 2)) / 3;
+    const cz = (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3;
+    if (cx < min[0] || cx > max[0] || cy < min[1] || cy > max[1] || cz < min[2] || cz > max[2]) {
+      continue; // stray triangle — drop it
+    }
+    for (let k = 0; k < 3; k++) {
+      kept.push(pos.getX(t + k), pos.getY(t + k), pos.getZ(t + k));
+    }
+  }
+  if (kept.length === 0 || kept.length === n * 3) return indexed; // nothing dropped
+  const cleaned = new THREE.BufferGeometry();
+  cleaned.setAttribute('position', new THREE.BufferAttribute(new Float32Array(kept), 3));
+  return cleaned;
 }
 
 /**

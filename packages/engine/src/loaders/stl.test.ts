@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { isBinaryStl, parseStlGeometry } from './ModelLoader.js';
+import { dropOutlierTriangles, isBinaryStl, parseStlGeometry } from './ModelLoader.js';
 
 /** A recognizable furniture mesh: a 400×10×400mm top on four 600mm legs. */
 function tableFaces(): number[][][] {
@@ -92,5 +92,22 @@ describe('STL parsing', () => {
   it('keeps parsing a binary STL whose header begins with "solid" and size is exact', () => {
     const g = parseStlGeometry(binaryStl(faces, 'solid SketchUp Pro export'));
     expect(g.getAttribute('position').count / 3).toBe(expectedTris);
+  });
+
+  it('drops a stray triangle far from the model so the unit-guess stays sane', () => {
+    // A construction artifact 100 m from the part — wrecks bbox-based scaling.
+    const stray = [[0, 0, 0], [100000, 0, 0], [0, 100000, 0]];
+    const g = parseStlGeometry(binaryStl([...faces, stray], 'CAD export'));
+    expect(g.getAttribute('position').count / 3).toBe(expectedTris + 1); // present before cleanup
+    const cleaned = dropOutlierTriangles(g);
+    expect(cleaned.getAttribute('position').count / 3).toBe(expectedTris); // stray removed
+    const s = bbox(cleaned);
+    expect([s.x, s.y, s.z]).toEqual([400, 600, 400]); // back to the real model size
+  });
+
+  it('leaves a clean model untouched', () => {
+    const g = parseStlGeometry(binaryStl(faces, 'CAD export'));
+    const cleaned = dropOutlierTriangles(g);
+    expect(cleaned.getAttribute('position').count / 3).toBe(expectedTris);
   });
 });

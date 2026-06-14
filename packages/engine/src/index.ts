@@ -49,6 +49,7 @@ export {
   normalizeToFurnitureScale,
   parseStlGeometry,
   isBinaryStl,
+  dropOutlierTriangles,
   type ModelFormat,
   type LoadModelOptions,
 } from './loaders/ModelLoader.js';
