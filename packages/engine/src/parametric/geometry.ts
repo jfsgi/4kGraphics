@@ -56,11 +56,17 @@ export function buildGroup(layout: FurnitureLayout, material: THREE.Material): T
     const sizes = part.sizeMm.map((v) => v * MM_TO_M);
     const grainIndex = part.grainAxis === 'x' ? 0 : part.grainAxis === 'y' ? 1 : 2;
     const acrossMax = Math.max(...sizes.filter((_, i) => i !== grainIndex));
+    // Step narrow boards across non-adjacent planks (stride 3 is coprime with
+    // the 4 offsets, so adjacent walls — the two sides especially — never land
+    // on neighbouring planks and echo the same figure), and offset along the
+    // grain with an independent low-discrepancy step. The two multipliers are
+    // the R2 plastic constants, jointly equidistributed so U (across) and V
+    // (along) never co-align into a repeat the way 0.755 ≈ 3/4 did.
     const offsetU =
       acrossMax <= PLANK_FIT_M
-        ? PLANK_SAFE_OFFSETS[partIndex % PLANK_SAFE_OFFSETS.length]
-        : (partIndex * 0.618033988749) % 1;
-    const offsetV = (partIndex * 0.754877666247) % 1;
+        ? PLANK_SAFE_OFFSETS[(partIndex * 3) % PLANK_SAFE_OFFSETS.length]
+        : (partIndex * 0.754877666247) % 1;
+    const offsetV = (partIndex * 0.569840290998) % 1;
     applyBoxUVs(geometry, TEXTURE_TILE_M, part.grainAxis, offsetU, offsetV, recessAO(part));
     bakePlyEdges(geometry, sizes);
     partIndex += 1;
