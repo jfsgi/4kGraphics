@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { generateBuildPlan, validateSpec, VERSION, type FurnitureSpec } from '@4kgraphics/engine';
 import { HeadlessRenderer, type RenderRequest } from './renderer.js';
-import { ModelStore, validateScene } from './store.js';
+import { ArStore, ModelStore, validateScene } from './store.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT ?? 8787);
@@ -40,6 +40,9 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '32mb' }));
 
 const store = new ModelStore();
+const arStore = new ArStore();
+// Respect X-Forwarded-* so derived absolute URLs are correct behind a proxy.
+app.set('trust proxy', true);
 
 app.get('/healthz', (_req, res) => {
   res.json({ ok: true, service: '4kgraphics-render', version: VERSION });
@@ -130,10 +133,94 @@ app.post('/v1/render', async (req, res) => {
   }
 });
 
+const AR_CONTENT_TYPE: Record<string, string> = {
+  glb: 'model/gltf-binary',
+  usdz: 'model/vnd.usdz+zip',
+  png: 'image/png',
+};
+
+/** Absolute base URL for building file links (honours a proxy / explicit env). */
+function baseUrl(req: express.Request): string {
+  return (process.env.PUBLIC_BASE_URL ?? `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+}
+
+/**
+ * Builds (or reuses) per-configuration AR files for a spec and returns stable,
+ * CORS-accessible URLs the storefront's <model-viewer> can load. GLB feeds
+ * WebXR / Scene Viewer; USDZ feeds iOS Quick Look; the poster is a render.
+ */
+app.post('/v1/ar', async (req, res) => {
+  try {
+    const spec = req.body?.spec as FurnitureSpec | undefined;
+    // AR-appropriate default: 1024 keeps files a few MB; the storefront can ask
+    // for more detail (e.g. 2048) per product.
+    const textureSize = Number(req.body?.textureSize ?? 1024);
+    if (!spec || typeof spec !== 'object' || !('kind' in spec)) {
+      res.status(422).json({ error: 'Body must be { "spec": { "kind": ..., ... }, "textureSize"? }' });
+      return;
+    }
+    try {
+      validateSpec(spec);
+    } catch (error) {
+      res.status(422).json({ error: error instanceof Error ? error.message : String(error) });
+      return;
+    }
+    const hash = arStore.hash(spec, textureSize);
+    if (!arStore.get(hash)) {
+      const { glb, usdz } = await renderer.exportAR({ spec, textureSize });
+      arStore.set({ hash, spec, textureSize, glb, usdz, createdAt: new Date().toISOString() });
+    }
+    const base = baseUrl(req);
+    res.json({
+      configHash: hash,
+      glbUrl: `${base}/v1/ar/${hash}.glb`,
+      usdzUrl: `${base}/v1/ar/${hash}.usdz`,
+      posterUrl: `${base}/v1/ar/${hash}.png`,
+    });
+  } catch (error) {
+    res.status(400).json({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+/** Serves a cached AR file (or renders the poster on first request). */
+app.get('/v1/ar/:file', async (req, res) => {
+  const match = /^([0-9a-f]+)\.(glb|usdz|png)$/.exec(req.params.file);
+  if (!match) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+  const [, hash, ext] = match;
+  const artifacts = arStore.get(hash);
+  if (!artifacts) {
+    res.status(404).json({ error: 'No such AR model — POST /v1/ar to build it' });
+    return;
+  }
+  let body: Buffer;
+  try {
+    if (ext === 'glb') body = artifacts.glb;
+    else if (ext === 'usdz') body = artifacts.usdz;
+    else {
+      // Poster: render once on demand (the AR essentials are built up front).
+      artifacts.poster ??= await renderer.render({ spec: artifacts.spec, lighting: 'studio', background: 'studio' });
+      body = artifacts.poster;
+    }
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+    return;
+  }
+  res
+    .type(AR_CONTENT_TYPE[ext])
+    .setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    .setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+    .setHeader('X-Engine-Version', VERSION)
+    .send(body);
+});
+
 const server = app.listen(port, () => {
   console.log(`4kgraphics render service listening on http://127.0.0.1:${port}`);
   console.log(`  POST /v1/render    → 4K PNG of a scene, spec, modelId, or model URL`);
   console.log(`  POST /v1/models    → store a pushed scene/spec, returns an id`);
+  console.log(`  POST /v1/ar        → per-config GLB + USDZ + poster URLs for AR`);
   console.log(`  POST /v1/buildplan → cut list, hardware, and assembly steps`);
   if (corsOrigins.length) console.log(`  CORS: ${allowAllOrigins ? 'any origin' : corsOrigins.join(', ')}`);
 });

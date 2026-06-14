@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { FurnitureSpec, Scene } from '@4kgraphics/engine';
 
 /** A model created by a push — either a pushed scene or a parametric spec, plus
@@ -66,5 +66,38 @@ export class ModelStore {
   /** Public metadata for a model (no geometry payload). */
   summary(model: StoredModel): Record<string, unknown> {
     return Object.fromEntries(PUBLIC_KEYS.map((k) => [k, model[k]]));
+  }
+}
+
+/** AR files for one configuration: GLB + USDZ, and a lazily-rendered poster. */
+export interface ArArtifacts {
+  hash: string;
+  spec: FurnitureSpec;
+  textureSize: number;
+  glb: Buffer;
+  usdz: Buffer;
+  poster?: Buffer;
+  createdAt: string;
+}
+
+/**
+ * Per-configuration AR file cache, keyed on a hash of the spec (+ texture size)
+ * so repeat requests are cheap hits and the file URLs are stable. In-memory
+ * (per process), like the model store.
+ */
+export class ArStore {
+  private items = new Map<string, ArArtifacts>();
+
+  /** Stable id for a configuration — the URL `<hash>` segment. */
+  hash(spec: unknown, textureSize: number): string {
+    return createHash('sha256').update(JSON.stringify({ spec, textureSize })).digest('hex').slice(0, 24);
+  }
+
+  get(hash: string): ArArtifacts | undefined {
+    return this.items.get(hash);
+  }
+
+  set(artifacts: ArArtifacts): void {
+    this.items.set(artifacts.hash, artifacts);
   }
 }

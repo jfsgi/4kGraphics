@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { generateBuildPlan, type BuildPlan } from './buildplan/buildplan.js';
 import { loadModel, type LoadModelOptions } from './loaders/ModelLoader.js';
 import { createLightRig, LIGHTING_PRESETS, type LightingPresetId } from './lighting/presets.js';
@@ -8,6 +9,7 @@ import { buildGroup } from './parametric/geometry.js';
 import { buildLayout, type FurnitureLayout } from './parametric/layout.js';
 import type { FurnitureSpec } from './parametric/spec.js';
 import { renderSnapshot, type SnapshotOptions } from './render/SnapshotRenderer.js';
+import { exportGLB, exportUSDZ, type ExportOptions } from './export/exporters.js';
 import { buildSceneGroup } from './scene/SceneBuilder.js';
 import type { Scene } from './scene/types.js';
 import { VERSION } from './version.js';
@@ -310,6 +312,87 @@ export class FurnitureEngine {
       },
       options,
     );
+  }
+
+  /**
+   * The furniture piece alone (no lights/ground/helpers), cloned and re-seated
+   * on the floor (y = 0) so AR placement sits on the ground plane. Metres, Y-up.
+   */
+  private exportObject(): THREE.Object3D {
+    if (!this.currentObject) throw new Error('Nothing to export — show a piece first');
+    const clone = this.currentObject.clone(true);
+
+    // Slim materials for AR: keep the colour + normal maps (the look), but drop
+    // the ambient-occlusion / roughness / metalness maps in favour of scalars.
+    // That roughly halves the embedded textures — a phone AR file should be a
+    // few MB, not tens. Simplify each UNIQUE material once so shared materials
+    // stay shared and their textures still dedupe in the exported file.
+    const slimmed = new Map<THREE.Material, THREE.Material>();
+    const slim = (m: THREE.Material): THREE.Material => {
+      let s = slimmed.get(m);
+      if (!s) {
+        s = m.clone();
+        const p = s as THREE.MeshPhysicalMaterial;
+        p.aoMap = null;
+        p.lightMap = null;
+        p.roughnessMap = null;
+        p.metalnessMap = null;
+        slimmed.set(m, s);
+      }
+      return s;
+    };
+    // Weld vertices: the joinery geometry is built non-indexed (3 verts per
+    // triangle) for clean merges; indexing it shares verts and is the biggest
+    // lever on AR file size for these vertex-heavy pieces. Lossless — only
+    // vertices with identical position/normal/uv collapse. Cache per source
+    // geometry so shared meshes weld once.
+    const welded = new Map<THREE.BufferGeometry, THREE.BufferGeometry>();
+    const weld = (g: THREE.BufferGeometry): THREE.BufferGeometry => {
+      let w = welded.get(g);
+      if (!w) {
+        try {
+          w = g.index ? g : mergeVertices(g);
+        } catch {
+          w = g; // some attribute layouts can't merge — keep the original
+        }
+        welded.set(g, w);
+      }
+      return w;
+    };
+    clone.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      if (mesh.material) mesh.material = Array.isArray(mesh.material) ? mesh.material.map(slim) : slim(mesh.material);
+      if (mesh.geometry) mesh.geometry = weld(mesh.geometry);
+    });
+
+    clone.position.set(0, 0, 0);
+    clone.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(clone);
+    const center = box.getCenter(new THREE.Vector3());
+    clone.position.x -= center.x;
+    clone.position.z -= center.z;
+    clone.position.y -= box.min.y; // base on the floor (y = 0) for AR placement
+    clone.updateMatrixWorld(true);
+    return clone;
+  }
+
+  /**
+   * Exports the current piece to a binary glTF (.glb) for WebXR / Scene Viewer
+   * AR. Real-world scale (metres). Embeds textures at `textureSize` (default
+   * 2048) to keep the file small. Runs in a browser/WebGL context.
+   */
+  async exportGLB(opts: ExportOptions = {}): Promise<Uint8Array> {
+    if (opts.textureSize) this.setTextureResolution(opts.textureSize);
+    await this.materials.texturesReady();
+    return exportGLB(this.exportObject(), opts);
+  }
+
+  /** Exports the current piece to USDZ for iOS Quick Look AR. See exportGLB. */
+  async exportUSDZ(opts: ExportOptions = {}): Promise<Uint8Array> {
+    if (opts.textureSize) this.setTextureResolution(opts.textureSize);
+    await this.materials.texturesReady();
+    return exportUSDZ(this.exportObject(), opts);
   }
 
   /**

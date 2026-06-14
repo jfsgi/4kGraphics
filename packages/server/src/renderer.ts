@@ -65,6 +65,27 @@ export class HeadlessRenderer {
     }
   }
 
+  /** Exports the configured piece to GLB + USDZ via the same headless harness. */
+  async exportAR(request: RenderRequest): Promise<{ glb: Buffer; usdz: Buffer }> {
+    const browser = await this.getBrowser();
+    const page = await browser.newPage();
+    try {
+      page.setDefaultTimeout(300_000);
+      await page.goto(this.harnessUrl, { waitUntil: 'load' });
+      await page.waitForFunction('window.__ready === true');
+      const result = (await page.evaluate(
+        (config) =>
+          (globalThis as unknown as { __exportAR: (c: unknown) => Promise<{ glb: string; usdz: string }> }).__exportAR(
+            config,
+          ),
+        request as never,
+      )) as { glb: string; usdz: string };
+      return { glb: Buffer.from(result.glb, 'base64'), usdz: Buffer.from(result.usdz, 'base64') };
+    } finally {
+      await page.close();
+    }
+  }
+
   async close(): Promise<void> {
     if (this.browserPromise) {
       const browser = await this.browserPromise;

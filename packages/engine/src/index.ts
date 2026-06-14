@@ -77,5 +77,6 @@ export {
   type LightingPresetInfo,
 } from './lighting/presets.js';
 export { renderSnapshot, type SnapshotOptions, type SnapshotContext } from './render/SnapshotRenderer.js';
+export { exportGLB, exportUSDZ, type ExportOptions } from './export/exporters.js';
 export { inchesToMm, mmToInches, formatInches, MM_PER_INCH } from './units.js';
 export { VERSION } from './version.js';

@@ -76,7 +76,28 @@ engine.setMaterial('walnut');
 engine.setMaterial('steel', 'Leg');          // per-part materials
 
 const png = await engine.renderSnapshot();    // 3840×2160 Blob
+const glb = await engine.exportGLB();          // .glb bytes for WebXR / Scene Viewer
+const usdz = await engine.exportUSDZ();        // .usdz bytes for iOS Quick Look
 const plan = engine.getBuildPlan();           // cut list, hardware, steps
+```
+
+### AR for the storefront
+
+`POST /v1/ar` builds per-configuration GLB + USDZ (real-world scale, metres) and
+returns stable, CORS-accessible URLs for `<model-viewer>`:
+
+```bash
+curl -X POST http://localhost:8787/v1/ar \
+  -H 'content-type: application/json' \
+  -d '{ "spec": { "kind": "drawerbox", "widthMm": 500, "depthMm": 450, "heightMm": 150,
+                  "stockThicknessMm": 13, "bottomThicknessMm": 6, "joinery": "halfblind" } }'
+# → { configHash, glbUrl, usdzUrl, posterUrl }
+```
+
+```html
+<model-viewer src="{glbUrl}" ios-src="{usdzUrl}" poster="{posterUrl}"
+  ar ar-modes="webxr scene-viewer quick-look" ar-scale="fixed"
+  camera-controls shadow-intensity="1"></model-viewer>
 ```
 
 Full API reference: [docs/API.md](docs/API.md) ·

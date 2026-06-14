@@ -33,6 +33,7 @@ wheel to zoom) and follows container resizes automatically.
 | `setCameraOrbit(azimuthDeg, elevationDeg, distanceFactor?)` | `void` | Programmatic camera placement |
 | `frameObject()` | `void` | Auto-frame the current object |
 | `renderSnapshot(options?)` | `Promise<Blob>` | High-quality still — see below |
+| `exportGLB(opts?)` / `exportUSDZ(opts?)` | `Promise<Uint8Array>` | Export the piece for AR — see AR export |
 | `getBuildPlan()` | `BuildPlan \| null` | Plan for the current parametric piece (null for imports) |
 | `getLayout()` | `FurnitureLayout \| null` | Current part layout |
 | `listMaterials()` / `listParts()` / `listStains()` / `listLightingPresets()` | arrays | For building UIs |
@@ -55,6 +56,25 @@ demo it shows in the header (`v0.13.x · build …`) and as `window.__4kg_versio
 
 Snapshots render in a dedicated offscreen WebGL context at full resolution —
 the visible viewport size is irrelevant.
+
+### AR export
+
+`exportGLB(opts?)` and `exportUSDZ(opts?)` export the current piece as bytes for
+augmented reality — GLB for WebXR / Android Scene Viewer, USDZ for iOS Quick
+Look. Both are **real-world scale** (the scene is in metres, Y-up) and re-seated
+on the floor (y = 0) so AR placement sits on the ground; do not rescale.
+
+| Option | Default | |
+| --- | --- | --- |
+| `textureSize` | `2048` | Max embedded texture size (px). Smaller = smaller files |
+
+For AR the exporter keeps the colour + normal maps (dropping ao/roughness/
+metalness maps for scalars) and **welds/indexes** the joinery geometry, which is
+the biggest lever on file size for these vertex-heavy pieces — a drawer box
+lands around a few MB, a full drawer unit under ~12 MB. Texture embedding needs
+a canvas, so these run in a browser/WebGL context (in production, the server's
+headless-Chromium harness). Prefer the `POST /v1/ar` endpoint, which builds and
+caches both files behind stable URLs.
 
 ### Import orientation
 
@@ -315,6 +335,33 @@ the model and returns `{ id, name, kind, createdAt }` (201). Render it with
 Atelier3D bridge: a design becomes a stored model on push, re-renderable without
 re-sending geometry. `GET /v1/models/:id` returns the metadata. Storage is
 in-memory (per process) in this first cut.
+
+### `POST /v1/ar` → `application/json`
+
+Body: `{ "spec": { … }, "textureSize"? }` (default `1024`). Builds — or reuses,
+keyed on a hash of the spec + texture size — the AR files for one configuration
+and returns stable URLs:
+
+```json
+{ "configHash": "…",
+  "glbUrl":   "<base>/v1/ar/<hash>.glb",
+  "usdzUrl":  "<base>/v1/ar/<hash>.usdz",
+  "posterUrl":"<base>/v1/ar/<hash>.png" }
+```
+
+Invalid specs return `422`. This powers the storefront's `<model-viewer>` AR
+(`src` = GLB, `ios-src` = USDZ, `poster` = the render). Set `PUBLIC_BASE_URL`
+when behind a proxy so the URLs are absolute and stable.
+
+- `GET /v1/ar/:hash.glb` → `model/gltf-binary`
+- `GET /v1/ar/:hash.usdz` → `model/vnd.usdz+zip`
+- `GET /v1/ar/:hash.png` → `image/png` (poster; rendered on first request)
+
+The file responses are immutable (`Cache-Control: public, max-age=31536000,
+immutable`), `Cross-Origin-Resource-Policy: cross-origin`, and carry CORS
+headers when `CORS_ORIGINS` allows the storefront origin. Storage is in-memory
+(per process). GLB + USDZ are built up front; the poster renders lazily on its
+first GET.
 
 ### `POST /v1/buildplan` → `application/json`
 
