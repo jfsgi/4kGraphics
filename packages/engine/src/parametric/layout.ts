@@ -476,9 +476,10 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
   // half-blind boxes are always dovetailed.
   const jointType = (scoopedSides ? 'dovetail' : spec.joinery) as 'dovetail' | 'boxjoint';
 
-  // MEJA drawers: the FRONT & BACK carry the wide tails (with a half-tail at
-  // top and bottom), the SIDES carry the narrow pins. Scooped trays slope the
-  // sides' top edge from the low front up to the full-height back.
+  // MEJA drawers use the standard convention: the SIDES carry the wide tails
+  // (with a half-tail at the top and bottom edges), the FRONT & BACK carry the
+  // narrow pins. Scooped trays slope the sides' top edge from the low front up
+  // to the full-height back.
   for (const sx of [1, -1]) {
     parts.push({
       name: 'Drawer side',
@@ -488,20 +489,14 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
       role: 'structure',
       grainAxis: 'z',
       joinery: through
-        ? {
-            type: jointType,
-            role: 'pins',
-            matingThicknessMm: t,
-            pinsOuterSign: sx as 1 | -1,
-            ...dt,
-          }
+        ? { type: jointType, role: 'tails', matingThicknessMm: t, ...dt }
         : halfblind
           ? {
               type: 'dovetail',
-              role: 'pins',
+              role: 'tails',
               matingThicknessMm: t,
-              pinsOuterSign: sx as 1 | -1,
-              lipMm: lip,
+              frontLipMm: lip,
+              backLipMm: lip,
               ...dt,
             }
           : undefined,
@@ -523,14 +518,21 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
       role: 'structure',
       grainAxis: 'x',
       joinery: through
-        ? { type: jointType, role: 'tails', matingThicknessMm: t, ...dt }
+        ? {
+            type: jointType,
+            role: 'pins',
+            matingThicknessMm: t,
+            pinsOuterSign: sz as 1 | -1,
+            ...dt,
+          }
         : halfblind
           ? {
               type: 'dovetail',
-              role: 'tails',
+              role: 'pins',
               matingThicknessMm: t,
-              frontLipMm: lip,
-              backLipMm: lip,
+              pinsOuterSign: sz as 1 | -1,
+              // Blind sockets front and back — no joint breaks a show face.
+              lipMm: lip,
               ...dt,
             }
           : undefined,

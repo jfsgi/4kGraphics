@@ -363,23 +363,23 @@ function partGeometry(part: Part): THREE.BufferGeometry {
     const lenX = part.grainAxis === 'x';
     const len = lenX ? w : d;
     const thk = lenX ? d : w;
-    // Scooped-tray side: the top edge slopes from a low front to a full back.
-    if (part.slopedTop && part.joinery.role === 'pins') {
-      const jointed = slopedDrawerSideGeometry(
-        len,
-        part.slopedTop.frontHeightMm * MM_TO_M,
-        part.slopedTop.backHeightMm * MM_TO_M,
-        thk,
-        joint,
-        part.joinery.pinsOuterSign ?? 1,
-        part.slopedTop.scoopLengthMm ? part.slopedTop.scoopLengthMm * MM_TO_M : undefined,
-      );
-      if (jointed) {
-        if (!lenX) jointed.rotateY(Math.PI / 2); // native length X → world Z
-        return jointed;
-      }
-    }
     if (part.joinery.role === 'tails') {
+      // Scooped-tray side: the tails board's top edge sweeps from a low front
+      // up to a full-height back along an ogee.
+      if (part.slopedTop) {
+        const sloped = slopedDrawerSideGeometry(
+          len,
+          part.slopedTop.frontHeightMm * MM_TO_M,
+          part.slopedTop.backHeightMm * MM_TO_M,
+          thk,
+          joint,
+          part.slopedTop.scoopLengthMm ? part.slopedTop.scoopLengthMm * MM_TO_M : undefined,
+        );
+        if (sloped) {
+          if (lenX) sloped.rotateY(Math.PI / 2); // native length Z → world X
+          return sloped;
+        }
+      }
       const jointed = tailsBoardGeometry(
         thk,
         h,

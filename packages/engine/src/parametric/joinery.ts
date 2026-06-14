@@ -616,68 +616,15 @@ export function pinsBoardGeometry(
   return merged!;
 }
 
-/** Pin gaps (y-spans between the tails) for a joint layout measured from `yBottom`. */
-function pinGapsFromLayout(
-  joint: JointLayout,
-  height: number,
-  yBottom: number,
-): Array<[number, number, boolean, boolean]> {
-  const gaps: Array<[number, number, boolean, boolean]> = [];
-  if (joint.pinSegs) {
-    const eps = 1e-6;
-    for (const [a, b] of joint.pinSegs) {
-      gaps.push([yBottom + a, yBottom + b, a <= eps, b >= height - eps]);
-    }
-  } else {
-    let cursor = yBottom;
-    for (const c of joint.tailCenters) {
-      const tailBottom = yBottom + c - joint.tailWide / 2;
-      gaps.push([cursor, tailBottom, cursor === yBottom, false]);
-      cursor = yBottom + c + joint.tailWide / 2;
-    }
-    gaps.push([cursor, yBottom + height, false, true]);
-  }
-  return gaps;
-}
-
-/** Pin prisms filling the gaps at one end of a pins board (length along X). */
-function endPinPrisms(
-  gaps: Array<[number, number, boolean, boolean]>,
-  endSign: 1 | -1,
-  length: number,
-  depth: number,
-  zTip: number,
-  zInner: number,
-  flare: number,
-): THREE.BufferGeometry[] {
-  const out: THREE.BufferGeometry[] = [];
-  for (const [g0, g1, atBottom, atTop] of gaps) {
-    const f0 = atBottom ? 0 : flare;
-    const f1 = atTop ? 0 : flare;
-    // rotateY(π/2) maps shape (sx, sy, extrude) → world (extrude, sy, −sx).
-    const shape = new THREE.Shape([
-      new THREE.Vector2(-zTip, g0),
-      new THREE.Vector2(-zTip, g1),
-      new THREE.Vector2(-zInner, g1 + f1),
-      new THREE.Vector2(-zInner, g0 - f0),
-    ]);
-    const prism = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
-    prism.rotateY(Math.PI / 2);
-    prism.translate(endSign > 0 ? length / 2 - depth : -length / 2, 0, 0);
-    out.push(prism);
-  }
-  return out;
-}
-
 /**
- * Scooped (letter-tray) drawer side: a pins board whose top edge sweeps from a
- * low front up to a full-height back along a cyma (ogee) curve. Built
- * length-along-X (front at −X, back at +X), centered on the full height, so the
- * caller rotates it like any pins board. The pins at each end size to that
- * end's height, mating the low front and the full back independently.
- * `scoopRun` is the horizontal length of the curved sweep, measured back from
- * the front; beyond it the top edge runs flat at the full back height. Returns
- * null when the board is too small.
+ * Scooped (letter-tray) drawer side: a TAILS board whose top edge sweeps from a
+ * low front up to a full-height back along a cyma (ogee) curve. Built in the
+ * tails-board frame (length along Z, front at +Z, back at −Z), so the caller
+ * rotates it exactly like tailsBoardGeometry. The tails at each end size to
+ * that end's height, mating the low front and the full back independently.
+ * `scoopRun` is the length of the curved sweep measured back from the front;
+ * beyond it the top edge runs flat at the full back height. Through-dovetailed
+ * (no lip). Returns null when the board is too small.
  */
 export function slopedDrawerSideGeometry(
   length: number,
@@ -685,69 +632,61 @@ export function slopedDrawerSideGeometry(
   backHeight: number,
   thickness: number,
   spec: JointSpec,
-  outerSign: 1 | -1,
   scoopRun?: number,
 ): THREE.BufferGeometry | null {
+  const frontJoint = layoutJoint(frontHeight, spec);
+  const backJoint = layoutJoint(backHeight, spec);
+  if (!frontJoint || !backJoint) return null;
   const fullH = Math.max(frontHeight, backHeight);
   const yBottom = -fullH / 2;
-  const bodyLength = length - 2 * spec.depth;
-  if (bodyLength <= 0) return null;
-  const frontLayout = layoutJoint(frontHeight, spec);
-  const backLayout = layoutJoint(backHeight, spec);
-
-  // Body: flat bottom; the top sweeps from the low front (−X) up to the full
-  // back (+X) along an ogee. The curve runs `run` back from the front; the
-  // remainder to the back stays flat at full height.
-  const hb = bodyLength / 2;
+  const zo = length / 2;
+  const zi = zo - spec.depth; // through dovetails — engagement to the baseline
+  const eps = 1e-6;
+  const segsOf = (j: JointLayout, height: number) =>
+    (
+      j.tailSegs ??
+      j.tailCenters.map((c) => [c - j.tailWide / 2, c + j.tailWide / 2] as [number, number])
+    ).map(([a, b]) => ({
+      y0: yBottom + a,
+      y1: yBottom + b,
+      f0: a > eps ? j.flare : 0,
+      f1: b < height - eps ? j.flare : 0,
+    }));
+  const frontSegs = segsOf(frontJoint, frontHeight);
+  const backSegs = segsOf(backJoint, backHeight);
   const topFront = yBottom + frontHeight;
   const topBack = yBottom + backHeight;
-  const run = Math.min(Math.max(scoopRun ?? bodyLength, bodyLength * 0.15), bodyLength);
-  const curveStartX = -hb + run; // x where the sweep reaches full back height
-  const top: THREE.Vector2[] = [new THREE.Vector2(hb, topBack)];
-  if (curveStartX < hb - 1e-6) top.push(new THREE.Vector2(curveStartX, topBack));
-  const segs = 24;
-  for (let i = 1; i <= segs; i++) {
-    const u = i / segs; // 0 at the back of the sweep, 1 at the low front
+
+  const points: Array<[number, number]> = [[-zi, yBottom]];
+  // Bottom edge (a baseline unless the first tail already runs to the edge).
+  if (!(frontSegs.length && frontSegs[0].y0 <= yBottom + eps)) points.push([zi, yBottom]);
+  // Front (+z) toothed end, sized to the low front, ascending.
+  for (const { y0, y1, f0, f1 } of frontSegs) {
+    points.push([zi, y0 + f0], [zo, y0], [zo, y1], [zi, y1 - f1]);
+  }
+  if (!(frontSegs.length && frontSegs[frontSegs.length - 1].y1 >= topFront - eps)) {
+    points.push([zi, topFront]);
+  }
+  // Top edge: ogee sweep from the low front up to the full back.
+  const run = Math.min(Math.max(scoopRun ?? 2 * zi, 2 * zi * 0.15), 2 * zi);
+  const curveStartX = zi - run; // x where the sweep reaches full back height
+  const nSeg = 24;
+  for (let i = 1; i <= nSeg; i++) {
+    const u = i / nSeg; // 0 at the front, 1 at the back of the sweep
     const s = u * u * (3 - 2 * u); // smoothstep → ogee with flat tangents
-    top.push(new THREE.Vector2(curveStartX - run * u, topBack + (topFront - topBack) * s));
+    points.push([zi - run * u, topFront + (topBack - topFront) * s]);
   }
-  const body = new THREE.ExtrudeGeometry(
-    new THREE.Shape([new THREE.Vector2(-hb, yBottom), new THREE.Vector2(hb, yBottom), ...top]),
-    { depth: thickness, bevelEnabled: false },
-  );
-  body.translate(0, 0, -thickness / 2);
-  const pieces: THREE.BufferGeometry[] = [body];
-
-  const zOuter = (thickness / 2) * outerSign;
-  const zInner = -zOuter;
-  if (frontLayout) {
-    pieces.push(
-      ...endPinPrisms(
-        pinGapsFromLayout(frontLayout, frontHeight, yBottom),
-        -1,
-        length,
-        spec.depth,
-        zOuter,
-        zInner,
-        frontLayout.flare,
-      ),
-    );
-  }
-  if (backLayout) {
-    pieces.push(
-      ...endPinPrisms(
-        pinGapsFromLayout(backLayout, backHeight, yBottom),
-        1,
-        length,
-        spec.depth,
-        zOuter,
-        zInner,
-        backLayout.flare,
-      ),
-    );
+  if (curveStartX > -zi + eps) points.push([-zi, topBack]);
+  // Back (−z) toothed end, sized to the full height, descending.
+  for (let i = backSegs.length - 1; i >= 0; i--) {
+    const { y0, y1, f0, f1 } = backSegs[i];
+    points.push([-zi, y1 - f1], [-zo, y1], [-zo, y0], [-zi, y0 + f0]);
   }
 
-  const merged = mergeGeometries(pieces, false);
-  for (const piece of pieces) piece.dispose();
-  return merged;
+  const shape = new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y)));
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false });
+  geometry.translate(0, 0, -thickness / 2);
+  // Match tailsBoardGeometry's frame: shape X (length) → world Z, extrude → X.
+  geometry.rotateY(-Math.PI / 2);
+  return geometry;
 }
