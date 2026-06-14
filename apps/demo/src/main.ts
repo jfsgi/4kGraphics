@@ -58,6 +58,8 @@ let activeSaved: SavedModel | null = null;
 let activeCatalogId: string | null = null;
 /** True while a 4K-catalog product (Atelier3D import) is on screen. */
 let showingCatalogProduct = false;
+/** Per-part material overrides (part name → material id), saved with the look. */
+let partMaterials: Record<string, string> = {};
 /** Render-service base URL; empty = same-origin (the Vite dev proxy / a rewrite). */
 const RENDER_BASE = ((import.meta.env as Record<string, string | undefined>).VITE_RENDER_ENDPOINT ?? '').replace(
   /\/$/,
@@ -251,7 +253,29 @@ function buildControls() {
   host.innerHTML = '';
   if (showingCatalogProduct) {
     host.innerHTML =
-      '<p class="muted">Catalog product from Atelier3D. Refine its finish, lighting &amp; background on the right, then “Save look”.</p>';
+      '<p class="muted">Catalog product from Atelier3D. Refine its finish, lighting &amp; background on the right, then “Save look”. Dimensions &amp; joinery are edited in Atelier3D — re-send to update.</p>';
+    const parts = engine.listParts();
+    if (parts.length) {
+      addSection(host, 'Parts', 'Click a part, then pick a wood or finish in the Materials panel — each part keeps its own.');
+      const row = document.createElement('div');
+      row.className = 'button-row';
+      for (const part of parts) {
+        const button = document.createElement('button');
+        button.className = 'ghost';
+        button.textContent = part;
+        button.onclick = () => {
+          const select = document.getElementById('part-select') as HTMLSelectElement | null;
+          if (select) {
+            select.value = part;
+            select.dispatchEvent(new Event('change'));
+          }
+          markActive(row, button);
+          toast(`Editing “${part}” — pick a material on the right`);
+        };
+        row.appendChild(button);
+      }
+      host.appendChild(row);
+    }
     return;
   }
   if (showingImport) {
@@ -638,7 +662,10 @@ function buildMaterialPanel() {
         markActive(host, button);
         if (part === '*') {
           prefs.material = info.id;
+          partMaterials = {}; // a whole-piece material supersedes per-part overrides
           persistActive();
+        } else {
+          partMaterials[part] = info.id;
         }
       });
     };
@@ -1152,7 +1179,7 @@ async function openCatalogProduct(id: string): Promise<void> {
       kind: string;
       scene?: unknown;
       spec?: FurnitureSpec;
-      defaults?: ModelPrefs;
+      defaults?: ModelPrefs & { materials?: Record<string, string> };
     };
     if (model.kind === 'scene' && model.scene) {
       engine.loadScene(model.scene as Parameters<typeof engine.loadScene>[0]);
@@ -1167,16 +1194,28 @@ async function openCatalogProduct(id: string): Promise<void> {
     activeSaved = null;
     activeCatalogId = id;
     importName = model.name;
-    prefs = { ...DEFAULT_PREFS, ...(model.defaults ?? {}) };
+    partMaterials = {};
+    const defaults = model.defaults ?? {};
+    prefs = { ...DEFAULT_PREFS, ...defaults };
+    // A pushed scene already carries each part's design material — don't clobber
+    // it with the global default unless a whole-piece material was saved.
+    if (model.kind === 'scene' && !defaults.material) prefs.material = undefined;
     applyPrefs(prefs);
+    // Re-apply any saved per-part material overrides.
+    for (const [part, mat] of Object.entries(defaults.materials ?? {})) {
+      engine.setMaterial(mat, part);
+      partMaterials[part] = mat;
+    }
     buildControls();
     refreshPartSelect();
     updateStatus();
     markActive(document.getElementById('catalog')!, null);
     refreshSavedActive();
     highlightCatalogActive();
-    const save = document.getElementById('catalog-save') as HTMLButtonElement | null;
-    if (save) save.hidden = false;
+    for (const id of ['catalog-save', 'catalog-rename']) {
+      const btn = document.getElementById(id) as HTMLButtonElement | null;
+      if (btn) btn.hidden = false;
+    }
     toast(`Loaded “${model.name}”`);
   } catch (error) {
     toast(error instanceof Error ? error.message : String(error));
@@ -1186,13 +1225,14 @@ async function openCatalogProduct(id: string): Promise<void> {
 /** Saves the current finish/lighting/background as the product's defaults. */
 async function saveCatalogLook(): Promise<void> {
   if (!activeCatalogId) return;
-  const defaults = {
+  const defaults: Record<string, unknown> = {
     material: prefs.material,
     stain: prefs.stain,
     panelMaterial: prefs.panelMaterial,
     lighting: prefs.lighting,
     background: prefs.background,
   };
+  if (Object.keys(partMaterials).length) defaults.materials = partMaterials;
   try {
     const res = await fetch(`${RENDER_BASE}/v1/models/${activeCatalogId}`, {
       method: 'PATCH',
@@ -1206,12 +1246,39 @@ async function saveCatalogLook(): Promise<void> {
   }
 }
 
+/** Renames the open catalog product (PATCH name), then refreshes the list. */
+async function renameCatalogProduct(): Promise<void> {
+  if (!activeCatalogId) return;
+  const next = window.prompt('Rename catalog product', importName ?? '');
+  if (next == null) return;
+  const name = next.trim();
+  if (!name || name === importName) return;
+  try {
+    const res = await fetch(`${RENDER_BASE}/v1/models/${activeCatalogId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    importName = name;
+    updateStatus();
+    await buildServerCatalog();
+    highlightCatalogActive();
+    toast(`Renamed to “${name}”`);
+  } catch (error) {
+    toast(error instanceof Error ? error.message : String(error));
+  }
+}
+
 /** Clears the catalog selection when another piece/import/saved model loads. */
 function clearCatalogSelection(): void {
   activeCatalogId = null;
   showingCatalogProduct = false;
-  const save = document.getElementById('catalog-save') as HTMLButtonElement | null;
-  if (save) save.hidden = true;
+  partMaterials = {};
+  for (const id of ['catalog-save', 'catalog-rename']) {
+    const btn = document.getElementById(id) as HTMLButtonElement | null;
+    if (btn) btn.hidden = true;
+  }
   highlightCatalogActive();
 }
 
@@ -1653,6 +1720,9 @@ void buildSavedPanel();
 void buildServerCatalog();
 (document.getElementById('catalog-refresh') as HTMLButtonElement | null)?.addEventListener('click', () =>
   void buildServerCatalog(),
+);
+(document.getElementById('catalog-rename') as HTMLButtonElement | null)?.addEventListener('click', () =>
+  void renameCatalogProduct(),
 );
 (document.getElementById('catalog-save') as HTMLButtonElement | null)?.addEventListener('click', () =>
   void saveCatalogLook(),
