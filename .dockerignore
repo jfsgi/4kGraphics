@@ -1,0 +1,10 @@
+.git
+**/node_modules
+**/dist
+packages/server/harness-dist
+.data
+releases
+*.log
+.vite
+apps/*/dist
+packages/*/dist
