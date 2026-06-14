@@ -162,13 +162,20 @@ describe('drawer box layout', () => {
   });
 
   it('renders a sloped drawer side (tails) with teeth at both ends', () => {
-    const joint = { type: 'dovetail' as const, depth: 0.013, edgeTails: true };
+    const joint = { type: 'dovetail' as const, depth: 0.013, edgePins: true };
     const sloped = slopedDrawerSideGeometry(0.42, 0.06, 0.15, 0.013, joint);
     expect(sloped).not.toBeNull();
     expect(sloped!.attributes.position.count).toBeGreaterThan(100);
     sloped!.computeBoundingBox();
     // Centered on the full height; the back end reaches the full half-height.
     expect(sloped!.boundingBox!.max.y).toBeCloseTo(0.075, 5);
+  });
+
+  it('puts a 3/8" half-pin at the top and bottom edges (edgePins)', () => {
+    const layout = buildLayout({ ...defaultDrawerBoxSpec(), joinery: 'dovetail' as const });
+    const side = layout.parts.find((p) => p.name === 'Drawer side')!;
+    expect(side.joinery?.edgePins).toBe(true);
+    expect(side.joinery?.edgeTails).toBeUndefined();
   });
 
   it('generates real dovetail geometry for both joint boards', () => {

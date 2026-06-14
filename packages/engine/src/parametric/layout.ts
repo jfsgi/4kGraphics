@@ -90,6 +90,8 @@ export interface Part {
     toolDiameterMm?: number;
     /** Drawer convention: half-tails at the top/bottom edges (drops edge pins). */
     edgeTails?: boolean;
+    /** MEJA drawer convention: a 3/8" half-pin (narrow piece) at the top/bottom edges. */
+    edgePins?: boolean;
   };
   /**
    * 45° chamfer between the front (+z) face and the listed side faces —
@@ -464,12 +466,12 @@ function drawerBoxLayout(spec: DrawerBoxSpec): FurnitureLayout {
     spec.scoop && !scoopedSides
       ? { widthMm: Math.min(142, w * 0.38), depthMm: Math.min(19.05, h * 0.35) }
       : undefined;
-  // Dovetail pin count / cutter diameter, and the drawer half-tail edge
-  // convention (half-tails top and bottom, pins inboard).
+  // Dovetail pin count / cutter diameter, and the MEJA drawer edge convention:
+  // a 3/8" half-pin (narrow piece) at the top and bottom edges, tails inboard.
   const dt = {
     pinCount: spec.dovetailPinCount,
     toolDiameterMm: spec.dovetailToolDiameterMm,
-    edgeTails: true,
+    edgePins: true,
   };
 
   // Through-jointed and scooped boxes use a plain 'dovetail'/'boxjoint' type;
@@ -825,6 +827,7 @@ function endTableLayout(spec: EndTableSpec): FurnitureLayout {
         matingThicknessMm: boxT,
         frontLipMm: BOX_LIP,
         backLipMm: BOX_LIP,
+        edgePins: true,
       },
     });
   }
@@ -842,6 +845,7 @@ function endTableLayout(spec: EndTableSpec): FurnitureLayout {
         matingThicknessMm: boxT,
         pinsOuterSign: sz as 1 | -1,
         lipMm: BOX_LIP,
+        edgePins: true,
       },
     });
   }
@@ -1058,7 +1062,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
             matingThicknessMm: boxT,
             frontLipMm: BOX_LIP,
             backLipMm: BOX_LIP,
-            edgeTails: true,
+            edgePins: true,
           },
         });
       }
@@ -1076,7 +1080,7 @@ function drawerUnitLayout(spec: DrawerUnitSpec): FurnitureLayout {
             matingThicknessMm: boxT,
             pinsOuterSign: sz as 1 | -1,
             lipMm: BOX_LIP,
-            edgeTails: true,
+            edgePins: true,
           },
           // Undermount clearance notches in the back board, under the bottom.
           backNotch: sz < 0 && undermount ? undermountBackNotch() : undefined,

@@ -28,6 +28,12 @@ export interface JointSpec {
   toolDiameterM?: number;
   /** Drawer convention: half-tails at the top/bottom edges (drops edge pins). */
   edgeTails?: boolean;
+  /**
+   * MEJA drawer convention: a fixed 3/8" half-PIN (the narrow, straight piece)
+   * at the top and bottom edges, with the tails inboard — the joint begins and
+   * ends with a narrow piece.
+   */
+  edgePins?: boolean;
 }
 
 export interface ScoopSpec {
@@ -138,7 +144,7 @@ interface JointLayout {
   pinSegs?: Array<[number, number]>;
 }
 
-/** Half-tail at the top and bottom edges of a drawer dovetail: 3/8". */
+/** Half-tail (or half-pin) at the top and bottom edges of a drawer dovetail: 3/8". */
 const EDGE_HALF_TAIL_M = 0.009525;
 
 function layoutJoint(height: number, spec: JointSpec): JointLayout | null {
@@ -147,6 +153,39 @@ function layoutJoint(height: number, spec: JointSpec): JointLayout | null {
   // The tail opening between pins can't be narrower than the cutter; that sets
   // both the minimum tail and how many pins can fit.
   const minTail = Math.max(spec.toolDiameterM ?? 0, pinTip * 1.2, 2 * flare + 0.004);
+
+  if (spec.edgePins) {
+    // MEJA drawer convention: a fixed 3/8" half-PIN at each edge, tails inboard —
+    // the joint begins and ends with a narrow piece. Inboard alternates
+    // tail / pin starting and ending with a tail (tails = T, inner pins = T − 1).
+    const edgeHalf = Math.min(EDGE_HALF_TAIL_M, height * 0.22);
+    const mid = height - 2 * edgeHalf;
+    // Auto count: full tails ≈ 3/4" (twice the 3/8" edge), the usual drawer spacing.
+    const fullTailTarget = 2 * edgeHalf;
+    let tails =
+      spec.pinCount && spec.pinCount >= 1
+        ? spec.pinCount
+        : Math.max(1, Math.round((mid + pinTip) / (fullTailTarget + pinTip)));
+    let fullTail = (mid - (tails - 1) * pinTip) / tails;
+    while (tails > 1 && fullTail < minTail) {
+      tails -= 1; // tails too tight for the tool — drop one
+      fullTail = (mid - (tails - 1) * pinTip) / tails;
+    }
+    if (mid < minTail) return null; // board too small for the joint
+    const pinSegs: Array<[number, number]> = [[0, edgeHalf]];
+    const tailSegs: Array<[number, number]> = [];
+    let cur = edgeHalf;
+    for (let k = 0; k < tails; k++) {
+      tailSegs.push([cur, cur + fullTail]);
+      cur += fullTail;
+      if (k < tails - 1) {
+        pinSegs.push([cur, cur + pinTip]);
+        cur += pinTip;
+      }
+    }
+    pinSegs.push([height - edgeHalf, height]);
+    return { pinTip, tailWide: fullTail, flare, tailCenters: [], edgeTails: false, tailSegs, pinSegs };
+  }
 
   if (spec.edgeTails) {
     // Drawer convention: a fixed 3/8" half-tail at each edge, pins never on the
