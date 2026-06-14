@@ -440,18 +440,13 @@ export function orientToYUp(
   upAxis: 'auto' | 'x' | 'y' | 'z',
   flip = false,
 ): void {
-  let axis: number;
-  let sign = 1;
-  if (upAxis === 'auto') {
-    const g = guessUpAxis(group);
-    axis = g.axis;
-    sign = g.topSign;
-  } else {
-    axis = upAxis === 'x' ? 0 : upAxis === 'z' ? 2 : 1;
-  }
-  if (axis === 2) group.rotateX(sign > 0 ? -Math.PI / 2 : Math.PI / 2); // Z-up -> Y-up
-  else if (axis === 0) group.rotateZ(sign > 0 ? Math.PI / 2 : -Math.PI / 2); // X-up -> Y-up
-  else if (sign < 0) group.rotateX(Math.PI); // Y-down -> flip upright
+  // Pick the up axis from the geometry (or honour the override) but keep the
+  // file's own up direction: which end is "up" can't be told reliably from a
+  // mesh, and CAD parts are modelled right-side up, so guessing the sign just
+  // flips good models. The manual Flip handles the rare inverted export.
+  const axis = upAxis === 'auto' ? guessUpAxis(group).axis : upAxis === 'x' ? 0 : upAxis === 'z' ? 2 : 1;
+  if (axis === 2) group.rotateX(-Math.PI / 2); // Z-up -> Y-up
+  else if (axis === 0) group.rotateZ(Math.PI / 2); // X-up -> Y-up
   if (flip) group.rotateX(Math.PI); // user override: turn it the other way up
 }
 
