@@ -155,3 +155,36 @@ So the round-trip is: Atelier3D design → 4K catalog (refine finish/per-part
 materials) → **Push to Atelier3D** → reopens the editable design carrying the
 4K-refined look. The render service must allow the Atelier3D origin via
 `CORS_ORIGINS` so that fetch succeeds.
+
+## Starting a *new* Atelier3D design from a 4K piece (4K → new design)
+
+The 4K tool's header **"Send to Atelier3D"** button pushes whatever's on screen:
+
+- A **built-in parametric piece** (Cabinet Door, Drawer Box, …) hands over its
+  small `FurnitureSpec` **inline**:
+  ```
+  https://<atelier3d>/?new4k=<encodeURIComponent(JSON.stringify(spec))>
+  ```
+- An **open catalog product** uses the `?from4k=<id>&svc=…` link above.
+
+**Atelier3D side — add a `new4k` branch on load:**
+```ts
+const p = new URLSearchParams(location.search);
+const new4k = p.get('new4k');
+if (new4k) {
+  const spec = JSON.parse(decodeURIComponent(new4k));
+  // spec = a 4K FurnitureSpec: { kind, widthMm, depthMm, heightMm,
+  //   stockThicknessMm, ... }. kind ∈ table | bookshelf | cabinet | drawerbox |
+  //   drawerunit | door | drawerfront | endtable.
+  createDesignFromSpec(spec);   // map kind+dims to your components, or start a
+                                // blank project pre-sized to the spec as a seed
+}
+```
+
+`createDesignFromSpec` is Atelier3D's to define — map each 4K `kind`/dimensions
+onto your component library (or, as a first cut, open a new project sized to the
+spec so the maker continues in Atelier3D). The 4K side only sends the spec.
+
+So both directions of "new design" now work:
+- **4K built-in piece → new Atelier3D design** (`?new4k=<spec>`).
+- **4K catalog item → reopen/seed in Atelier3D** (`?from4k=<id>`).

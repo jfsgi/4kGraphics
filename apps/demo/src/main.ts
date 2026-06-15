@@ -1292,6 +1292,24 @@ function pushToAtelier3D(): void {
   toast('Opening in Atelier3D…');
 }
 
+/** Header action: send whatever's on screen to Atelier3D to start a new design.
+ * A built-in parametric piece hands over its (small) spec inline; an open
+ * catalog product hands over its id for Atelier3D to fetch. */
+function sendToAtelier3D(): void {
+  if (!ATELIER3D_BASE) return;
+  let url: string;
+  if (showingCatalogProduct && activeCatalogId) {
+    url = `${ATELIER3D_BASE}/?from4k=${encodeURIComponent(activeCatalogId)}&svc=${encodeURIComponent(RENDER_ABSOLUTE)}`;
+  } else if (showingImport) {
+    toast('Imported meshes can’t seed an Atelier3D design — use a built-in type or a catalog product.');
+    return;
+  } else {
+    url = `${ATELIER3D_BASE}/?new4k=${encodeURIComponent(JSON.stringify(spec))}`;
+  }
+  window.open(url, '_blank', 'noopener');
+  toast('Opening in Atelier3D…');
+}
+
 /** Clears the catalog selection when another piece/import/saved model loads. */
 function clearCatalogSelection(): void {
   activeCatalogId = null;
@@ -1752,3 +1770,10 @@ void buildServerCatalog();
 (document.getElementById('catalog-push') as HTMLButtonElement | null)?.addEventListener('click', () =>
   pushToAtelier3D(),
 );
+{
+  const toAtelier = document.getElementById('to-atelier-btn') as HTMLButtonElement | null;
+  if (toAtelier) {
+    toAtelier.hidden = !ATELIER3D_BASE; // only when an Atelier3D URL is configured
+    toAtelier.addEventListener('click', () => sendToAtelier3D());
+  }
+}
