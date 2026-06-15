@@ -17,7 +17,10 @@ const app = express();
 const corsOrigins = (process.env.CORS_ORIGINS ?? '')
   .split(',')
   .map((o) => o.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  // Tolerate a bare domain (no scheme) — browsers send a full origin, so
+  // normalize `example.com` → `https://example.com` for the match to work.
+  .map((o) => (o === '*' || /^https?:\/\//i.test(o) ? o : `https://${o}`));
 const allowAllOrigins = corsOrigins.includes('*');
 app.use((req, res, next) => {
   const origin = req.headers.origin;

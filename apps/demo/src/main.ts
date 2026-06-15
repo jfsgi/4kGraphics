@@ -60,21 +60,18 @@ let activeCatalogId: string | null = null;
 let showingCatalogProduct = false;
 /** Per-part material overrides (part name → material id), saved with the look. */
 let partMaterials: Record<string, string> = {};
+/** Reads an env URL: strips a trailing slash and prepends https:// when the
+ * value is a bare domain (so a missing protocol doesn't make it a relative path). */
+function envUrl(key: string): string {
+  const raw = ((import.meta.env as Record<string, string | undefined>)[key] ?? '').trim().replace(/\/$/, '');
+  return raw && !/^https?:\/\//i.test(raw) ? `https://${raw}` : raw;
+}
 /** Render-service base URL; empty = same-origin (the Vite dev proxy / a rewrite). */
-const RENDER_BASE = ((import.meta.env as Record<string, string | undefined>).VITE_RENDER_ENDPOINT ?? '').replace(
-  /\/$/,
-  '',
-);
+const RENDER_BASE = envUrl('VITE_RENDER_ENDPOINT');
 /** Absolute render-service URL handed to Atelier3D so it can fetch a pushed item. */
-const RENDER_ABSOLUTE = ((import.meta.env as Record<string, string | undefined>).VITE_RENDER_ENDPOINT ?? '').replace(
-  /\/$/,
-  '',
-);
+const RENDER_ABSOLUTE = envUrl('VITE_RENDER_ENDPOINT');
 /** Atelier3D base URL — when set, enables "Push to Atelier3D". */
-const ATELIER3D_BASE = ((import.meta.env as Record<string, string | undefined>).VITE_ATELIER3D_ENDPOINT ?? '').replace(
-  /\/$/,
-  '',
-);
+const ATELIER3D_BASE = envUrl('VITE_ATELIER3D_ENDPOINT');
 /** Material ids the user added from photos (deletable from the library). */
 const userMaterialIds = new Set<string>();
 let rebuildTimer = 0;
