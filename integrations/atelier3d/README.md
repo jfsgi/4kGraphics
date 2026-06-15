@@ -161,9 +161,9 @@ materials) → **Push to Atelier3D** → reopens the editable design carrying th
 The 4K tool's header **"Send to Atelier3D"** button pushes whatever's on screen:
 
 - A **built-in parametric piece** (Cabinet Door, Drawer Box, …) hands over its
-  small `FurnitureSpec` **inline**:
+  `spec` **and the engine's evaluated part breakdown** `parts`, inline:
   ```
-  https://<atelier3d>/?new4k=<encodeURIComponent(JSON.stringify(spec))>
+  https://<atelier3d>/?new4k=<encodeURIComponent(JSON.stringify({ spec, parts }))>
   ```
 - An **open catalog product** uses the `?from4k=<id>&svc=…` link above.
 
@@ -172,19 +172,21 @@ The 4K tool's header **"Send to Atelier3D"** button pushes whatever's on screen:
 const p = new URLSearchParams(location.search);
 const new4k = p.get('new4k');
 if (new4k) {
-  const spec = JSON.parse(decodeURIComponent(new4k));
-  // spec = a 4K FurnitureSpec: { kind, widthMm, depthMm, heightMm,
-  //   stockThicknessMm, ... }. kind ∈ table | bookshelf | cabinet | drawerbox |
-  //   drawerunit | door | drawerfront | endtable.
-  createDesignFromSpec(spec);   // map kind+dims to your components, or start a
-                                // blank project pre-sized to the spec as a seed
+  const { spec, parts } = JSON.parse(decodeURIComponent(new4k));
+  // spec  = a 4K FurnitureSpec: { kind, widthMm, heightMm, depthMm/thicknessMm, ... }
+  //         kind ∈ table|bookshelf|cabinet|drawerbox|drawerunit|door|drawerfront|endtable
+  // parts = the engine's exact pieces — e.g. a door's 2 stiles + 2 rails + panel:
+  //         [{ name, sizeMm:[w,h,d], positionMm:[x,y,z], rotationRad? }]  (mm, Y-up)
+  createDesignFromParts(spec, parts);
 }
 ```
 
-`createDesignFromSpec` is Atelier3D's to define — map each 4K `kind`/dimensions
-onto your component library (or, as a first cut, open a new project sized to the
-spec so the maker continues in Atelier3D). The 4K side only sends the spec.
+`createDesignFromParts` is Atelier3D's to define. **Build one component/board per
+entry in `parts`** at its `sizeMm`/`positionMm` — that gives you the real 5-piece
+door (stiles, rails, panel), not a single panel. Keep `spec` for the kind/style
+metadata. (For a *fully parametric* door that resizes natively, map `spec.kind`
+onto a proper Atelier3D component — `parts` is the exact reference geometry.)
 
 So both directions of "new design" now work:
-- **4K built-in piece → new Atelier3D design** (`?new4k=<spec>`).
+- **4K built-in piece → new Atelier3D design** (`?new4k={ spec, parts }`).
 - **4K catalog item → reopen/seed in Atelier3D** (`?from4k=<id>`).

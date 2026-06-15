@@ -1301,7 +1301,15 @@ function sendToAtelier3D(): void {
     toast('Imported meshes can’t seed an Atelier3D design — use a built-in type or a catalog product.');
     return;
   } else {
-    url = `${ATELIER3D_BASE}/?new4k=${encodeURIComponent(JSON.stringify(spec))}`;
+    // Carry the engine's actual part breakdown (e.g. a door's 2 stiles, 2 rails,
+    // panel) so Atelier3D rebuilds the pieces instead of a single panel.
+    const parts = (engine.getLayout()?.parts ?? []).map((p) => ({
+      name: p.name,
+      sizeMm: p.sizeMm,
+      positionMm: p.positionMm,
+      rotationRad: p.rotationRad,
+    }));
+    url = `${ATELIER3D_BASE}/?new4k=${encodeURIComponent(JSON.stringify({ spec, parts }))}`;
   }
   window.open(url, '_blank', 'noopener');
   toast('Opening in Atelier3D…');
