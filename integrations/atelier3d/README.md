@@ -161,10 +161,11 @@ materials) → **Push to Atelier3D** → reopens the editable design carrying th
 The 4K tool's header **"Send to Atelier3D"** button pushes whatever's on screen:
 
 - A **built-in parametric piece** (Cabinet Door, Drawer Box, …) hands over its
-  `spec` **and the engine's evaluated part breakdown** `parts`, inline:
+  `spec` in `new4k`, plus the engine's evaluated part breakdown in `new4kparts`:
   ```
-  https://<atelier3d>/?new4k=<encodeURIComponent(JSON.stringify({ spec, parts }))>
+  https://<atelier3d>/?new4k=<encodeURIComponent(JSON.stringify(spec))>&new4kparts=<encodeURIComponent(JSON.stringify(parts))>
   ```
+  (`new4k` is a *bare spec*, so older handlers keep working; `new4kparts` is optional.)
 - An **open catalog product** uses the `?from4k=<id>&svc=…` link above.
 
 **Atelier3D side — add a `new4k` branch on load:**
@@ -172,12 +173,15 @@ The 4K tool's header **"Send to Atelier3D"** button pushes whatever's on screen:
 const p = new URLSearchParams(location.search);
 const new4k = p.get('new4k');
 if (new4k) {
-  const { spec, parts } = JSON.parse(decodeURIComponent(new4k));
-  // spec  = a 4K FurnitureSpec: { kind, widthMm, heightMm, depthMm/thicknessMm, ... }
+  const spec = JSON.parse(new4k);                                   // a bare FurnitureSpec
+  const partsParam = p.get('new4kparts');
+  const parts = partsParam ? JSON.parse(partsParam) : null;
+  // spec  = { kind, widthMm, heightMm, depthMm/thicknessMm, ... }
   //         kind ∈ table|bookshelf|cabinet|drawerbox|drawerunit|door|drawerfront|endtable
   // parts = the engine's exact pieces — e.g. a door's 2 stiles + 2 rails + panel:
   //         [{ name, sizeMm:[w,h,d], positionMm:[x,y,z], rotationRad? }]  (mm, Y-up)
-  createDesignFromParts(spec, parts);
+  if (parts) createDesignFromParts(spec, parts);   // build one board per part → 5-piece door
+  else       createDesignFromSpec(spec);           // fallback: map kind → a component
 }
 ```
 

@@ -1309,7 +1309,10 @@ function sendToAtelier3D(): void {
       positionMm: p.positionMm,
       rotationRad: p.rotationRad,
     }));
-    url = `${ATELIER3D_BASE}/?new4k=${encodeURIComponent(JSON.stringify({ spec, parts }))}`;
+    // `new4k` stays the bare spec (back-compat with existing handlers); the part
+    // breakdown rides alongside in `new4kparts`.
+    url = `${ATELIER3D_BASE}/?new4k=${encodeURIComponent(JSON.stringify(spec))}`;
+    if (parts.length) url += `&new4kparts=${encodeURIComponent(JSON.stringify(parts))}`;
   }
   window.open(url, '_blank', 'noopener');
   toast('Opening in Atelier3D…');
