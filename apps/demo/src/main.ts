@@ -1301,13 +1301,16 @@ function sendToAtelier3D(): void {
     toast('Imported meshes can’t seed an Atelier3D design — use a built-in type or a catalog product.');
     return;
   } else {
-    // Carry the engine's actual part breakdown (e.g. a door's 2 stiles, 2 rails,
-    // panel) so Atelier3D rebuilds the pieces instead of a single panel.
+    // Carry the engine's part breakdown (e.g. a door's 2 stiles, 2 rails, panel)
+    // so Atelier3D rebuilds the pieces, not a single panel. The engine is Y-up
+    // (x=width, y=height, z=depth); Atelier3D is Z-up (x=width, y=depth,
+    // z=height), like the scene contract — so swap the last two axes so the
+    // pieces arrive upright in Atelier3D's frame.
+    const swap = (v: [number, number, number]): [number, number, number] => [v[0], v[2], v[1]];
     const parts = (engine.getLayout()?.parts ?? []).map((p) => ({
       name: p.name,
-      sizeMm: p.sizeMm,
-      positionMm: p.positionMm,
-      rotationRad: p.rotationRad,
+      sizeMm: swap(p.sizeMm),
+      positionMm: swap(p.positionMm),
     }));
     // `new4k` stays the bare spec (back-compat with existing handlers); the part
     // breakdown rides alongside in `new4kparts`.

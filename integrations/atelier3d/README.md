@@ -179,7 +179,8 @@ if (new4k) {
   // spec  = { kind, widthMm, heightMm, depthMm/thicknessMm, ... }
   //         kind ∈ table|bookshelf|cabinet|drawerbox|drawerunit|door|drawerfront|endtable
   // parts = the engine's exact pieces — e.g. a door's 2 stiles + 2 rails + panel:
-  //         [{ name, sizeMm:[w,h,d], positionMm:[x,y,z], rotationRad? }]  (mm, Y-up)
+  //         [{ name, sizeMm:[w,d,h], positionMm:[x,y,z] }]  — mm, Z-up
+  //         (x=width, y=depth, z=height), the SAME frame as your scene contract.
   if (parts) createDesignFromParts(spec, parts);   // build one board per part → 5-piece door
   else       createDesignFromSpec(spec);           // fallback: map kind → a component
 }
